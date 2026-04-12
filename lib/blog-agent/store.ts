@@ -4,6 +4,7 @@ import type { AgentStore, Client, TopicSuggestion, BlogPost, AgentRun, GlobalSet
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const STORE_FILE = path.join(DATA_DIR, "blog-agent.json");
+const KV_KEY = "blog-agent-store";
 
 const DEFAULT_STORE: AgentStore = {
   clients: [],
@@ -26,6 +27,16 @@ const DEFAULT_STORE: AgentStore = {
   },
 };
 
+// Use Vercel KV if available (production), otherwise use file storage (local dev)
+function useKV(): boolean {
+  return !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+}
+
+async function getKV() {
+  const { kv } = await import("@vercel/kv");
+  return kv;
+}
+
 async function ensureDataDir(): Promise<void> {
   try {
     await fs.access(DATA_DIR);
@@ -35,11 +46,25 @@ async function ensureDataDir(): Promise<void> {
 }
 
 export async function getStore(): Promise<AgentStore> {
+  if (useKV()) {
+    const kv = await getKV();
+    const store = await kv.get<AgentStore>(KV_KEY);
+    if (store) {
+      if (!store.globalSettings) {
+        store.globalSettings = DEFAULT_STORE.globalSettings;
+        await saveStore(store);
+      }
+      return store;
+    }
+    await saveStore(DEFAULT_STORE);
+    return DEFAULT_STORE;
+  }
+
+  // File storage fallback for local dev
   await ensureDataDir();
   try {
     const data = await fs.readFile(STORE_FILE, "utf-8");
     const store = JSON.parse(data) as AgentStore;
-    // Migrate: add globalSettings if missing
     if (!store.globalSettings) {
       store.globalSettings = DEFAULT_STORE.globalSettings;
       await saveStore(store);
@@ -51,6 +76,17 @@ export async function getStore(): Promise<AgentStore> {
   }
 }
 
+export async function saveStore(store: AgentStore): Promise<void> {
+  if (useKV()) {
+    const kv = await getKV();
+    await kv.set(KV_KEY, store);
+    return;
+  }
+
+  await ensureDataDir();
+  await fs.writeFile(STORE_FILE, JSON.stringify(store, null, 2), "utf-8");
+}
+
 export async function getGlobalSettings(): Promise<GlobalSettings> {
   const store = await getStore();
   return store.globalSettings;
@@ -60,11 +96,6 @@ export async function saveGlobalSettings(settings: GlobalSettings): Promise<void
   const store = await getStore();
   store.globalSettings = settings;
   await saveStore(store);
-}
-
-export async function saveStore(store: AgentStore): Promise<void> {
-  await ensureDataDir();
-  await fs.writeFile(STORE_FILE, JSON.stringify(store, null, 2), "utf-8");
 }
 
 export async function getClients(): Promise<Client[]> {
