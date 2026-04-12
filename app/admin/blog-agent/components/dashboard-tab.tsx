@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import type { Client, Topic, Post } from "./types";
 
 export default function DashboardTab({
@@ -31,6 +32,17 @@ export default function DashboardTab({
   const readyPosts = posts.filter((p) => p.status === "ready");
   const publishedPosts = posts.filter((p) => p.status === "published");
 
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
+  }, []);
+
+  const currentMonth = useMemo(() => {
+    return new Date().toLocaleDateString("en-AU", { month: "long", year: "numeric" });
+  }, []);
+
   const stats = [
     { label: "Active Clients", value: activeClients.length, color: "var(--color-foreground)" },
     { label: "Pending Topics", value: pendingTopics.length, color: "var(--color-warning)" },
@@ -60,10 +72,35 @@ export default function DashboardTab({
 
   return (
     <div className="space-y-8 animate-fade-in">
+      {/* Hero banner */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 dark:from-zinc-100 dark:via-zinc-200 dark:to-zinc-100 p-8">
+        {/* Decorative circles */}
+        <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-white/5 dark:bg-black/5" />
+        <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-white/5 dark:bg-black/5" />
+        <div className="absolute top-4 right-4 w-20 h-20 rounded-full bg-white/5 dark:bg-black/5" />
+
+        <div className="relative z-10 flex items-center gap-5">
+          <div className="shrink-0 bg-white/10 dark:bg-black/10 rounded-xl p-2.5 backdrop-blur-sm">
+            <img
+              src="https://www.csdesignstudios.com/wp-content/uploads/yootheme/cache/8d/cs-design-studios-logo-8d06a929.webp"
+              alt="CS Design Studios"
+              className="w-12 h-12 object-contain"
+            />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-white/60 dark:text-black/50">{greeting}</p>
+            <h2 className="text-2xl font-bold text-white dark:text-black tracking-tight">{currentMonth} Overview</h2>
+            <p className="text-sm text-white/50 dark:text-black/40 mt-1">
+              {activeClients.length} active client{activeClients.length !== 1 ? "s" : ""} &middot; {publishedPosts.length} published this cycle
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {stats.map((s) => (
-          <div key={s.label} className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl p-5 transition-all duration-200 hover:border-[var(--color-primary)]/30">
+        {stats.map((s, i) => (
+          <div key={s.label} className={`stat-card stat-card-${i} bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl p-5 transition-all duration-200 hover:border-[var(--color-primary)]/30 hover:-translate-y-0.5 hover:shadow-md`}>
             <p className="text-xs font-medium text-[var(--color-muted-foreground)] uppercase tracking-wider">{s.label}</p>
             <p className="text-3xl font-bold mt-2" style={{ color: s.color }}>{s.value}</p>
           </div>

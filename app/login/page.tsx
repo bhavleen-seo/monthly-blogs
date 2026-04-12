@@ -32,14 +32,27 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
+    <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center px-4 relative overflow-hidden">
+      {/* Background glow effects */}
+      <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-transparent blur-3xl pointer-events-none" />
+      <div className="absolute bottom-[-20%] right-[-10%] w-[400px] h-[400px] rounded-full bg-gradient-to-tl from-emerald-500/10 via-teal-500/5 to-transparent blur-3xl pointer-events-none" />
+
+      <div className="w-full max-w-sm relative z-10">
         <div className="text-center mb-8">
+          <div className="flex justify-center mb-4">
+            <div className="login-logo-glow rounded-2xl p-3">
+              <img
+                src="https://www.csdesignstudios.com/wp-content/uploads/yootheme/cache/8d/cs-design-studios-logo-8d06a929.webp"
+                alt="CS Design Studios"
+                className="w-14 h-14 object-contain"
+              />
+            </div>
+          </div>
           <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Monthly Blogs</h1>
           <p className="text-sm text-[var(--color-muted-foreground)] mt-1">CS Design Studios</p>
         </div>
 
-        <form onSubmit={handleLogin} className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
+        <form onSubmit={handleLogin} className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl p-6 space-y-4 shadow-lg backdrop-blur-sm">
           <div>
             <label className="block text-xs font-medium text-[var(--color-muted-foreground)] mb-1.5">Password</label>
             <input

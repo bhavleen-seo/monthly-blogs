@@ -113,6 +113,37 @@ input:focus, select:focus, textarea:focus {
   animation: toastIn 0.3s ease-out;
 }
 
+/* Login logo glow */
+.login-logo-glow {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(16, 185, 129, 0.08));
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  animation: logoPulse 3s ease-in-out infinite;
+}
+
+.dark .login-logo-glow {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(16, 185, 129, 0.12));
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+@keyframes logoPulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.1), 0 0 40px rgba(16, 185, 129, 0.05); }
+  50% { box-shadow: 0 0 30px rgba(99, 102, 241, 0.15), 0 0 60px rgba(16, 185, 129, 0.08); }
+}
+
+/* Stat card stagger animation */
+.stat-card {
+  animation: statSlideUp 0.4s ease-out both;
+}
+.stat-card-0 { animation-delay: 0ms; }
+.stat-card-1 { animation-delay: 60ms; }
+.stat-card-2 { animation-delay: 120ms; }
+.stat-card-3 { animation-delay: 180ms; }
+
+@keyframes statSlideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

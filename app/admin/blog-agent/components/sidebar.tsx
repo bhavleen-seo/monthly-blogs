@@ -47,8 +47,17 @@ export default function Sidebar({
     <aside className="fixed left-0 top-0 bottom-0 w-60 bg-[var(--color-sidebar)] border-r border-[var(--color-sidebar-border)] flex flex-col z-40">
       {/* Logo */}
       <div className="px-5 py-5 border-b border-[var(--color-sidebar-border)]">
-        <h1 className="text-base font-semibold text-[var(--color-foreground)] tracking-tight">Monthly Blogs</h1>
-        <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">CS Design Studios</p>
+        <div className="flex items-center gap-3">
+          <img
+            src="https://www.csdesignstudios.com/wp-content/uploads/yootheme/cache/8d/cs-design-studios-logo-8d06a929.webp"
+            alt="CS Design Studios"
+            className="w-8 h-8 rounded-lg object-contain"
+          />
+          <div>
+            <h1 className="text-base font-semibold text-[var(--color-foreground)] tracking-tight leading-tight">Monthly Blogs</h1>
+            <p className="text-[10px] text-[var(--color-muted-foreground)] uppercase tracking-widest">CS Design Studios</p>
+          </div>
+        </div>
       </div>
 
       {/* Nav */}
