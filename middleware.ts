@@ -1,9 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import crypto from "crypto";
-
-function hashToken(password: string): string {
-  return crypto.createHash("sha256").update(password).digest("hex");
-}
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -21,7 +16,9 @@ export function middleware(req: NextRequest) {
   }
 
   const token = req.cookies.get("auth_token")?.value;
-  const expectedToken = hashToken(password + password);
+
+  // Simple token check: base64 of the password
+  const expectedToken = btoa(password);
 
   if (token === expectedToken) {
     return NextResponse.next();
@@ -34,11 +31,6 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all paths except:
-     * - _next (Next.js internals)
-     * - static files (images, fonts, etc.)
-     */
     "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };
