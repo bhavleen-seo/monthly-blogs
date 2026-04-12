@@ -36,6 +36,7 @@ ${globalRulesSection}
 - **Brand Tone:** ${client.tone}
 - **Target Keywords:** ${client.keywords.join(", ")}
 - **Blog Categories:** ${client.blogCategories.join(", ")}
+${client.seoNotes ? `\n## Client-Specific SEO Instructions (MUST follow)\n${client.seoNotes}` : ""}
 
 ## Month: ${month}
 

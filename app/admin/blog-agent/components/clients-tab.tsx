@@ -10,6 +10,7 @@ export default function ClientsTab({
   onAddClient,
   onDeleteClient,
   onToggleActive,
+  onUpdateClient,
   onTestConnection,
   onResearch,
 }: {
@@ -19,11 +20,15 @@ export default function ClientsTab({
   onAddClient: (data: Record<string, unknown>) => void;
   onDeleteClient: (id: string) => void;
   onToggleActive: (client: Client) => void;
+  onUpdateClient: (client: Client) => void;
   onTestConnection: (id: string) => void;
   onResearch: (clientId: string) => void;
 }) {
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
+  const [editingKeywords, setEditingKeywords] = useState<string | null>(null);
+  const [kwDraft, setKwDraft] = useState("");
+  const [seoDraft, setSeoDraft] = useState("");
 
   const filtered = clients.filter((c) =>
     c.businessName.toLowerCase().includes(search.toLowerCase()) ||
@@ -143,6 +148,24 @@ export default function ClientsTab({
               <p className="truncate">WP: {client.wordpressUrl}</p>
             </div>
             <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  if (editingKeywords === client.id) {
+                    setEditingKeywords(null);
+                  } else {
+                    setEditingKeywords(client.id);
+                    setKwDraft(client.keywords?.join(", ") || "");
+                    setSeoDraft(client.seoNotes || "");
+                  }
+                }}
+                className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-all ${
+                  editingKeywords === client.id
+                    ? "border-[var(--color-primary)] text-[var(--color-primary)] bg-[var(--color-primary)]/5"
+                    : "border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:bg-[var(--color-hover)] hover:text-[var(--color-foreground)]"
+                }`}
+              >
+                Keywords
+              </button>
               <button onClick={() => onTestConnection(client.id)} className="text-xs font-medium px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:bg-[var(--color-hover)] hover:text-[var(--color-foreground)] transition-all">
                 Test WP
               </button>
@@ -153,6 +176,57 @@ export default function ClientsTab({
                 Delete
               </button>
             </div>
+
+            {/* Keywords & SEO editor */}
+            {editingKeywords === client.id && (
+              <div className="mt-4 pt-4 border-t border-[var(--color-border)] space-y-3 animate-slide-up">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--color-muted-foreground)] mb-1.5">Target Keywords</label>
+                  <input
+                    type="text"
+                    value={kwDraft}
+                    onChange={(e) => setKwDraft(e.target.value)}
+                    placeholder="keyword 1, keyword 2, keyword 3"
+                    className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted-foreground)]"
+                  />
+                  <p className="text-[10px] text-[var(--color-muted-foreground)] mt-1">Comma-separated keywords Claude should target</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--color-muted-foreground)] mb-1.5">SEO Notes for this Client</label>
+                  <textarea
+                    value={seoDraft}
+                    onChange={(e) => setSeoDraft(e.target.value)}
+                    rows={3}
+                    placeholder="e.g. Focus on local Phoenix area keywords. Link to /services/roof-repair page. Mention 20+ years experience."
+                    className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted-foreground)] resize-y"
+                  />
+                  <p className="text-[10px] text-[var(--color-muted-foreground)] mt-1">Client-specific instructions Claude follows when researching and writing</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      const updated = {
+                        ...client,
+                        keywords: kwDraft.split(",").map((k) => k.trim()).filter(Boolean),
+                        seoNotes: seoDraft,
+                        updatedAt: new Date().toISOString(),
+                      };
+                      onUpdateClient(updated);
+                      setEditingKeywords(null);
+                    }}
+                    className="text-xs font-medium px-4 py-1.5 rounded-lg bg-[var(--color-primary)] text-white hover:opacity-90 transition-all"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => setEditingKeywords(null)}
+                    className="text-xs font-medium px-4 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-all"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>

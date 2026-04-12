@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
       wordpressAppPassword: body.wordpressAppPassword,
       tone: body.tone || "professional",
       keywords: body.keywords || [],
+      seoNotes: body.seoNotes || "",
       blogCategories: body.blogCategories || [],
       postsPerMonth: body.postsPerMonth || 2,
       isActive: true,
