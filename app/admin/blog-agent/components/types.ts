@@ -11,7 +11,8 @@ export interface Client {
   isActive: boolean;
   wordpressUrl: string;
   wordpressUsername: string;
-  wordpressAppPassword: string;
+  wordpressAppPassword?: string;
+  hasWordpressPassword?: boolean;
   targetAudience: string;
   blogCategories: string[];
   websiteUrl: string;

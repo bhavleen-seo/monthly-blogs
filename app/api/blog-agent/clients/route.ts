@@ -6,7 +6,12 @@ import type { Client } from "@/lib/blog-agent";
 export async function GET() {
   try {
     const clients = await getClients();
-    return NextResponse.json({ clients });
+    // Strip sensitive credentials from response
+    const safeClients = clients.map(({ wordpressAppPassword, ...rest }) => ({
+      ...rest,
+      hasWordpressPassword: !!wordpressAppPassword,
+    }));
+    return NextResponse.json({ clients: safeClients });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to fetch clients" },
@@ -57,6 +62,10 @@ export async function PUT(req: NextRequest) {
     const existing = await getClient(body.id);
     if (!existing) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
+    }
+    // Preserve existing WP password if not provided in update
+    if (!body.wordpressAppPassword) {
+      body.wordpressAppPassword = existing.wordpressAppPassword;
     }
     const updated: Client = { ...existing, ...body, updatedAt: new Date().toISOString() };
     await saveClient(updated);
