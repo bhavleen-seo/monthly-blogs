@@ -150,14 +150,14 @@ export default function BlogAgentDashboard() {
     showMessage("Client deleted");
   };
 
-  const handleResearchTopics = async (clientId?: string) => {
+  const handleResearchTopics = async (clientId?: string, regenerate = false) => {
     setLoading(true);
-    showMessage("Researching topics... This may take a minute.");
+    showMessage(regenerate ? "Regenerating topics... This may take a minute." : "Researching topics... This may take a minute.");
     try {
       const res = await fetch("/api/blog-agent/topics", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId }),
+        body: JSON.stringify({ clientId, regenerate }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -522,17 +522,99 @@ export default function BlogAgentDashboard() {
                     Approve All Pending ({pendingTopics.length})
                   </button>
                 )}
-                <button
-                  onClick={() => handleResearchTopics()}
-                  disabled={loading}
-                  className="bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg text-sm hover:opacity-90 disabled:opacity-50"
-                >
-                  Research New Topics
-                </button>
               </div>
             </div>
 
-            {["pending", "approved", "rejected"].map((status) => {
+            {/* Pending topics grouped by client */}
+            {(() => {
+              const pendingByClient = new Map<string, { clientName: string; clientId: string; topics: Topic[] }>();
+              pendingTopics.forEach((t) => {
+                if (!pendingByClient.has(t.clientId)) {
+                  pendingByClient.set(t.clientId, { clientName: t.clientName, clientId: t.clientId, topics: [] });
+                }
+                pendingByClient.get(t.clientId)!.topics.push(t);
+              });
+
+              if (pendingByClient.size === 0) return null;
+
+              return (
+                <div>
+                  <h3 className="text-sm font-medium text-[var(--color-muted-foreground)] uppercase tracking-wider mb-2">
+                    pending ({pendingTopics.length})
+                  </h3>
+                  <div className="space-y-4">
+                    {Array.from(pendingByClient.values()).map((group) => (
+                      <div key={group.clientId} className="border border-[var(--color-border)] rounded-lg overflow-hidden">
+                        <div className="flex items-center justify-between bg-[var(--color-muted)] px-4 py-2.5">
+                          <span className="text-sm font-medium text-white">{group.clientName} ({group.topics.length} topics)</span>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleBulkApprove(group.topics.map((t) => t.id))}
+                              className="text-xs bg-[var(--color-success)] text-white px-3 py-1.5 rounded hover:opacity-90"
+                            >
+                              Approve All
+                            </button>
+                            <button
+                              onClick={() => handleResearchTopics(group.clientId, true)}
+                              disabled={loading}
+                              className="text-xs bg-[var(--color-warning)] text-white px-3 py-1.5 rounded hover:opacity-90 disabled:opacity-50"
+                            >
+                              Regenerate
+                            </button>
+                          </div>
+                        </div>
+                        <div className="space-y-0 divide-y divide-[var(--color-border)]">
+                          {group.topics.map((topic) => (
+                            <div key={topic.id} className="bg-[var(--color-card)] p-4">
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-white">{topic.title}</p>
+                                  <p className="text-sm text-[var(--color-muted-foreground)] mt-1">{topic.description}</p>
+                                  <div className="flex gap-2 mt-2 flex-wrap">
+                                    <span className="text-xs bg-[var(--color-secondary)] px-2 py-0.5 rounded text-[var(--color-secondary-foreground)]">
+                                      {topic.month}
+                                    </span>
+                                    <span className={`text-xs px-2 py-0.5 rounded ${
+                                      topic.estimatedSearchVolume === "high" ? "bg-[var(--color-success)]/20 text-[var(--color-success)]" :
+                                      topic.estimatedSearchVolume === "medium" ? "bg-[var(--color-warning)]/20 text-[var(--color-warning)]" :
+                                      "bg-[var(--color-muted)] text-[var(--color-muted-foreground)]"
+                                    }`}>
+                                      {topic.estimatedSearchVolume} volume
+                                    </span>
+                                    {topic.targetKeywords.map((kw) => (
+                                      <span key={kw} className="text-xs bg-[var(--color-muted)] px-2 py-0.5 rounded text-[var(--color-muted-foreground)]">
+                                        {kw}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="flex gap-2 ml-4 shrink-0">
+                                  <button
+                                    onClick={() => handleTopicAction(topic.id, "approve")}
+                                    className="text-sm bg-[var(--color-success)] text-white px-4 py-1.5 rounded hover:opacity-90"
+                                  >
+                                    Approve
+                                  </button>
+                                  <button
+                                    onClick={() => handleTopicAction(topic.id, "reject")}
+                                    className="text-sm bg-[var(--color-destructive)] text-white px-4 py-1.5 rounded hover:opacity-90"
+                                  >
+                                    Reject
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Approved and rejected topics */}
+            {["approved", "rejected"].map((status) => {
               const filtered = topics.filter((t) => t.status === status);
               if (filtered.length === 0) return null;
               return (
@@ -571,22 +653,6 @@ export default function BlogAgentDashboard() {
                               ))}
                             </div>
                           </div>
-                          {status === "pending" && (
-                            <div className="flex gap-2 ml-4 shrink-0">
-                              <button
-                                onClick={() => handleTopicAction(topic.id, "approve")}
-                                className="text-sm bg-[var(--color-success)] text-white px-4 py-1.5 rounded hover:opacity-90"
-                              >
-                                Approve
-                              </button>
-                              <button
-                                onClick={() => handleTopicAction(topic.id, "reject")}
-                                className="text-sm bg-[var(--color-destructive)] text-white px-4 py-1.5 rounded hover:opacity-90"
-                              >
-                                Reject
-                              </button>
-                            </div>
-                          )}
                         </div>
                       </div>
                     ))}
@@ -597,7 +663,7 @@ export default function BlogAgentDashboard() {
 
             {topics.length === 0 && (
               <p className="text-[var(--color-muted-foreground)] text-center py-12">
-                No topics yet. Click &quot;Research New Topics&quot; to generate suggestions for your clients.
+                No topics yet. Go to the Clients tab and click &quot;Research&quot; on a client to generate topic suggestions.
               </p>
             )}
           </div>

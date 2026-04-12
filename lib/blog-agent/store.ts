@@ -118,6 +118,19 @@ export async function saveTopic(topic: TopicSuggestion): Promise<void> {
   await saveStore(store);
 }
 
+export async function deleteTopicsByClient(clientId: string, status?: string): Promise<number> {
+  const store = await getStore();
+  const before = store.topics.length;
+  store.topics = store.topics.filter((t) => {
+    if (t.clientId !== clientId) return true;
+    if (status && t.status !== status) return true;
+    return false;
+  });
+  const deleted = before - store.topics.length;
+  await saveStore(store);
+  return deleted;
+}
+
 export async function getPosts(filters?: {
   clientId?: string;
   status?: string;

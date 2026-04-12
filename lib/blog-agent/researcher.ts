@@ -10,7 +10,7 @@ export async function researchTopics(
   month: string,
   count?: number
 ): Promise<TopicSuggestion[]> {
-  const numTopics = count || client.postsPerMonth * 2;
+  const numTopics = count || Math.max(5, client.postsPerMonth * 2);
   const settings = await getGlobalSettings();
 
   const pastTopics = await getTopics({ clientId: client.id });
