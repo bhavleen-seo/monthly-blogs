@@ -37,7 +37,7 @@ export default function SettingsTab() {
         </div>
         <button
           onClick={handleSave}
-          className={`px-5 py-2 rounded-lg text-sm font-medium text-white transition-all ${saved ? "bg-[var(--color-success)]" : "bg-[var(--color-primary)] hover:opacity-90"}`}
+          className={`px-5 py-2 rounded-lg text-sm font-medium text-[var(--color-primary-foreground)] transition-all ${saved ? "bg-[var(--color-success)]" : "bg-[var(--color-primary)] hover:opacity-90"}`}
         >
           {saved ? "Saved!" : "Save Settings"}
         </button>

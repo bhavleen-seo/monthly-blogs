@@ -58,7 +58,7 @@ export default function TopicsTab({
         {pending.length > 0 && (
           <button
             onClick={() => onBulkApprove(pending.map((t) => t.id))}
-            className="bg-[var(--color-success)] text-white px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90"
+            className="bg-[var(--color-success)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90"
           >
             Approve All ({pending.length})
           </button>
@@ -156,7 +156,7 @@ function TopicRow({ topic, onApprove, onReject, showActions }: { topic: Topic; o
         </div>
         {showActions && (
           <div className="flex gap-2 shrink-0">
-            <button onClick={() => onApprove(topic.id)} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-success)] text-white hover:opacity-90 transition-opacity">
+            <button onClick={() => onApprove(topic.id)} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-success)] text-[var(--color-primary-foreground)] hover:opacity-90 transition-opacity">
               Approve
             </button>
             <button onClick={() => onReject(topic.id)} className="text-xs font-medium px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)] hover:border-[var(--color-destructive)] transition-all">

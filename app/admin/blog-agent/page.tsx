@@ -195,8 +195,8 @@ export default function BlogAgentDashboard() {
       {/* Toast */}
       {toast && (
         <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium animate-toast-in ${
-          toast.type === "success" ? "bg-[var(--color-success)] text-white" :
-          toast.type === "error" ? "bg-[var(--color-destructive)] text-white" :
+          toast.type === "success" ? "bg-[var(--color-success)] text-[var(--color-primary-foreground)]" :
+          toast.type === "error" ? "bg-[var(--color-destructive)] text-[var(--color-primary-foreground)]" :
           "bg-[var(--color-card)] text-[var(--color-foreground)] border border-[var(--color-border)]"
         }`}>
           {toast.type === "success" && (

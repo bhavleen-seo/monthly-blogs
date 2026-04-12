@@ -71,7 +71,7 @@ export default function Sidebar({
               </svg>
               <span className="truncate">{item.label}</span>
               {badge && (
-                <span className="ml-auto text-xs bg-[var(--color-primary)] text-white px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                <span className="ml-auto text-xs bg-[var(--color-primary)] text-[var(--color-primary-foreground)] px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
                   {badge}
                 </span>
               )}

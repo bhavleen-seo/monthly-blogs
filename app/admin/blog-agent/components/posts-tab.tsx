@@ -55,12 +55,12 @@ export default function PostsTab({
         </select>
         <div className="flex gap-2">
           {approvedTopics.length > 0 && (
-            <button onClick={onWritePosts} disabled={loading} className="bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40">
+            <button onClick={onWritePosts} disabled={loading} className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40">
               Write Posts ({approvedTopics.length} topics)
             </button>
           )}
           {readyPosts.length > 0 && (
-            <button onClick={onPublishPosts} disabled={loading} className="bg-[var(--color-success)] text-white px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40">
+            <button onClick={onPublishPosts} disabled={loading} className="bg-[var(--color-success)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40">
               Publish ({readyPosts.length})
             </button>
           )}

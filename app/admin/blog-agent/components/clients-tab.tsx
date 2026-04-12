@@ -76,13 +76,13 @@ export default function ClientsTab({
         </div>
         <div className="flex gap-2">
           {clients.length === 0 && (
-            <button onClick={onSeed} disabled={loading} className="bg-[var(--color-success)] text-white px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40">
+            <button onClick={onSeed} disabled={loading} className="bg-[var(--color-success)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40">
               Load All 26 Clients
             </button>
           )}
           <button
             onClick={() => setShowAdd(!showAdd)}
-            className="bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90"
+            className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90"
           >
             {showAdd ? "Cancel" : "+ Add Client"}
           </button>
@@ -117,7 +117,7 @@ export default function ClientsTab({
             <Input name="blogCategories" label="Blog Categories" placeholder="Tips, News, Guides" />
             <Input name="postsPerMonth" label="Posts Per Month" placeholder="1" type="number" />
           </div>
-          <button type="submit" className="mt-4 bg-[var(--color-primary)] text-white px-6 py-2 rounded-lg text-sm font-medium hover:opacity-90">
+          <button type="submit" className="mt-4 bg-[var(--color-primary)] text-[var(--color-primary-foreground)] px-6 py-2 rounded-lg text-sm font-medium hover:opacity-90">
             Add Client
           </button>
         </form>
@@ -169,7 +169,7 @@ export default function ClientsTab({
               <button onClick={() => onTestConnection(client.id)} className="text-xs font-medium px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:bg-[var(--color-hover)] hover:text-[var(--color-foreground)] transition-all">
                 Test WP
               </button>
-              <button onClick={() => onResearch(client.id)} disabled={loading} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-white hover:opacity-90 disabled:opacity-40 transition-all">
+              <button onClick={() => onResearch(client.id)} disabled={loading} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:opacity-90 disabled:opacity-40 transition-all">
                 Research
               </button>
               <button onClick={() => onDeleteClient(client.id)} className="text-xs font-medium px-3 py-1.5 rounded-lg text-[var(--color-destructive)] hover:bg-[var(--color-destructive)]/10 transition-all ml-auto opacity-0 group-hover:opacity-100">
@@ -214,7 +214,7 @@ export default function ClientsTab({
                       onUpdateClient(updated);
                       setEditingKeywords(null);
                     }}
-                    className="text-xs font-medium px-4 py-1.5 rounded-lg bg-[var(--color-primary)] text-white hover:opacity-90 transition-all"
+                    className="text-xs font-medium px-4 py-1.5 rounded-lg bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:opacity-90 transition-all"
                   >
                     Save
                   </button>

@@ -75,14 +75,14 @@ export default function DashboardTab({
         {actions.map((a) => (
           <div key={a.step} className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl p-5 transition-all duration-200 hover:border-[var(--color-primary)]/30">
             <div className="flex items-center gap-2 mb-2">
-              <span className="w-6 h-6 rounded-full bg-[var(--color-primary)] text-white text-xs font-bold flex items-center justify-center">{a.step}</span>
+              <span className="w-6 h-6 rounded-full bg-[var(--color-primary)] text-[var(--color-primary-foreground)] text-xs font-bold flex items-center justify-center">{a.step}</span>
               <h3 className="font-semibold text-[var(--color-foreground)]">{a.title}</h3>
             </div>
             <p className="text-sm text-[var(--color-muted-foreground)] mb-4">{a.desc}</p>
             <button
               onClick={a.onClick}
               disabled={a.disabled}
-              className="w-full bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full bg-[var(--color-primary)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {a.btn}
             </button>
@@ -138,7 +138,7 @@ export default function DashboardTab({
             <h3 className="font-semibold text-[var(--color-foreground)]">Awaiting Approval</h3>
             <button
               onClick={() => onBulkApprove(pendingTopics.map((t) => t.id))}
-              className="text-xs font-medium bg-[var(--color-success)] text-white px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity"
+              className="text-xs font-medium bg-[var(--color-success)] text-[var(--color-primary-foreground)] px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity"
             >
               Approve All ({pendingTopics.length})
             </button>
