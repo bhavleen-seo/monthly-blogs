@@ -1,0 +1,802 @@
+{
+  "clients": [
+    {
+      "name": "Altitude Home Loans",
+      "businessName": "Altitude Home Loans",
+      "industry": "Mortgage & Home Loans",
+      "targetAudience": "Homebuyers and refinancers",
+      "location": "Arizona",
+      "websiteUrl": "https://altitudehomeloans.com",
+      "wordpressUrl": "https://altitudehomeloans.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "professional",
+      "keywords": [
+        "home loans",
+        "mortgage rates",
+        "refinancing",
+        "first-time homebuyer"
+      ],
+      "blogCategories": [
+        "Mortgage Tips",
+        "Home Buying",
+        "Refinancing"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "9e1285ba-8924-4e0b-9676-9c9871438192",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "Arizona Uniform",
+      "businessName": "Arizona Uniform",
+      "industry": "Uniform & Workwear",
+      "targetAudience": "Businesses needing uniforms and workwear",
+      "location": "Arizona",
+      "websiteUrl": "https://arizonauniform.com",
+      "wordpressUrl": "https://arizonauniform.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "professional",
+      "keywords": [
+        "work uniforms",
+        "custom uniforms",
+        "corporate workwear"
+      ],
+      "blogCategories": [
+        "Uniforms",
+        "Workwear Tips",
+        "Industry News"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "00e382b3-5ade-4d43-a562-90eafa885b2b",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "Bob's Custom Roofing",
+      "businessName": "Bob's Custom Roofing",
+      "industry": "Roofing",
+      "targetAudience": "Homeowners needing roofing services",
+      "location": "Arizona",
+      "websiteUrl": "https://bobscustomroofing.com",
+      "wordpressUrl": "https://bobscustomroofing.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "friendly",
+      "keywords": [
+        "roof repair",
+        "custom roofing",
+        "roof replacement",
+        "roofing contractor"
+      ],
+      "blogCategories": [
+        "Roofing Tips",
+        "Home Maintenance",
+        "Roofing Services"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "9485f325-e1fa-475e-a812-42767f0619f3",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "CAMCO",
+      "businessName": "CAMCO",
+      "industry": "Property Management",
+      "targetAudience": "HOA communities and property owners",
+      "location": "Arizona",
+      "websiteUrl": "https://camcoaz.com",
+      "wordpressUrl": "https://camcoaz.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "professional",
+      "keywords": [
+        "property management",
+        "HOA management",
+        "community management"
+      ],
+      "blogCategories": [
+        "Property Management",
+        "HOA Tips",
+        "Community Living"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "1c9db189-0b17-43ab-8da1-b379a856cb39",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "Connect Security",
+      "businessName": "Connect Security",
+      "industry": "Security Systems",
+      "targetAudience": "Homeowners and businesses seeking security solutions",
+      "location": "Arizona",
+      "websiteUrl": "https://connectsecurity.com",
+      "wordpressUrl": "https://connectsecurity.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "authoritative",
+      "keywords": [
+        "home security",
+        "security systems",
+        "surveillance cameras",
+        "alarm systems"
+      ],
+      "blogCategories": [
+        "Security Tips",
+        "Home Safety",
+        "Business Security"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "911a99b2-9375-48d7-a279-c5bb931cfb01",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "CS Design Studios",
+      "businessName": "CS Design Studios",
+      "industry": "Digital Marketing & Web Design",
+      "targetAudience": "Small businesses needing digital marketing",
+      "location": "Arizona",
+      "websiteUrl": "https://csdesignstudios.com",
+      "wordpressUrl": "https://csdesignstudios.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "professional",
+      "keywords": [
+        "web design",
+        "digital marketing",
+        "SEO services",
+        "social media marketing"
+      ],
+      "blogCategories": [
+        "Marketing Tips",
+        "Web Design",
+        "SEO",
+        "Social Media"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "8e4ce9e6-7d70-46a0-852d-f53724caf174",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "Cutting Edge Collision",
+      "businessName": "Cutting Edge Collision",
+      "industry": "Auto Body Repair",
+      "targetAudience": "Vehicle owners needing collision repair",
+      "location": "Arizona",
+      "websiteUrl": "https://cuttingedgeref.com",
+      "wordpressUrl": "https://cuttingedgeref.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "friendly",
+      "keywords": [
+        "collision repair",
+        "auto body shop",
+        "car dent repair",
+        "paint repair"
+      ],
+      "blogCategories": [
+        "Auto Repair",
+        "Car Care Tips",
+        "Collision Services"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "471077f9-dac9-4ae1-a6ec-ef5027a121ca",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "Easy Breezy",
+      "businessName": "Easy Breezy",
+      "industry": "HVAC",
+      "targetAudience": "Homeowners needing AC and heating services",
+      "location": "Arizona",
+      "websiteUrl": "https://easybreezeyheat-ac.com",
+      "wordpressUrl": "https://easybreezeyheat-ac.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "friendly",
+      "keywords": [
+        "AC repair",
+        "HVAC service",
+        "air conditioning",
+        "heating repair"
+      ],
+      "blogCategories": [
+        "HVAC Tips",
+        "Home Comfort",
+        "Energy Efficiency"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "400975ae-2ff7-4321-bfbc-7d6973afcd24",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "Elite Wildlife",
+      "businessName": "Elite Wildlife Solutions",
+      "industry": "Wildlife Removal",
+      "targetAudience": "Homeowners dealing with wildlife issues",
+      "location": "Georgia",
+      "websiteUrl": "https://elitewildlifesolutionsga.com",
+      "wordpressUrl": "https://elitewildlifesolutionsga.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "authoritative",
+      "keywords": [
+        "wildlife removal",
+        "pest control",
+        "animal removal",
+        "wildlife management"
+      ],
+      "blogCategories": [
+        "Wildlife Control",
+        "Prevention Tips",
+        "Local Wildlife"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "498f5bb1-ae15-405e-974f-54d02df701e6",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "Formula 1 Collision",
+      "businessName": "Formula 1 Collision",
+      "industry": "Auto Body Repair",
+      "targetAudience": "Vehicle owners needing collision and body work",
+      "location": "Arizona",
+      "websiteUrl": "https://formula1collision.com",
+      "wordpressUrl": "https://formula1collision.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "professional",
+      "keywords": [
+        "auto body repair",
+        "collision center",
+        "car restoration",
+        "paint correction"
+      ],
+      "blogCategories": [
+        "Auto Repair",
+        "Car Care",
+        "Collision Services"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "3920b115-f012-4453-a6e7-9867d08cb8b3",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "Greer Painting",
+      "businessName": "Nelson Greer Painting",
+      "industry": "Painting Services",
+      "targetAudience": "Homeowners and businesses needing painting",
+      "location": "Arizona",
+      "websiteUrl": "https://nelsongreerpainting.com",
+      "wordpressUrl": "https://nelsongreerpainting.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "friendly",
+      "keywords": [
+        "house painting",
+        "commercial painting",
+        "interior painting",
+        "exterior painting"
+      ],
+      "blogCategories": [
+        "Painting Tips",
+        "Home Improvement",
+        "Color Ideas"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "8bca55cc-cf6d-466e-943e-c2c64356f183",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "GLW Shows",
+      "businessName": "GLW Shows",
+      "industry": "Events & Shows",
+      "targetAudience": "Event attendees and exhibitors",
+      "location": "Arizona",
+      "websiteUrl": "https://glwshows.com",
+      "wordpressUrl": "https://glwshows.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "conversational",
+      "keywords": [
+        "trade shows",
+        "events",
+        "exhibitions",
+        "gun shows"
+      ],
+      "blogCategories": [
+        "Events",
+        "Show Calendar",
+        "Exhibitor Tips"
+      ],
+      "postsPerMonth": 2,
+      "isActive": true,
+      "id": "919430fa-e0d8-4a3f-a81a-e178532de751",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "Hook Crane",
+      "businessName": "Hook Crane",
+      "industry": "Crane Services",
+      "targetAudience": "Construction companies and contractors",
+      "location": "Arizona",
+      "websiteUrl": "https://hookcrane.com",
+      "wordpressUrl": "https://hookcrane.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "professional",
+      "keywords": [
+        "crane rental",
+        "crane services",
+        "heavy lifting",
+        "construction crane"
+      ],
+      "blogCategories": [
+        "Crane Services",
+        "Construction",
+        "Safety"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "473600fc-4ab1-4315-b518-3a8077c95929",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "Joe's Yard and Tree",
+      "businessName": "Joe's Yard and Tree",
+      "industry": "Landscaping & Tree Service",
+      "targetAudience": "Homeowners needing yard and tree services",
+      "location": "Arizona",
+      "websiteUrl": "https://joes-yard.com",
+      "wordpressUrl": "https://joes-yard.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "friendly",
+      "keywords": [
+        "tree trimming",
+        "yard maintenance",
+        "landscaping",
+        "tree removal"
+      ],
+      "blogCategories": [
+        "Landscaping Tips",
+        "Tree Care",
+        "Yard Maintenance"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "82902015-ad63-4a4e-bb22-a1c1cc824492",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "Little Germany",
+      "businessName": "Little Germany",
+      "industry": "Restaurant & Food",
+      "targetAudience": "Diners and food enthusiasts",
+      "location": "Tucson, Arizona",
+      "websiteUrl": "https://littlegermanytucson.com",
+      "wordpressUrl": "https://littlegermanytucson.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "conversational",
+      "keywords": [
+        "German restaurant",
+        "German food",
+        "authentic cuisine",
+        "beer garden"
+      ],
+      "blogCategories": [
+        "Food & Drink",
+        "German Culture",
+        "Events"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "09a75bdc-19f0-4448-91ce-f85b07b4d9c0",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "OnGuard Pest Control",
+      "businessName": "OnGuard Pest Control",
+      "industry": "Pest Control",
+      "targetAudience": "Homeowners and businesses dealing with pests",
+      "location": "Arizona",
+      "websiteUrl": "https://onguardpest.com",
+      "wordpressUrl": "https://onguardpest.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "authoritative",
+      "keywords": [
+        "pest control",
+        "exterminator",
+        "termite treatment",
+        "bug removal"
+      ],
+      "blogCategories": [
+        "Pest Control",
+        "Prevention Tips",
+        "Home Protection"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "f3ce82f9-41b7-4928-b780-de271ee91d28",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "Optical Perspectives",
+      "businessName": "Optical Perspectives",
+      "industry": "Eye Care & Optometry",
+      "targetAudience": "Patients seeking eye care and eyewear",
+      "location": "Arizona",
+      "websiteUrl": "https://opticalperspectives.com",
+      "wordpressUrl": "https://opticalperspectives.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "professional",
+      "keywords": [
+        "eye exam",
+        "eyeglasses",
+        "contact lenses",
+        "optometrist"
+      ],
+      "blogCategories": [
+        "Eye Health",
+        "Eyewear",
+        "Vision Care"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "4964066d-1db7-47cd-9954-3733ddf30f46",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "Osser Communications",
+      "businessName": "Osser Communications",
+      "industry": "Telecommunications",
+      "targetAudience": "Businesses needing communication solutions",
+      "location": "Arizona",
+      "websiteUrl": "https://osercomm.com",
+      "wordpressUrl": "https://osercomm.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "professional",
+      "keywords": [
+        "business phones",
+        "VoIP",
+        "telecommunications",
+        "unified communications"
+      ],
+      "blogCategories": [
+        "Telecom",
+        "Business Solutions",
+        "Technology"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "2192842d-548f-462c-a566-a21da232c06f",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "Pro Remodeling",
+      "businessName": "Pro Remodeling",
+      "industry": "Home Remodeling",
+      "targetAudience": "Homeowners planning renovations",
+      "location": "Arizona",
+      "websiteUrl": "https://pro-remodeling.com",
+      "wordpressUrl": "https://pro-remodeling.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "professional",
+      "keywords": [
+        "kitchen remodel",
+        "bathroom remodel",
+        "home renovation",
+        "general contractor"
+      ],
+      "blogCategories": [
+        "Remodeling",
+        "Home Improvement",
+        "Design Ideas"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "6e2e45e0-1d9d-4961-bf10-e1e393b6e2ff",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "Rose Academies",
+      "businessName": "Rose Academies",
+      "industry": "Education",
+      "targetAudience": "Parents and students seeking education programs",
+      "location": "Arizona",
+      "websiteUrl": "https://go2rose.com",
+      "wordpressUrl": "https://go2rose.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "professional",
+      "keywords": [
+        "charter school",
+        "education",
+        "student programs",
+        "academic excellence"
+      ],
+      "blogCategories": [
+        "Education",
+        "Student Life",
+        "Academics"
+      ],
+      "postsPerMonth": 2,
+      "isActive": true,
+      "id": "2db008e6-68da-403e-97db-4c605d941657",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "Santa Cruz Vet",
+      "businessName": "Santa Cruz Vet",
+      "industry": "Veterinary Care",
+      "targetAudience": "Pet owners seeking veterinary services",
+      "location": "Arizona",
+      "websiteUrl": "https://santacruzpet.com",
+      "wordpressUrl": "https://santacruzpet.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "friendly",
+      "keywords": [
+        "veterinarian",
+        "pet care",
+        "animal hospital",
+        "vet clinic"
+      ],
+      "blogCategories": [
+        "Pet Health",
+        "Pet Care Tips",
+        "Veterinary Services"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "49b855cd-c44d-4d3f-9fed-3f69fb303e82",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "Santa Rita Landscaping",
+      "businessName": "Santa Rita Landscaping",
+      "industry": "Landscaping",
+      "targetAudience": "Homeowners and businesses needing landscaping",
+      "location": "Arizona",
+      "websiteUrl": "https://santaritalandscaping.com",
+      "wordpressUrl": "https://santaritalandscaping.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "friendly",
+      "keywords": [
+        "landscaping",
+        "desert landscaping",
+        "lawn care",
+        "outdoor design"
+      ],
+      "blogCategories": [
+        "Landscaping",
+        "Garden Tips",
+        "Outdoor Living"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "8aad3e1e-c443-4b1d-ba82-22f847b329b2",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "Silicon Pools AZ",
+      "businessName": "Silicon Pools AZ",
+      "industry": "Pool Services",
+      "targetAudience": "Pool owners and homeowners wanting pools",
+      "location": "Arizona",
+      "websiteUrl": "https://siliconpoolsaz.com",
+      "wordpressUrl": "https://siliconpoolsaz.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "friendly",
+      "keywords": [
+        "pool cleaning",
+        "pool maintenance",
+        "pool installation",
+        "pool repair"
+      ],
+      "blogCategories": [
+        "Pool Care",
+        "Pool Design",
+        "Maintenance Tips"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "38646ec8-8d33-4f5f-9ca5-bb6d52b7c8f6",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "SWIBA",
+      "businessName": "SWIBA",
+      "industry": "Business Association",
+      "targetAudience": "Local business owners and entrepreneurs",
+      "location": "Arizona",
+      "websiteUrl": "https://swibadonor.org",
+      "wordpressUrl": "https://swibadonor.org",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "professional",
+      "keywords": [
+        "business association",
+        "networking",
+        "small business",
+        "local business"
+      ],
+      "blogCategories": [
+        "Business News",
+        "Networking",
+        "Member Spotlights"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "625463bc-2d04-403e-8f65-a970dcdc19dc",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "Wiese Painting",
+      "businessName": "Wiese Painting",
+      "industry": "Painting Services",
+      "targetAudience": "Homeowners and businesses needing painting",
+      "location": "Arizona",
+      "websiteUrl": "https://wiesepainting.com",
+      "wordpressUrl": "https://wiesepainting.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "friendly",
+      "keywords": [
+        "house painting",
+        "commercial painting",
+        "interior painting",
+        "exterior painting"
+      ],
+      "blogCategories": [
+        "Painting Tips",
+        "Home Improvement",
+        "Color Trends"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "bcd3b8b5-9533-4fce-a408-5c2dad179512",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    },
+    {
+      "name": "Wilkey Pest Control",
+      "businessName": "Wilkey Pest Control",
+      "industry": "Pest Control",
+      "targetAudience": "Homeowners and businesses dealing with pests",
+      "location": "Arizona",
+      "websiteUrl": "https://www.wilkeyservices.com",
+      "wordpressUrl": "https://www.wilkeyservices.com",
+      "wordpressUsername": "",
+      "wordpressAppPassword": "",
+      "tone": "friendly",
+      "keywords": [
+        "pest control",
+        "exterminator",
+        "pest removal",
+        "pest prevention"
+      ],
+      "blogCategories": [
+        "Pest Control",
+        "Prevention Tips",
+        "Seasonal Pests"
+      ],
+      "postsPerMonth": 1,
+      "isActive": true,
+      "id": "107f1df3-7637-4c9d-a524-86d584fbd08d",
+      "createdAt": "2026-04-12T03:37:51.074Z",
+      "updatedAt": "2026-04-12T03:37:51.074Z"
+    }
+  ],
+  "topics": [],
+  "posts": [],
+  "runs": [
+    {
+      "id": "d0f8b52b-fdcf-4e0f-848b-dd8183dcbbdd",
+      "type": "research",
+      "clientId": "9e1285ba-8924-4e0b-9676-9c9871438192",
+      "status": "completed",
+      "message": "Generated 0 topic suggestions for 1 client(s)",
+      "startedAt": "2026-04-12T03:40:25.561Z",
+      "details": "Error for Altitude Home Loans: 400 {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.\"},\"request_id\":\"req_011CZyBZZG3Ap2FGbdr2ABPB\"}",
+      "completedAt": "2026-04-12T03:40:26.017Z"
+    },
+    {
+      "id": "1b63febd-f22d-42a4-9d2b-fcc05856a880",
+      "type": "research",
+      "clientId": "9e1285ba-8924-4e0b-9676-9c9871438192",
+      "status": "completed",
+      "message": "Generated 0 topic suggestions for 1 client(s)",
+      "startedAt": "2026-04-12T03:42:05.851Z",
+      "details": "Error for Altitude Home Loans: 400 {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.\"},\"request_id\":\"req_011CZyBgxCsEYbnkVSom6YG1\"}",
+      "completedAt": "2026-04-12T03:42:06.328Z"
+    },
+    {
+      "id": "21b9d1dd-5f2a-4893-904c-6d77777cdd42",
+      "type": "research",
+      "clientId": "9e1285ba-8924-4e0b-9676-9c9871438192",
+      "status": "completed",
+      "message": "Generated 0 topic suggestions for 1 client(s)",
+      "startedAt": "2026-04-12T03:42:13.362Z",
+      "details": "Error for Altitude Home Loans: 400 {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.\"},\"request_id\":\"req_011CZyBhVvqn83x8kjmKtgnF\"}",
+      "completedAt": "2026-04-12T03:42:13.655Z"
+    },
+    {
+      "id": "c64da6e8-4b39-4cf3-8f03-552dc023c57b",
+      "type": "research",
+      "clientId": "9e1285ba-8924-4e0b-9676-9c9871438192",
+      "status": "completed",
+      "message": "Generated 0 topic suggestions for 1 client(s)",
+      "startedAt": "2026-04-12T03:46:07.449Z",
+      "details": "Error for Altitude Home Loans: 400 {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.\"},\"request_id\":\"req_011CZyBzkp1b1urGSSNEKmnc\"}",
+      "completedAt": "2026-04-12T03:46:07.779Z"
+    },
+    {
+      "id": "a2345c29-d133-4356-9de7-78a72339319f",
+      "type": "research",
+      "clientId": "9e1285ba-8924-4e0b-9676-9c9871438192",
+      "status": "completed",
+      "message": "Generated 0 topic suggestions for 1 client(s)",
+      "startedAt": "2026-04-12T05:01:32.293Z",
+      "details": "Error for Altitude Home Loans: 400 {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.\"},\"request_id\":\"req_011CZyHkJqNvfpCPNfxWvsuL\"}",
+      "completedAt": "2026-04-12T05:01:32.756Z"
+    },
+    {
+      "id": "c2d8f626-e602-41f3-8e1f-ff78c109991b",
+      "type": "research",
+      "clientId": "9e1285ba-8924-4e0b-9676-9c9871438192",
+      "status": "completed",
+      "message": "Generated 0 topic suggestions for 1 client(s)",
+      "startedAt": "2026-04-12T05:01:34.783Z",
+      "details": "Error for Altitude Home Loans: 400 {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.\"},\"request_id\":\"req_011CZyHkVDiDzUSf1si9VnHw\"}",
+      "completedAt": "2026-04-12T05:01:35.082Z"
+    }
+  ],
+  "schedule": {
+    "enabled": false,
+    "researchDayOfMonth": 1,
+    "writeDayOfMonth": 10,
+    "publishDayOfMonth": 15,
+    "timezone": "Australia/Melbourne"
+  }
+}
