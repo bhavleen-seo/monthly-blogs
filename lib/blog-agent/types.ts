@@ -11,6 +11,7 @@ export interface Client {
   wordpressAppPassword: string;
   tone: "professional" | "casual" | "friendly" | "authoritative" | "conversational";
   keywords: string[];
+  seoNotes: string;
   blogCategories: string[];
   postsPerMonth: number;
   isActive: boolean;

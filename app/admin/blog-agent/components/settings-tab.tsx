@@ -32,8 +32,8 @@ export default function SettingsTab() {
     <div className="space-y-6 animate-fade-in max-w-3xl">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-[var(--color-foreground)]">Global SEO Settings</h2>
-          <p className="text-sm text-[var(--color-muted-foreground)] mt-0.5">Rules that apply to all clients.</p>
+          <h2 className="text-lg font-semibold text-[var(--color-foreground)]">Content Rules</h2>
+          <p className="text-sm text-[var(--color-muted-foreground)] mt-0.5">Global instructions that apply to all clients. Use per-client SEO notes for client-specific rules.</p>
         </div>
         <button
           onClick={handleSave}

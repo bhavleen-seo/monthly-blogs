@@ -82,6 +82,16 @@ export default function BlogAgentDashboard() {
     showToast("Client deleted", "info");
   };
 
+  const handleUpdateClient = async (client: Client) => {
+    await fetch("/api/blog-agent/clients", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(client),
+    });
+    fetchClients();
+    showToast(`${client.businessName} updated`, "success");
+  };
+
   const handleToggleActive = async (client: Client) => {
     const updated = { ...client, isActive: !client.isActive, updatedAt: new Date().toISOString() };
     await fetch("/api/blog-agent/clients", {
@@ -208,7 +218,7 @@ export default function BlogAgentDashboard() {
                activeTab === "clients" ? "Clients" :
                activeTab === "topics" ? "Topics" :
                activeTab === "posts" ? "Posts" :
-               activeTab === "settings" ? "SEO Settings" : "Schedule"}
+               activeTab === "settings" ? "Content Rules" : "Schedule"}
             </h2>
           </div>
 
@@ -235,6 +245,7 @@ export default function BlogAgentDashboard() {
               onAddClient={handleAddClient}
               onDeleteClient={handleDeleteClient}
               onToggleActive={handleToggleActive}
+              onUpdateClient={handleUpdateClient}
               onTestConnection={handleTestConnection}
               onResearch={(id) => handleResearchTopics(id)}
             />

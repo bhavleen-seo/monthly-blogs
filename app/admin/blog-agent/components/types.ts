@@ -6,6 +6,7 @@ export interface Client {
   location: string;
   tone: string;
   keywords: string[];
+  seoNotes: string;
   postsPerMonth: number;
   isActive: boolean;
   wordpressUrl: string;
