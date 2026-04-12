@@ -6,6 +6,41 @@ let researchJob: cron.ScheduledTask | null = null;
 let writeJob: cron.ScheduledTask | null = null;
 let publishJob: cron.ScheduledTask | null = null;
 
+/**
+ * Get the last business day of a given month.
+ * If the last day falls on Saturday, use the previous Friday.
+ * If the last day falls on Sunday, use the next Monday.
+ */
+function getLastBusinessDay(year: number, month: number): Date {
+  // month is 0-indexed (0 = Jan, 11 = Dec)
+  const lastDay = new Date(year, month + 1, 0); // last day of month
+  const dayOfWeek = lastDay.getDay(); // 0=Sun, 6=Sat
+
+  if (dayOfWeek === 6) {
+    // Saturday → extend to next Monday
+    lastDay.setDate(lastDay.getDate() + 2);
+  } else if (dayOfWeek === 0) {
+    // Sunday → extend to next Monday
+    lastDay.setDate(lastDay.getDate() + 1);
+  }
+
+  return lastDay;
+}
+
+/**
+ * Check if today is the publish day (last business day of month,
+ * or next Monday if month ends on weekend).
+ */
+function isTodayPublishDay(): boolean {
+  const now = new Date();
+  const publishDate = getLastBusinessDay(now.getFullYear(), now.getMonth());
+  return (
+    now.getFullYear() === publishDate.getFullYear() &&
+    now.getMonth() === publishDate.getMonth() &&
+    now.getDate() === publishDate.getDate()
+  );
+}
+
 export async function startScheduler(): Promise<void> {
   stopScheduler();
 
@@ -36,19 +71,24 @@ export async function startScheduler(): Promise<void> {
     { timezone: schedule.timezone }
   );
 
-  // Publish posts on the configured day at 9:00 AM
+  // Publish: check every day at 9:00 AM if today is the last business day
   publishJob = cron.schedule(
-    `0 9 ${schedule.publishDayOfMonth} * *`,
+    `0 9 * * 1-5`,
     async () => {
-      console.log("[Scheduler] Running monthly publishing...");
+      if (!isTodayPublishDay()) return;
+      console.log("[Scheduler] Last business day of month — publishing posts...");
       const { run } = await runPublishing();
       console.log(`[Scheduler] Publishing complete: ${run.message}`);
     },
     { timezone: schedule.timezone }
   );
 
+  const nextPublish = getLastBusinessDay(
+    new Date().getFullYear(),
+    new Date().getMonth()
+  );
   console.log(
-    `[Scheduler] Started — Research: day ${schedule.researchDayOfMonth}, Write: day ${schedule.writeDayOfMonth}, Publish: day ${schedule.publishDayOfMonth}`
+    `[Scheduler] Started — Research: day ${schedule.researchDayOfMonth}, Write: day ${schedule.writeDayOfMonth}, Publish: last business day (next: ${nextPublish.toDateString()})`
   );
 }
 
@@ -66,3 +106,5 @@ export function stopScheduler(): void {
     publishJob = null;
   }
 }
+
+export { getLastBusinessDay };

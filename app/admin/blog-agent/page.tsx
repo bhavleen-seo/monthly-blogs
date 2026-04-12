@@ -45,7 +45,7 @@ interface Post {
   metaDescription: string;
 }
 
-type Tab = "dashboard" | "clients" | "topics" | "posts" | "schedule";
+type Tab = "dashboard" | "clients" | "topics" | "posts" | "settings" | "schedule";
 
 export default function BlogAgentDashboard() {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
@@ -296,6 +296,7 @@ export default function BlogAgentDashboard() {
             { key: "clients", label: `Clients (${clients.length})` },
             { key: "topics", label: `Topics (${pendingTopics.length} pending)` },
             { key: "posts", label: `Posts (${readyPosts.length} ready)` },
+            { key: "settings", label: "SEO Settings" },
             { key: "schedule", label: "Schedule" },
           ].map((tab) => (
             <button
@@ -695,6 +696,9 @@ export default function BlogAgentDashboard() {
           </div>
         )}
 
+        {/* Settings Tab */}
+        {activeTab === "settings" && <SettingsTab />}
+
         {/* Schedule Tab */}
         {activeTab === "schedule" && <ScheduleTab />}
       </div>
@@ -756,6 +760,142 @@ function FormField({
   );
 }
 
+function SettingsTab() {
+  const [settings, setSettings] = useState({
+    seoRules: "",
+    contentInstructions: "",
+    avoidTopics: "",
+    preferredWordCount: { min: 1200, max: 1800 },
+    model: "claude-opus-4-6",
+  });
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/blog-agent/settings")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.settings) setSettings(data.settings);
+      });
+  }, []);
+
+  const handleSave = async () => {
+    await fetch("/api/blog-agent/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings),
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-lg font-semibold text-white">Global SEO Settings</h2>
+          <p className="text-sm text-[var(--color-muted-foreground)]">
+            These rules apply to ALL clients when researching topics and writing posts.
+          </p>
+        </div>
+        <button
+          onClick={handleSave}
+          className={`px-6 py-2 rounded-lg text-sm text-white hover:opacity-90 ${saved ? "bg-[var(--color-success)]" : "bg-[var(--color-primary)]"}`}
+        >
+          {saved ? "Saved!" : "Save Settings"}
+        </button>
+      </div>
+
+      <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-6 space-y-5">
+        <div>
+          <label className="block text-sm font-medium text-white mb-2">
+            SEO Rules
+          </label>
+          <p className="text-xs text-[var(--color-muted-foreground)] mb-2">
+            Define SEO best practices the AI must follow for all blog posts (e.g., keyword placement, heading structure, internal linking rules).
+          </p>
+          <textarea
+            value={settings.seoRules}
+            onChange={(e) => setSettings({ ...settings, seoRules: e.target.value })}
+            rows={6}
+            placeholder={`Example:\n- Primary keyword must appear in the first 100 words\n- Use H2 for main sections, H3 for subsections\n- Include at least 2 internal links to the client's service pages\n- Meta description must contain the primary keyword\n- Use short paragraphs (2-3 sentences max)\n- Include a FAQ section with 3-4 questions using schema-friendly formatting`}
+            className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-4 py-3 text-sm text-white placeholder-[var(--color-muted-foreground)] resize-y"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-white mb-2">
+            Content Instructions
+          </label>
+          <p className="text-xs text-[var(--color-muted-foreground)] mb-2">
+            Tell Claude exactly what type of content you want, the writing style, and any specific requirements.
+          </p>
+          <textarea
+            value={settings.contentInstructions}
+            onChange={(e) => setSettings({ ...settings, contentInstructions: e.target.value })}
+            rows={6}
+            placeholder={`Example:\n- Write in a conversational but professional tone\n- Always include real-world examples and actionable tips\n- Use data and statistics where possible\n- End every post with a clear call-to-action\n- Never use fluff or filler content\n- Write for a reading level of grade 8-10\n- Include bullet points and numbered lists for scannability`}
+            className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-4 py-3 text-sm text-white placeholder-[var(--color-muted-foreground)] resize-y"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-white mb-2">
+            Topics to Avoid
+          </label>
+          <p className="text-xs text-[var(--color-muted-foreground)] mb-2">
+            List any topics, themes, or content types the AI should never suggest or write about.
+          </p>
+          <textarea
+            value={settings.avoidTopics}
+            onChange={(e) => setSettings({ ...settings, avoidTopics: e.target.value })}
+            rows={3}
+            placeholder={`Example:\n- No political or religious content\n- Avoid competitor mentions by name\n- No medical or legal advice`}
+            className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-4 py-3 text-sm text-white placeholder-[var(--color-muted-foreground)] resize-y"
+          />
+        </div>
+      </div>
+
+      <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-6 space-y-5">
+        <h3 className="font-semibold text-white">AI Model & Content Length</h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-muted-foreground)] mb-1">AI Model</label>
+            <select
+              value={settings.model}
+              onChange={(e) => setSettings({ ...settings, model: e.target.value })}
+              className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-white"
+            >
+              <option value="claude-opus-4-6">Claude Opus 4.6 (Best quality)</option>
+              <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (Faster, cheaper)</option>
+              <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (Fastest, cheapest)</option>
+            </select>
+            <p className="text-xs text-[var(--color-muted-foreground)] mt-1">Opus = best writing, Sonnet = good balance, Haiku = quick drafts</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-muted-foreground)] mb-1">Min Word Count</label>
+            <input
+              type="number"
+              value={settings.preferredWordCount.min}
+              onChange={(e) => setSettings({ ...settings, preferredWordCount: { ...settings.preferredWordCount, min: parseInt(e.target.value) || 800 } })}
+              className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-muted-foreground)] mb-1">Max Word Count</label>
+            <input
+              type="number"
+              value={settings.preferredWordCount.max}
+              onChange={(e) => setSettings({ ...settings, preferredWordCount: { ...settings.preferredWordCount, max: parseInt(e.target.value) || 2000 } })}
+              className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-white"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ScheduleTab() {
   const [schedule, setSchedule] = useState({
     enabled: false,
@@ -797,7 +937,7 @@ function ScheduleTab() {
             />
             <span className="text-sm text-white">Enable automatic monthly schedule</span>
           </label>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-[var(--color-muted-foreground)] mb-1">Research Day</label>
               <input
@@ -808,7 +948,7 @@ function ScheduleTab() {
                 onChange={(e) => setSchedule({ ...schedule, researchDayOfMonth: parseInt(e.target.value) })}
                 className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-white"
               />
-              <p className="text-xs text-[var(--color-muted-foreground)] mt-1">Day topics are generated</p>
+              <p className="text-xs text-[var(--color-muted-foreground)] mt-1">Day of month topics are generated</p>
             </div>
             <div>
               <label className="block text-sm text-[var(--color-muted-foreground)] mb-1">Write Day</label>
@@ -820,20 +960,14 @@ function ScheduleTab() {
                 onChange={(e) => setSchedule({ ...schedule, writeDayOfMonth: parseInt(e.target.value) })}
                 className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-white"
               />
-              <p className="text-xs text-[var(--color-muted-foreground)] mt-1">Day approved topics are written</p>
+              <p className="text-xs text-[var(--color-muted-foreground)] mt-1">Day of month approved topics are written</p>
             </div>
-            <div>
-              <label className="block text-sm text-[var(--color-muted-foreground)] mb-1">Publish Day</label>
-              <input
-                type="number"
-                min="1"
-                max="28"
-                value={schedule.publishDayOfMonth}
-                onChange={(e) => setSchedule({ ...schedule, publishDayOfMonth: parseInt(e.target.value) })}
-                className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-white"
-              />
-              <p className="text-xs text-[var(--color-muted-foreground)] mt-1">Day posts are published to WordPress</p>
-            </div>
+          </div>
+          <div className="bg-[var(--color-muted)] rounded-lg p-3 mt-2">
+            <p className="text-sm text-white font-medium">Publish: Last business day of the month</p>
+            <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
+              Posts are published on the last working day. If the month ends on a weekend, publishing moves to the next Monday.
+            </p>
           </div>
           <button
             onClick={handleSave}
@@ -877,8 +1011,8 @@ function ScheduleTab() {
           <p><strong className="text-white">Day {schedule.researchDayOfMonth}:</strong> Agent researches trending topics for all active clients and generates suggestions</p>
           <p><strong className="text-white">Day {schedule.researchDayOfMonth}-{schedule.writeDayOfMonth}:</strong> You review and approve/reject topic suggestions in the dashboard</p>
           <p><strong className="text-white">Day {schedule.writeDayOfMonth}:</strong> Agent writes full SEO-optimized blog posts for all approved topics</p>
-          <p><strong className="text-white">Day {schedule.writeDayOfMonth}-{schedule.publishDayOfMonth}:</strong> You review written posts and make any edits</p>
-          <p><strong className="text-white">Day {schedule.publishDayOfMonth}:</strong> Agent publishes all ready posts to client WordPress sites</p>
+          <p><strong className="text-white">Day {schedule.writeDayOfMonth} → end of month:</strong> You review written posts and make any edits</p>
+          <p><strong className="text-white">Last business day:</strong> Agent publishes all ready posts to client WordPress sites (moves to Monday if month ends on weekend)</p>
         </div>
       </div>
     </div>

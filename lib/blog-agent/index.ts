@@ -17,6 +17,8 @@ export {
   savePost,
   addRun,
   getRuns,
+  getGlobalSettings,
+  saveGlobalSettings,
 } from "./store";
 export type {
   Client,
@@ -25,4 +27,5 @@ export type {
   AgentRun,
   ScheduleConfig,
   AgentStore,
+  GlobalSettings,
 } from "./types";

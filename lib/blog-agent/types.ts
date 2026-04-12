@@ -74,10 +74,19 @@ export interface ScheduleConfig {
   timezone: string;
 }
 
+export interface GlobalSettings {
+  seoRules: string;
+  contentInstructions: string;
+  avoidTopics: string;
+  preferredWordCount: { min: number; max: number };
+  model: string;
+}
+
 export interface AgentStore {
   clients: Client[];
   topics: TopicSuggestion[];
   posts: BlogPost[];
   runs: AgentRun[];
   schedule: ScheduleConfig;
+  globalSettings: GlobalSettings;
 }

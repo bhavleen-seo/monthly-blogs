@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { v4 as uuidv4 } from "uuid";
 import type { Client, TopicSuggestion, BlogPost } from "./types";
+import { getGlobalSettings } from "./store";
 
 const anthropic = new Anthropic();
 
@@ -15,7 +16,19 @@ export async function writeBlogPost(
   client: Client,
   topic: TopicSuggestion
 ): Promise<BlogPost> {
+  const settings = await getGlobalSettings();
+  const { min: minWords, max: maxWords } = settings.preferredWordCount;
+
+  const globalRulesSection = [
+    settings.seoRules && `## SEO Rules (MUST follow)\n${settings.seoRules}`,
+    settings.contentInstructions && `## Content Instructions (MUST follow)\n${settings.contentInstructions}`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
   const prompt = `You are an expert blog writer at CS Design Studios. Write a complete, SEO-optimized blog post.
+
+${globalRulesSection}
 
 ## Client Profile
 - **Business:** ${client.businessName}
@@ -30,7 +43,7 @@ export async function writeBlogPost(
 - **Target Keywords:** ${topic.targetKeywords.join(", ")}
 
 ## Requirements
-1. Write 1200-1800 words of high-quality, engaging content
+1. Write ${minWords}-${maxWords} words of high-quality, engaging content
 2. Use proper HTML formatting (h2, h3, p, ul, ol, strong, em tags)
 3. Include the target keywords naturally (1-2% keyword density)
 4. Structure with clear headings and subheadings
@@ -59,7 +72,7 @@ Respond in JSON format:
 Return ONLY the JSON object, no other text.`;
 
   const response = await anthropic.messages.create({
-    model: process.env.AI_MODEL || "claude-sonnet-4-6",
+    model: settings.model || "claude-opus-4-6",
     max_tokens: 8192,
     messages: [{ role: "user", content: prompt }],
   });

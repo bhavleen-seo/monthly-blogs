@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
-import type { AgentStore, Client, TopicSuggestion, BlogPost, AgentRun } from "./types";
+import type { AgentStore, Client, TopicSuggestion, BlogPost, AgentRun, GlobalSettings } from "./types";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const STORE_FILE = path.join(DATA_DIR, "blog-agent.json");
@@ -17,6 +17,13 @@ const DEFAULT_STORE: AgentStore = {
     publishDayOfMonth: 15,
     timezone: "Australia/Melbourne",
   },
+  globalSettings: {
+    seoRules: "",
+    contentInstructions: "",
+    avoidTopics: "",
+    preferredWordCount: { min: 1200, max: 1800 },
+    model: "claude-opus-4-6",
+  },
 };
 
 async function ensureDataDir(): Promise<void> {
@@ -31,11 +38,28 @@ export async function getStore(): Promise<AgentStore> {
   await ensureDataDir();
   try {
     const data = await fs.readFile(STORE_FILE, "utf-8");
-    return JSON.parse(data) as AgentStore;
+    const store = JSON.parse(data) as AgentStore;
+    // Migrate: add globalSettings if missing
+    if (!store.globalSettings) {
+      store.globalSettings = DEFAULT_STORE.globalSettings;
+      await saveStore(store);
+    }
+    return store;
   } catch {
     await saveStore(DEFAULT_STORE);
     return DEFAULT_STORE;
   }
+}
+
+export async function getGlobalSettings(): Promise<GlobalSettings> {
+  const store = await getStore();
+  return store.globalSettings;
+}
+
+export async function saveGlobalSettings(settings: GlobalSettings): Promise<void> {
+  const store = await getStore();
+  store.globalSettings = settings;
+  await saveStore(store);
 }
 
 export async function saveStore(store: AgentStore): Promise<void> {

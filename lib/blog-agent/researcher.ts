@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { v4 as uuidv4 } from "uuid";
 import type { Client, TopicSuggestion } from "./types";
-import { getTopics } from "./store";
+import { getTopics, getGlobalSettings } from "./store";
 
 const anthropic = new Anthropic();
 
@@ -11,11 +11,22 @@ export async function researchTopics(
   count?: number
 ): Promise<TopicSuggestion[]> {
   const numTopics = count || client.postsPerMonth * 2;
+  const settings = await getGlobalSettings();
 
   const pastTopics = await getTopics({ clientId: client.id });
   const pastTitles = pastTopics.map((t) => t.title).slice(-20);
 
+  const globalRulesSection = [
+    settings.seoRules && `## SEO Rules (MUST follow)\n${settings.seoRules}`,
+    settings.contentInstructions && `## Content Instructions (MUST follow)\n${settings.contentInstructions}`,
+    settings.avoidTopics && `## Topics to Avoid\n${settings.avoidTopics}`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
   const prompt = `You are a senior content strategist at CS Design Studios, a digital marketing agency. Your job is to research and propose blog topics for a client.
+
+${globalRulesSection}
 
 ## Client Profile
 - **Business:** ${client.businessName}
@@ -59,7 +70,7 @@ Respond in JSON format as an array:
 Return ONLY the JSON array, no other text.`;
 
   const response = await anthropic.messages.create({
-    model: process.env.AI_MODEL || "claude-sonnet-4-6",
+    model: settings.model || "claude-opus-4-6",
     max_tokens: 4096,
     messages: [{ role: "user", content: prompt }],
   });
