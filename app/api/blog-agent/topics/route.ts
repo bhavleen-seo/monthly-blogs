@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTopics, getClients, getClient, runResearch } from "@/lib/blog-agent";
+import { getTopics, getClients, getClient, runResearch, deleteTopicsByClient } from "@/lib/blog-agent";
 
 export async function GET(req: NextRequest) {
   try {
@@ -30,12 +30,17 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const clientId = body.clientId || undefined;
+    const regenerate = body.regenerate || false;
 
     if (clientId) {
       const client = await getClient(clientId);
       if (!client) {
         return NextResponse.json({ error: "Client not found" }, { status: 404 });
       }
+    }
+
+    if (regenerate && clientId) {
+      await deleteTopicsByClient(clientId, "pending");
     }
 
     const { run, topicsByClient } = await runResearch(clientId);

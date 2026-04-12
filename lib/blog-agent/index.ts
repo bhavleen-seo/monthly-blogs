@@ -12,6 +12,7 @@ export {
   deleteClient,
   getTopics,
   saveTopic,
+  deleteTopicsByClient,
   getPosts,
   getPost,
   savePost,
