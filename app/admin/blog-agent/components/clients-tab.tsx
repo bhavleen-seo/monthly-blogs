@@ -27,8 +27,10 @@ export default function ClientsTab({
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [editingKeywords, setEditingKeywords] = useState<string | null>(null);
+  const [editingClient, setEditingClient] = useState<string | null>(null);
   const [kwDraft, setKwDraft] = useState("");
   const [seoDraft, setSeoDraft] = useState("");
+  const [editDraft, setEditDraft] = useState<Partial<Client>>({});
 
   const filtered = clients.filter((c) =>
     c.businessName.toLowerCase().includes(search.toLowerCase()) ||
@@ -127,52 +129,43 @@ export default function ClientsTab({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map((client) => (
           <div key={client.id} className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl p-5 transition-all duration-200 hover:border-[var(--color-primary)]/30 group">
-            <div className="flex items-start justify-between mb-3">
-              <div className="min-w-0">
-                <h3 className="font-semibold text-[var(--color-foreground)] truncate">{client.businessName}</h3>
-                <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">{client.industry} &middot; {client.location}</p>
-              </div>
+            <div className="flex items-start justify-between mb-1">
+              <h3 className="font-semibold text-[var(--color-foreground)] truncate">{client.businessName}</h3>
               <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-2">
-                <input
-                  type="checkbox"
-                  checked={client.isActive}
-                  onChange={() => onToggleActive(client)}
-                  className="sr-only peer"
-                />
-                <div className="w-9 h-5 bg-[var(--color-muted)] peer-checked:bg-[var(--color-success)] rounded-full transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full" />
+                <input type="checkbox" checked={client.isActive} onChange={() => onToggleActive(client)} className="sr-only peer" />
+                <div className="w-8 h-[18px] bg-[var(--color-muted)] peer-checked:bg-[var(--color-success)] rounded-full transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-[14px] after:w-[14px] after:transition-all peer-checked:after:translate-x-[14px]" />
               </label>
             </div>
-            <div className="text-xs text-[var(--color-muted-foreground)] space-y-1 mb-4">
-              <p className="capitalize">Tone: {client.tone} &middot; {client.postsPerMonth} post/mo</p>
-              <p className="truncate">Keywords: {client.keywords?.join(", ") || "None"}</p>
-              <p className="truncate">WP: {client.wordpressUrl}</p>
-            </div>
-            <div className="flex gap-2">
+            <p className="text-xs text-[var(--color-muted-foreground)] mb-3">{client.industry} &middot; {client.location} &middot; {client.tone}</p>
+
+            {/* Actions as text links */}
+            <div className="flex items-center gap-3 pt-3 border-t border-[var(--color-border)]">
               <button
-                onClick={() => {
-                  if (editingKeywords === client.id) {
-                    setEditingKeywords(null);
-                  } else {
-                    setEditingKeywords(client.id);
-                    setKwDraft(client.keywords?.join(", ") || "");
-                    setSeoDraft(client.seoNotes || "");
-                  }
-                }}
-                className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-all ${
-                  editingKeywords === client.id
-                    ? "border-[var(--color-primary)] text-[var(--color-primary)] bg-[var(--color-primary)]/5"
-                    : "border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:bg-[var(--color-hover)] hover:text-[var(--color-foreground)]"
-                }`}
+                onClick={() => { setEditingKeywords(editingKeywords === client.id ? null : client.id); setEditingClient(null); setKwDraft(client.keywords?.join(", ") || ""); setSeoDraft(client.seoNotes || ""); }}
+                className={`text-xs font-medium transition-colors ${editingKeywords === client.id ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"}`}
               >
                 Keywords
               </button>
-              <button onClick={() => onTestConnection(client.id)} className="text-xs font-medium px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:bg-[var(--color-hover)] hover:text-[var(--color-foreground)] transition-all">
+              <span className="text-[var(--color-border)]">|</span>
+              <button
+                onClick={() => {
+                  setEditingClient(editingClient === client.id ? null : client.id);
+                  setEditingKeywords(null);
+                  setEditDraft({ wordpressUrl: client.wordpressUrl, wordpressUsername: client.wordpressUsername, wordpressAppPassword: client.wordpressAppPassword, name: client.name, businessName: client.businessName, industry: client.industry, targetAudience: client.targetAudience, location: client.location, websiteUrl: client.websiteUrl, tone: client.tone, blogCategories: client.blogCategories, postsPerMonth: client.postsPerMonth });
+                }}
+                className={`text-xs font-medium transition-colors ${editingClient === client.id ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"}`}
+              >
+                Edit
+              </button>
+              <span className="text-[var(--color-border)]">|</span>
+              <button onClick={() => onTestConnection(client.id)} className="text-xs font-medium text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors">
                 Test WP
               </button>
-              <button onClick={() => onResearch(client.id)} disabled={loading} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:opacity-90 disabled:opacity-40 transition-all">
+              <span className="text-[var(--color-border)]">|</span>
+              <button onClick={() => onResearch(client.id)} disabled={loading} className="text-xs font-medium text-[var(--color-primary)] hover:opacity-70 disabled:opacity-40 transition-colors">
                 Research
               </button>
-              <button onClick={() => onDeleteClient(client.id)} className="text-xs font-medium px-3 py-1.5 rounded-lg text-[var(--color-destructive)] hover:bg-[var(--color-destructive)]/10 transition-all ml-auto opacity-0 group-hover:opacity-100">
+              <button onClick={() => onDeleteClient(client.id)} className="text-xs font-medium text-[var(--color-destructive)] hover:opacity-70 transition-colors ml-auto opacity-0 group-hover:opacity-100">
                 Delete
               </button>
             </div>
@@ -205,13 +198,12 @@ export default function ClientsTab({
                 <div className="flex gap-2">
                   <button
                     onClick={() => {
-                      const updated = {
+                      onUpdateClient({
                         ...client,
                         keywords: kwDraft.split(",").map((k) => k.trim()).filter(Boolean),
                         seoNotes: seoDraft,
                         updatedAt: new Date().toISOString(),
-                      };
-                      onUpdateClient(updated);
+                      });
                       setEditingKeywords(null);
                     }}
                     className="text-xs font-medium px-4 py-1.5 rounded-lg bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:opacity-90 transition-all"
@@ -220,6 +212,60 @@ export default function ClientsTab({
                   </button>
                   <button
                     onClick={() => setEditingKeywords(null)}
+                    className="text-xs font-medium px-4 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-all"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Edit client form */}
+            {editingClient === client.id && (
+              <div className="mt-4 pt-4 border-t border-[var(--color-border)] space-y-3 animate-slide-up">
+                <h4 className="text-xs font-semibold text-[var(--color-foreground)] uppercase tracking-wider">WordPress Credentials</h4>
+                <div className="grid grid-cols-1 gap-3">
+                  <EditInput label="WordPress URL" value={editDraft.wordpressUrl || ""} onChange={(v) => setEditDraft({ ...editDraft, wordpressUrl: v })} placeholder="https://example.com" />
+                  <EditInput label="WP Username" value={editDraft.wordpressUsername || ""} onChange={(v) => setEditDraft({ ...editDraft, wordpressUsername: v })} placeholder="admin" />
+                  <EditInput label="WP App Password" value={editDraft.wordpressAppPassword || ""} onChange={(v) => setEditDraft({ ...editDraft, wordpressAppPassword: v })} placeholder="xxxx xxxx xxxx" type="password" />
+                </div>
+                <h4 className="text-xs font-semibold text-[var(--color-foreground)] uppercase tracking-wider pt-2">Client Details</h4>
+                <div className="grid grid-cols-1 gap-3">
+                  <EditInput label="Contact Name" value={editDraft.name || ""} onChange={(v) => setEditDraft({ ...editDraft, name: v })} />
+                  <EditInput label="Business Name" value={editDraft.businessName || ""} onChange={(v) => setEditDraft({ ...editDraft, businessName: v })} />
+                  <EditInput label="Industry" value={editDraft.industry || ""} onChange={(v) => setEditDraft({ ...editDraft, industry: v })} />
+                  <EditInput label="Target Audience" value={editDraft.targetAudience || ""} onChange={(v) => setEditDraft({ ...editDraft, targetAudience: v })} />
+                  <EditInput label="Location" value={editDraft.location || ""} onChange={(v) => setEditDraft({ ...editDraft, location: v })} />
+                  <EditInput label="Website URL" value={editDraft.websiteUrl || ""} onChange={(v) => setEditDraft({ ...editDraft, websiteUrl: v })} />
+                  <div>
+                    <label className="block text-[10px] font-medium text-[var(--color-muted-foreground)] mb-1">Tone</label>
+                    <select value={editDraft.tone || "professional"} onChange={(e) => setEditDraft({ ...editDraft, tone: e.target.value })} className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[var(--color-foreground)]">
+                      <option value="professional">Professional</option>
+                      <option value="casual">Casual</option>
+                      <option value="friendly">Friendly</option>
+                      <option value="authoritative">Authoritative</option>
+                      <option value="conversational">Conversational</option>
+                    </select>
+                  </div>
+                  <EditInput label="Blog Categories" value={editDraft.blogCategories?.join(", ") || ""} onChange={(v) => setEditDraft({ ...editDraft, blogCategories: v.split(",").map((c) => c.trim()).filter(Boolean) })} placeholder="Tips, News, Guides" />
+                  <EditInput label="Posts Per Month" value={String(editDraft.postsPerMonth || 1)} onChange={(v) => setEditDraft({ ...editDraft, postsPerMonth: parseInt(v) || 1 })} type="number" />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={() => {
+                      onUpdateClient({
+                        ...client,
+                        ...editDraft,
+                        updatedAt: new Date().toISOString(),
+                      } as Client);
+                      setEditingClient(null);
+                    }}
+                    className="text-xs font-medium px-4 py-1.5 rounded-lg bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:opacity-90 transition-all"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    onClick={() => setEditingClient(null)}
                     className="text-xs font-medium px-4 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-all"
                   >
                     Cancel
@@ -237,6 +283,15 @@ export default function ClientsTab({
       {clients.length === 0 && (
         <p className="text-[var(--color-muted-foreground)] text-center py-12 text-sm">No clients yet. Load the preset list or add one manually.</p>
       )}
+    </div>
+  );
+}
+
+function EditInput({ label, value, onChange, placeholder, type = "text" }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
+  return (
+    <div>
+      <label className="block text-[10px] font-medium text-[var(--color-muted-foreground)] mb-1">{label}</label>
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted-foreground)]" />
     </div>
   );
 }
