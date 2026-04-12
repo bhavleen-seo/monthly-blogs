@@ -33,7 +33,7 @@ export default function SettingsTab() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-[var(--color-foreground)]">Content Rules</h2>
-          <p className="text-sm text-[var(--color-muted-foreground)] mt-0.5">Global instructions that apply to all clients. Use per-client SEO notes for client-specific rules.</p>
+          <p className="text-sm text-[var(--color-muted-foreground)] mt-0.5">These rules are used by the <strong>Writer</strong> when writing blog posts. For topic research keywords, use per-client Keywords &amp; SEO Notes.</p>
         </div>
         <button
           onClick={handleSave}
@@ -44,7 +44,7 @@ export default function SettingsTab() {
       </div>
 
       <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl p-6 space-y-6">
-        <Field label="SEO Rules" hint="Keyword placement, heading structure, internal linking rules.">
+        <Field label="SEO Rules" hint="How the Writer should handle SEO: keyword placement, heading structure, internal linking.">
           <textarea
             value={settings.seoRules}
             onChange={(e) => setSettings({ ...settings, seoRules: e.target.value })}
@@ -54,7 +54,7 @@ export default function SettingsTab() {
           />
         </Field>
 
-        <Field label="Content Instructions" hint="Writing style, tone guidelines, content requirements.">
+        <Field label="Writing Instructions" hint="How the Writer should write: style, formatting, structure, call-to-actions.">
           <textarea
             value={settings.contentInstructions}
             onChange={(e) => setSettings({ ...settings, contentInstructions: e.target.value })}
@@ -64,7 +64,7 @@ export default function SettingsTab() {
           />
         </Field>
 
-        <Field label="Topics to Avoid" hint="Topics or themes the AI should never write about.">
+        <Field label="Topics to Avoid" hint="Topics the Researcher and Writer should both avoid across all clients.">
           <textarea
             value={settings.avoidTopics}
             onChange={(e) => setSettings({ ...settings, avoidTopics: e.target.value })}

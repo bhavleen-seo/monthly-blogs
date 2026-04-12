@@ -16,17 +16,7 @@ export async function researchTopics(
   const pastTopics = await getTopics({ clientId: client.id });
   const pastTitles = pastTopics.map((t) => t.title).slice(-20);
 
-  const globalRulesSection = [
-    settings.seoRules && `## SEO Rules (MUST follow)\n${settings.seoRules}`,
-    settings.contentInstructions && `## Content Instructions (MUST follow)\n${settings.contentInstructions}`,
-    settings.avoidTopics && `## Topics to Avoid\n${settings.avoidTopics}`,
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-
   const prompt = `You are a senior content strategist at CS Design Studios, a digital marketing agency. Your job is to research and propose blog topics for a client.
-
-${globalRulesSection}
 
 ## Client Profile
 - **Business:** ${client.businessName}
@@ -36,7 +26,8 @@ ${globalRulesSection}
 - **Brand Tone:** ${client.tone}
 - **Target Keywords:** ${client.keywords.join(", ")}
 - **Blog Categories:** ${client.blogCategories.join(", ")}
-${client.seoNotes ? `\n## Client-Specific SEO Instructions (MUST follow)\n${client.seoNotes}` : ""}
+${client.seoNotes ? `\n## Client SEO Instructions (MUST follow)\n${client.seoNotes}` : ""}
+${settings.avoidTopics ? `\n## Topics to Avoid\n${settings.avoidTopics}` : ""}
 
 ## Month: ${month}
 

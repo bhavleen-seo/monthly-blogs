@@ -19,16 +19,17 @@ export async function writeBlogPost(
   const settings = await getGlobalSettings();
   const { min: minWords, max: maxWords } = settings.preferredWordCount;
 
-  const globalRulesSection = [
-    settings.seoRules && `## SEO Rules (MUST follow)\n${settings.seoRules}`,
-    settings.contentInstructions && `## Content Instructions (MUST follow)\n${settings.contentInstructions}`,
+  const contentRulesSection = [
+    settings.seoRules && `## Content SEO Rules (MUST follow)\n${settings.seoRules}`,
+    settings.contentInstructions && `## Content Writing Instructions (MUST follow)\n${settings.contentInstructions}`,
+    settings.avoidTopics && `## Topics to Avoid\n${settings.avoidTopics}`,
   ]
     .filter(Boolean)
     .join("\n\n");
 
   const prompt = `You are an expert blog writer at CS Design Studios. Write a complete, SEO-optimized blog post.
 
-${globalRulesSection}
+${contentRulesSection}
 
 ## Client Profile
 - **Business:** ${client.businessName}
