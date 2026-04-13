@@ -41,6 +41,8 @@ export interface Post {
   content: string;
   excerpt: string;
   metaDescription: string;
+  featuredImagePrompt?: string;
+  featuredImageUrl?: string;
 }
 
 export type Tab = "dashboard" | "clients" | "topics" | "posts" | "settings" | "schedule";

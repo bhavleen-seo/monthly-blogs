@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPosts, getClients, runWriting } from "@/lib/blog-agent";
+import { getPosts, getClients, runWriting, getPost, savePost } from "@/lib/blog-agent";
 
 export async function GET(req: NextRequest) {
   try {
@@ -20,6 +20,35 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to fetch posts" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  try {
+    const body = await req.json();
+    if (!body.id) {
+      return NextResponse.json({ error: "Post ID required" }, { status: 400 });
+    }
+    const existing = await getPost(body.id);
+    if (!existing) {
+      return NextResponse.json({ error: "Post not found" }, { status: 404 });
+    }
+    const ALLOWED = ["title", "content", "excerpt", "metaDescription", "tags", "featuredImageUrl"];
+    const updates: Record<string, unknown> = {};
+    for (const key of ALLOWED) {
+      if (key in body) updates[key] = body[key];
+    }
+    if (typeof updates.content === "string") {
+      updates.wordCount = (updates.content as string).replace(/<[^>]*>/g, "").split(/\s+/).filter(Boolean).length;
+    }
+    const updated = { ...existing, ...updates, updatedAt: new Date().toISOString() };
+    await savePost(updated);
+    return NextResponse.json({ post: updated });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to update post" },
       { status: 500 }
     );
   }

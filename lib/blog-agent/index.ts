@@ -3,6 +3,7 @@ export { startScheduler, stopScheduler } from "./scheduler";
 export { researchTopics } from "./researcher";
 export { writeBlogPost } from "./writer";
 export { publishToWordPress, testWordPressConnection } from "./publisher";
+export { notify } from "./notifier";
 export {
   getStore,
   saveStore,

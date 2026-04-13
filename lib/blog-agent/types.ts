@@ -47,6 +47,7 @@ export interface BlogPost {
   categories: string[];
   tags: string[];
   featuredImagePrompt: string;
+  featuredImageUrl?: string;
   wordCount: number;
   status: "draft" | "ready" | "published" | "failed";
   wordpressPostId?: number;

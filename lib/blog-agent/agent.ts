@@ -13,6 +13,7 @@ import {
 import { researchTopics } from "./researcher";
 import { writeBlogPost } from "./writer";
 import { publishToWordPress } from "./publisher";
+import { notify } from "./notifier";
 
 export async function runResearch(clientId?: string): Promise<{
   run: AgentRun;
@@ -63,6 +64,9 @@ export async function runResearch(clientId?: string): Promise<{
         }
 
         totalTopics += topics.length;
+        if (topics.length > 0) {
+          await notify.topicsReadyForApproval(client.businessName, topics.length);
+        }
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : "Unknown error";
         topicsByClient[client.id] = [];
@@ -141,6 +145,9 @@ export async function runWriting(clientId?: string): Promise<{
       message: `Wrote ${posts.length} blog post(s) from ${approvedTopics.length} approved topic(s)`,
       completedAt: new Date().toISOString(),
     });
+    if (posts.length > 0) {
+      await notify.postsWritten(posts.length, approvedTopics.length);
+    }
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : "Unknown error";
     await updateRun(run.id, {
@@ -198,21 +205,26 @@ export async function runPublishing(clientId?: string): Promise<{
         await savePost(post);
 
         results.push({ postId: post.id, success: true, url: result.publishedUrl });
+        await notify.postPublished(client.businessName, post.title, result.publishedUrl);
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : "Unknown error";
         post.status = "failed";
         post.updatedAt = new Date().toISOString();
         await savePost(post);
         results.push({ postId: post.id, success: false, error: errMsg });
+        const client = await getClient(post.clientId);
+        await notify.publishFailed(client?.businessName || "Unknown client", post.title, errMsg);
       }
     }
 
     const successCount = results.filter((r) => r.success).length;
+    const failCount = results.length - successCount;
     await updateRun(run.id, {
       status: "completed",
       message: `Published ${successCount}/${results.length} post(s) successfully`,
       completedAt: new Date().toISOString(),
     });
+    await notify.publishSummary(successCount, failCount);
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : "Unknown error";
     await updateRun(run.id, {

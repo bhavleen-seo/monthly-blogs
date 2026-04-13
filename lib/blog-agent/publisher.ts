@@ -22,6 +22,49 @@ function getApiBase(client: Client): string {
   return `${base}/wp-json/wp/v2`;
 }
 
+async function uploadFeaturedImage(
+  client: Client,
+  imageUrl: string,
+  postSlug: string
+): Promise<number | null> {
+  try {
+    const apiBase = getApiBase(client);
+    const authHeader = getAuthHeader(client);
+
+    // Download the image
+    const imgRes = await fetch(imageUrl);
+    if (!imgRes.ok) {
+      throw new Error(`Failed to download image: ${imgRes.status}`);
+    }
+    const contentType = imgRes.headers.get("content-type") || "image/jpeg";
+    const ext = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg";
+    const filename = `${postSlug}.${ext}`;
+    const buffer = Buffer.from(await imgRes.arrayBuffer());
+
+    // Upload to WordPress media library
+    const uploadRes = await fetch(`${apiBase}/media`, {
+      method: "POST",
+      headers: {
+        Authorization: authHeader,
+        "Content-Type": contentType,
+        "Content-Disposition": `attachment; filename="${filename}"`,
+      },
+      body: buffer,
+    });
+
+    if (!uploadRes.ok) {
+      const errText = await uploadRes.text();
+      throw new Error(`Failed to upload image: ${uploadRes.status} ${errText.slice(0, 200)}`);
+    }
+
+    const media: { id: number } = await uploadRes.json();
+    return media.id;
+  } catch (error) {
+    console.error("Featured image upload failed:", error);
+    return null;
+  }
+}
+
 async function getOrCreateCategories(
   client: Client,
   categoryNames: string[]
@@ -120,12 +163,15 @@ export async function publishToWordPress(
   const apiBase = getApiBase(client);
   const authHeader = getAuthHeader(client);
 
-  const [categoryIds, tagIds] = await Promise.all([
+  const [categoryIds, tagIds, featuredMediaId] = await Promise.all([
     getOrCreateCategories(client, post.categories),
     getOrCreateTags(client, post.tags),
+    post.featuredImageUrl
+      ? uploadFeaturedImage(client, post.featuredImageUrl, post.slug)
+      : Promise.resolve(null),
   ]);
 
-  const wpPost = {
+  const wpPost: Record<string, unknown> = {
     title: post.title,
     slug: post.slug,
     content: post.content,
@@ -137,6 +183,10 @@ export async function publishToWordPress(
       _yoast_wpseo_metadesc: post.metaDescription,
     },
   };
+
+  if (featuredMediaId) {
+    wpPost.featured_media = featuredMediaId;
+  }
 
   const res = await fetch(`${apiBase}/posts`, {
     method: "POST",
