@@ -73,18 +73,24 @@ export default function DashboardTab({
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Hero banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 dark:from-zinc-100 dark:via-zinc-200 dark:to-zinc-100 p-8">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 dark:from-zinc-100 dark:via-zinc-200 dark:to-zinc-100 p-5 sm:p-8">
         {/* Decorative circles */}
         <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-white/5 dark:bg-black/5" />
         <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-white/5 dark:bg-black/5" />
         <div className="absolute top-4 right-4 w-20 h-20 rounded-full bg-white/5 dark:bg-black/5" />
 
-        <div className="relative z-10 flex items-center gap-5">
+        <div className="relative z-10 flex items-start sm:items-center gap-4 sm:gap-5 flex-col sm:flex-row">
           <div className="shrink-0 bg-white/10 dark:bg-black/10 rounded-xl p-2.5 backdrop-blur-sm">
+            {/* White logo on dark hero bg (light mode), dark logo on light hero bg (dark mode) */}
             <img
               src="https://www.csdesignstudios.com/wp-content/uploads/yootheme/cache/8d/cs-design-studios-logo-8d06a929.webp"
               alt="CS Design Studios"
-              className="w-12 h-12 object-contain"
+              className="w-10 h-10 sm:w-12 sm:h-12 object-contain block dark:hidden"
+            />
+            <img
+              src="https://www.csdesignstudios.com/wp-content/uploads/CSLOGONAV.webp"
+              alt="CS Design Studios"
+              className="w-10 h-10 sm:w-12 sm:h-12 object-contain hidden dark:block"
             />
           </div>
           <div>

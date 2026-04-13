@@ -17,6 +17,7 @@ export default function BlogAgentDashboard() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" | "info" } | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const showToast = (msg: string, type: "success" | "error" | "info" = "info") => {
     setToast({ msg, type });
@@ -190,7 +191,21 @@ export default function BlogAgentDashboard() {
         onTabChange={setActiveTab}
         counts={{ clients: clients.length, pendingTopics: pendingTopics.length, readyPosts: readyPosts.length }}
         loading={loading}
+        mobileOpen={sidebarOpen}
+        onMobileClose={() => setSidebarOpen(false)}
       />
+
+      {/* Mobile header */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-[var(--color-sidebar)] border-b border-[var(--color-sidebar-border)] px-4 py-3 flex items-center gap-3">
+        <button onClick={() => setSidebarOpen(true)} className="p-1 -ml-1 text-[var(--color-foreground)]">
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+          </svg>
+        </button>
+        <img src="https://www.csdesignstudios.com/wp-content/uploads/CSLOGONAV.webp" alt="CS Design Studios" className="w-6 h-6 object-contain block dark:hidden" />
+        <img src="https://www.csdesignstudios.com/wp-content/uploads/yootheme/cache/8d/cs-design-studios-logo-8d06a929.webp" alt="CS Design Studios" className="w-6 h-6 object-contain hidden dark:block" />
+        <span className="text-sm font-semibold text-[var(--color-foreground)]">Monthly Blogs</span>
+      </div>
 
       {/* Toast */}
       {toast && (
@@ -210,8 +225,8 @@ export default function BlogAgentDashboard() {
       )}
 
       {/* Main content */}
-      <main className="pl-60 min-h-screen">
-        <div className="max-w-6xl mx-auto px-8 py-8">
+      <main className="pt-14 md:pt-0 md:pl-60 min-h-screen">
+        <div className="max-w-6xl mx-auto px-4 py-6 md:px-8 md:py-8">
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-[var(--color-foreground)]">
               {activeTab === "dashboard" ? "Dashboard" :

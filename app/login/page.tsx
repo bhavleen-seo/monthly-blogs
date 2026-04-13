@@ -41,11 +41,8 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <div className="login-logo-glow rounded-2xl p-3">
-              <img
-                src="https://www.csdesignstudios.com/wp-content/uploads/yootheme/cache/8d/cs-design-studios-logo-8d06a929.webp"
-                alt="CS Design Studios"
-                className="w-14 h-14 object-contain"
-              />
+              <img src="https://www.csdesignstudios.com/wp-content/uploads/CSLOGONAV.webp" alt="CS Design Studios" className="w-14 h-14 object-contain block dark:hidden" />
+              <img src="https://www.csdesignstudios.com/wp-content/uploads/yootheme/cache/8d/cs-design-studios-logo-8d06a929.webp" alt="CS Design Studios" className="w-14 h-14 object-contain hidden dark:block" />
             </div>
           </div>
           <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Monthly Blogs</h1>
