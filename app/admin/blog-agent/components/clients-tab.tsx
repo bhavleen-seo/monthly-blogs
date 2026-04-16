@@ -13,6 +13,7 @@ export default function ClientsTab({
   onUpdateClient,
   onTestConnection,
   onResearch,
+  onApplyPostsRule,
 }: {
   clients: Client[];
   loading: boolean;
@@ -23,6 +24,7 @@ export default function ClientsTab({
   onUpdateClient: (client: Client) => void;
   onTestConnection: (id: string) => void;
   onResearch: (clientId: string) => void;
+  onApplyPostsRule: () => void;
 }) {
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
@@ -76,10 +78,20 @@ export default function ClientsTab({
             className="w-full pl-10 pr-4 py-2 bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted-foreground)]"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {clients.length === 0 && (
             <button onClick={onSeed} disabled={loading} className="bg-[var(--color-success)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40">
               Load All 26 Clients
+            </button>
+          )}
+          {clients.length > 0 && (
+            <button
+              onClick={onApplyPostsRule}
+              disabled={loading}
+              title="Sets all clients to 1 post/month except GLW and Rose (2/month)"
+              className="border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-hover)] px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-40"
+            >
+              Sync posts/month rule
             </button>
           )}
           <button
