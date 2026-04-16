@@ -31,6 +31,9 @@ export interface Topic {
   seoRationale?: string;
   topicalCluster?: string;
   rankingDifficulty?: "easy" | "medium" | "hard";
+  supportsCommercialKeyword?: string;
+  funnelStage?: "TOFU" | "MOFU" | "BOFU";
+  internalLinkTarget?: string;
 }
 
 export interface Post {

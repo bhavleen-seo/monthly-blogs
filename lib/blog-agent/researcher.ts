@@ -5,6 +5,7 @@ import { complete } from "./llm";
 import { getPublishedPostTitles } from "./publisher";
 import { getRelatedQuestions } from "./alsoasked";
 import { analyzeKeywords, formatSerpForPrompt } from "./serper";
+import { fetchSiteContext } from "./site-context";
 
 // Rough country/region mapping from free-text location for regionality
 function inferRegion(location: string): string {
@@ -31,13 +32,15 @@ export async function researchTopics(
 
   // Use up to 5 keywords for SERP analysis — more than that blows up the prompt
   const seedKeywords = client.keywords.slice(0, 5);
+  const websiteUrl = client.websiteUrl || client.wordpressUrl;
 
-  // Fetch all three research signals in parallel.
+  // Fetch all research signals in parallel.
   // All are best-effort: failure just reduces research quality.
-  const [publishedTitles, relatedQuestions, serpAnalyses] = await Promise.all([
+  const [publishedTitles, relatedQuestions, serpAnalyses, siteContext] = await Promise.all([
     getPublishedPostTitles(client),
     getRelatedQuestions(seedKeywords.slice(0, 3), { region, language: "en", limit: 25 }),
     analyzeKeywords(seedKeywords, { gl: region, hl: "en" }),
+    fetchSiteContext(websiteUrl),
   ]);
 
   const globalRulesSection = [
@@ -49,21 +52,45 @@ export async function researchTopics(
     .join("\n\n");
 
   const serpSection = serpAnalyses.length > 0
-    ? `## Live Google SERP Analysis (region: ${region.toUpperCase()})
-Below are the actual top-ranking pages right now for the client's target keywords. Use this to find content gaps, weak spots in current rankings, and long-tail angles that aren't well-covered.
+    ? `## Live Google SERP Data for the Client's Commercial Keywords (region: ${region.toUpperCase()})
+IMPORTANT: These are commercial (transactional) keywords. The top-ranking pages will almost always be SERVICE/LOCATION PAGES, NOT blog posts. This is expected and useful — it tells you what Google believes users want when they type these queries.
+
+Use this data to understand:
+- **The competitive landscape** — who's dominating these terms?
+- **Real user sub-intents** via "People Also Ask" and "Related searches" — these reveal the INFORMATIONAL questions that sit alongside commercial intent. THESE are where your blog opportunities lie.
+- **Content gaps the top pages don't cover** — questions left unanswered in service-page copy.
 
 ${serpAnalyses.map(formatSerpForPrompt).join("\n\n")}`
-    : "## Live Google SERP Analysis\n(SERPER_API_KEY not configured — proceeding without live SERP data. Suggestions will be weaker without it.)";
+    : "## Live Google SERP Data\n(SERPER_API_KEY not configured — proceeding without live SERP data. Suggestions will be weaker without it.)";
+
+  const siteContextSection = siteContext.servicePages.length > 0 || siteContext.homepageTitle
+    ? `## Client's Existing Website Structure
+**Homepage title:** ${siteContext.homepageTitle || "(not fetched)"}
+**Meta description:** ${siteContext.metaDescription || "(not fetched)"}
+**H1:** ${siteContext.h1 || "(not fetched)"}
+
+**Service / money pages on the site (your internal link targets):**
+${
+  siteContext.servicePages.length > 0
+    ? siteContext.servicePages.map((p) => `- ${p.label} → ${p.url}`).join("\n")
+    : "(none extracted from nav)"
+}
+
+${siteContext.positioning ? `**Brand positioning (from homepage):** "${siteContext.positioning.slice(0, 400)}"` : ""}`
+    : "## Client's Existing Website Structure\n(Could not fetch — make educated guesses about likely service pages based on the client's keywords.)";
 
   const prompt = `# Role
-You are a senior SEO strategist with 10+ years of experience, specializing in topical authority and first-page rankings for small-to-mid-sized service businesses. You have deep expertise in:
-- Content gap analysis using live SERP data
-- Long-tail keyword opportunity identification
-- Topical cluster architecture (pillar + supporting posts)
-- E-E-A-T (Experience, Expertise, Authoritativeness, Trust) signals
-- Local SEO for service businesses
+You are a senior SEO strategist with 10+ years of experience, specializing in **topical authority** and **topic cluster architecture** for service businesses. You understand that:
 
-Your #1 priority is to suggest topics that will help this client **build topical authority** in their niche AND have a realistic chance of **ranking on page 1 within 3–6 months**.
+1. **Commercial/transactional keywords** (e.g. "emergency plumber phoenix", "home loans melbourne") should be targeted with SERVICE PAGES, not blog posts. Blog posts cannot realistically outrank service pages for these terms.
+
+2. **Your job is NOT to propose blog posts that try to rank for commercial keywords.** Your job is to propose informational blog posts that **SUPPORT the commercial keywords** by:
+   - Answering pre-purchase questions users search BEFORE they're ready to buy
+   - Building topical authority around the commercial niche (so Google sees the site as an authority)
+   - Capturing top-of-funnel and middle-of-funnel searches
+   - Funneling readers toward the commercial service pages via contextual internal links
+
+3. **Every blog post you propose must map to an existing commercial/service page** on the client's site and include an internal link to it. That's how topical authority compounds.
 
 ${globalRulesSection}
 
@@ -72,60 +99,70 @@ ${globalRulesSection}
 - **Industry:** ${client.industry}
 - **Target Audience:** ${client.targetAudience}
 - **Location:** ${client.location}
-- **Website:** ${client.websiteUrl || client.wordpressUrl}
+- **Website:** ${websiteUrl}
 - **Brand Tone:** ${client.tone}
-- **Primary Target Keywords:** ${client.keywords.join(", ")}
+- **Commercial Target Keywords (money terms — DO NOT target blog posts at these directly):**
+${client.keywords.map((k) => `  - ${k}`).join("\n")}
 - **Blog Categories:** ${client.blogCategories.join(", ")}
 ${client.seoNotes ? `\n## Client-Specific SEO Instructions (MUST follow)\n${client.seoNotes}` : ""}
 
 # Research Context
 
-## Month: ${month}
+## Publishing Month: ${month}
+
+${siteContextSection}
 
 ${serpSection}
 
 ${
   relatedQuestions.length > 0
-    ? `## People Also Asked (from AlsoAsked — real questions users type)
-These are genuine search intents — the best topics often answer 2-3 of these in a single post.
+    ? `## People Also Asked (from AlsoAsked — the real informational questions users search)
+These are GOLD. They reveal what real users want to KNOW (informational intent) around the commercial keywords. Your best topics will answer 2-4 of these in a single well-structured post.
 ${relatedQuestions.map((q) => `- ${q}`).join("\n")}
 
 `
     : ""
 }## Already Published on ${client.wordpressUrl} — STRICT EXCLUSIONS
-Every topic you suggest MUST cover a distinctly different angle, subtopic, or intent than ALL of these. Do not suggest close variants or re-phrasings:
+Every topic you suggest MUST cover a distinctly different angle than ALL of these:
 ${publishedTitles.length > 0 ? publishedTitles.map((t) => `- ${t}`).join("\n") : "None fetched"}
 
 ## Previously Suggested (don't repeat):
 ${pastTitles.length > 0 ? pastTitles.map((t) => `- ${t}`).join("\n") : "None yet"}
 
-# Your Task
-Propose ${numTopics} blog topics. For each topic, apply this decision framework:
+# Your Decision Framework
+For each blog topic, work backwards from a commercial keyword:
 
-1. **Gap analysis:** Looking at the SERP data above, is there a question, angle, or sub-intent that the top 10 results are NOT answering well? Those are your opportunities.
-2. **Ranking feasibility:** Can a new site realistically beat those top 10? Look for weak pages (thin content, old, not truly matching intent). Favor long-tail over head terms.
-3. **Topical authority:** Does this topic reinforce ${client.businessName} as the go-to authority in ${client.industry}? Group topics into 2-3 topical clusters so the site builds density around key themes.
-4. **Local intent:** Where possible, exploit local-specific angles for ${client.location} that national competitors can't match.
-5. **User intent match:** Does this answer a real, commercially-relevant question from the target audience?
+1. **Pick a commercial keyword** from the client's list above.
+2. **Identify an informational sub-intent** that sits upstream of that commercial keyword. Use the PAA, related searches, and your own knowledge of the niche.
+3. **Check feasibility:** Can a well-written blog post realistically rank page 1 for this informational query within 3-6 months? Look at SERP weakness, content thinness, answer gaps.
+4. **Check topical contribution:** Does this post reinforce a specific topical cluster? (Group your ${numTopics} topics into 2-3 clusters so authority compounds.)
+5. **Identify the internal link target:** Which service page on the site should this blog post link to? (Use the service pages extracted above. If none match, reference the commercial keyword as the implicit target.)
+6. **Tag the funnel stage:**
+   - **TOFU** (Top of Funnel): awareness-stage — users don't even know they have a problem yet
+   - **MOFU** (Middle): users are researching solutions and comparing options
+   - **BOFU** (Bottom): users are ready to buy — "best", "cost", "near me" modifiers
+
+Aim for a mix: roughly 40% TOFU, 40% MOFU, 20% BOFU. TOFU builds authority, BOFU drives conversions.
 
 # Output Format
-Return ONLY a JSON array, no other text. Each topic object must include:
+Return ONLY a JSON array, no other text. ${numTopics} topics, each with all fields:
 
 \`\`\`json
 [
   {
-    "title": "SEO-friendly title, 50-70 characters, includes primary keyword naturally",
-    "description": "2-3 sentences: what the post will cover and the unique angle vs. current SERP",
-    "targetKeywords": ["primary keyword", "2-4 long-tail variants"],
+    "title": "SEO-friendly title, 50-70 chars, includes the INFORMATIONAL keyword (not commercial)",
+    "description": "2-3 sentences: what the post covers + the unique angle vs current SERP",
+    "targetKeywords": ["informational primary keyword", "2-4 long-tail variants"],
     "estimatedSearchVolume": "high | medium | low",
     "rankingDifficulty": "easy | medium | hard",
-    "topicalCluster": "The theme/pillar this post belongs to (group your ${numTopics} topics into 2-3 clusters)",
-    "seoRationale": "1-2 sentences explaining WHY this can rank — reference specific SERP weaknesses, gaps, or intent mismatches you spotted. Be concrete."
+    "topicalCluster": "Theme this belongs to. Group ${numTopics} topics into 2-3 clusters.",
+    "supportsCommercialKeyword": "The commercial keyword from the client's list that this post supports",
+    "funnelStage": "TOFU | MOFU | BOFU",
+    "internalLinkTarget": "URL of the service page on client's site to link to (or the commercial keyword if no specific URL known)",
+    "seoRationale": "1-2 sentences: WHY this can rank. Cite specific SERP gap, weakness in top 10, or PAA question that's poorly answered. Be concrete, don't be generic."
   }
 ]
 \`\`\`
-
-Prioritize "easy" and "medium" ranking difficulty. Group topics into 2-3 clusters to build topical authority. Every topic must have strong commercial or informational intent for ${client.businessName}'s target audience.
 
 Return ONLY the JSON array.`;
 
@@ -142,6 +179,9 @@ Return ONLY the JSON array.`;
     estimatedSearchVolume: "high" | "medium" | "low";
     rankingDifficulty?: "easy" | "medium" | "hard";
     topicalCluster?: string;
+    supportsCommercialKeyword?: string;
+    funnelStage?: "TOFU" | "MOFU" | "BOFU";
+    internalLinkTarget?: string;
     seoRationale?: string;
   }
 
@@ -167,6 +207,9 @@ Return ONLY the JSON array.`;
     estimatedSearchVolume: s.estimatedSearchVolume,
     rankingDifficulty: s.rankingDifficulty,
     topicalCluster: s.topicalCluster,
+    supportsCommercialKeyword: s.supportsCommercialKeyword,
+    funnelStage: s.funnelStage,
+    internalLinkTarget: s.internalLinkTarget,
     seoRationale: s.seoRationale,
     status: "pending" as const,
     month,

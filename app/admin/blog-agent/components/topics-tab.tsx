@@ -152,7 +152,15 @@ function TopicRow({ topic, onApprove, onReject, showActions }: { topic: Topic; o
                 🎯 {topic.topicalCluster}
               </span>
             )}
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--color-secondary)] text-[var(--color-secondary-foreground)]">{topic.month}</span>
+            {topic.funnelStage && (
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                topic.funnelStage === "TOFU" ? "bg-blue-500/15 text-blue-600 dark:text-blue-400" :
+                topic.funnelStage === "MOFU" ? "bg-purple-500/15 text-purple-600 dark:text-purple-400" :
+                "bg-orange-500/15 text-orange-600 dark:text-orange-400"
+              }`} title="Funnel stage">
+                {topic.funnelStage}
+              </span>
+            )}
             <span className={`text-[10px] px-2 py-0.5 rounded-full ${
               topic.estimatedSearchVolume === "high" ? "bg-[var(--color-success)]/15 text-[var(--color-success)]" :
               topic.estimatedSearchVolume === "medium" ? "bg-[var(--color-warning)]/15 text-[var(--color-warning)]" :
@@ -173,6 +181,16 @@ function TopicRow({ topic, onApprove, onReject, showActions }: { topic: Topic; o
               <span key={kw} className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--color-secondary)] text-[var(--color-muted-foreground)]">{kw}</span>
             ))}
           </div>
+          {(topic.supportsCommercialKeyword || topic.internalLinkTarget) && (
+            <div className="mt-2 text-[10px] text-[var(--color-muted-foreground)] space-y-0.5">
+              {topic.supportsCommercialKeyword && (
+                <p>Supports: <span className="text-[var(--color-foreground)] font-medium">{topic.supportsCommercialKeyword}</span></p>
+              )}
+              {topic.internalLinkTarget && (
+                <p className="truncate">Internal link → <span className="text-[var(--color-foreground)] font-mono">{topic.internalLinkTarget}</span></p>
+              )}
+            </div>
+          )}
         </div>
         {showActions && (
           <div className="flex gap-2 shrink-0">

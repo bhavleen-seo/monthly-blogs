@@ -39,6 +39,9 @@ ${globalRulesSection}
 - **Title:** ${topic.title}
 - **Description:** ${topic.description}
 - **Target Keywords:** ${topic.targetKeywords.join(", ")}
+${topic.supportsCommercialKeyword ? `- **Supporting commercial keyword:** "${topic.supportsCommercialKeyword}" — this informational post should naturally funnel readers toward the client's service for this commercial keyword.` : ""}
+${topic.internalLinkTarget ? `- **Internal link target:** You MUST include a contextual internal link to this URL/page in the body, naturally integrated (not a dropped CTA box). Anchor text should be keyword-rich but not spammy.\n  ${topic.internalLinkTarget}` : ""}
+${topic.funnelStage ? `- **Funnel stage:** ${topic.funnelStage} — ${topic.funnelStage === "TOFU" ? "educate and build trust, soft CTAs only" : topic.funnelStage === "MOFU" ? "compare options, address objections, stronger nudge toward client's service" : "decision-stage reader — clear CTA with service-page link"}` : ""}
 
 ## Requirements
 1. Write ${minWords}-${maxWords} words of high-quality, engaging content
@@ -46,7 +49,7 @@ ${globalRulesSection}
 3. Include the target keywords naturally (1-2% keyword density)
 4. Structure with clear headings and subheadings
 5. Include an engaging introduction that hooks the reader
-6. Add a strong conclusion with a call-to-action relevant to ${client.businessName}
+6. ${topic.internalLinkTarget ? `**Include at least one contextual internal link** to ${topic.internalLinkTarget} — anchor it to relevant text within a paragraph, not as a standalone button.` : "Add a strong conclusion with a call-to-action relevant to " + client.businessName}
 7. Write in a ${client.tone} tone
 8. Make it locally relevant to ${client.location} where appropriate
 9. Include practical, actionable advice

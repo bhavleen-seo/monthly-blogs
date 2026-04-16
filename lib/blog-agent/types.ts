@@ -32,6 +32,12 @@ export interface TopicSuggestion {
   topicalCluster?: string;
   /** Expected difficulty to rank on page 1 */
   rankingDifficulty?: "easy" | "medium" | "hard";
+  /** Which commercial (money) keyword this informational post supports */
+  supportsCommercialKeyword?: string;
+  /** Where in the buyer journey this post sits */
+  funnelStage?: "TOFU" | "MOFU" | "BOFU";
+  /** Recommended URL on the client's site to internal-link to from this post */
+  internalLinkTarget?: string;
   status: "pending" | "approved" | "rejected";
   month: string;
   createdAt: string;
