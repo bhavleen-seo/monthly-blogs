@@ -14,7 +14,7 @@ export default function ScheduleTab() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    fetch("/api/blog-agent/schedule")
+    fetch("/api/blog-agent/schedule", { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
         if (data.schedule) setSchedule(data.schedule);

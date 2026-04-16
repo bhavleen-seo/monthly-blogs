@@ -65,22 +65,36 @@ export default function SettingsTab() {
     model: "anthropic/claude-sonnet-4.5",
   });
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [customModel, setCustomModel] = useState(false);
 
   useEffect(() => {
-    fetch("/api/blog-agent/settings")
+    fetch("/api/blog-agent/settings", { cache: "no-store" })
       .then((r) => r.json())
-      .then((data) => { if (data.settings) setSettings(data.settings); });
+      .then((data) => { if (data.settings) setSettings(data.settings); })
+      .catch(() => {});
   }, []);
 
   const handleSave = async () => {
-    await fetch("/api/blog-agent/settings", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(settings),
-    });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    setSaveError("");
+    try {
+      const res = await fetch("/api/blog-agent/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSaveError(data.error || `Save failed (HTTP ${res.status})`);
+        return;
+      }
+      // Update local state from the server response to confirm what was persisted
+      if (data.settings) setSettings(data.settings);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Network error — save failed");
+    }
   };
 
   return (
@@ -92,11 +106,17 @@ export default function SettingsTab() {
         </div>
         <button
           onClick={handleSave}
-          className={`px-5 py-2 rounded-lg text-sm font-medium text-[var(--color-primary-foreground)] transition-all ${saved ? "bg-[var(--color-success)]" : "bg-[var(--color-primary)] hover:opacity-90"}`}
+          className={`px-5 py-2 rounded-lg text-sm font-medium text-[var(--color-primary-foreground)] transition-all ${saved ? "bg-[var(--color-success)]" : saveError ? "bg-[var(--color-destructive)]" : "bg-[var(--color-primary)] hover:opacity-90"}`}
         >
-          {saved ? "Saved!" : "Save Settings"}
+          {saved ? "Saved!" : saveError ? "Failed" : "Save Settings"}
         </button>
       </div>
+
+      {saveError && (
+        <div className="bg-[var(--color-destructive)]/10 border border-[var(--color-destructive)]/30 text-[var(--color-destructive)] rounded-lg px-4 py-3 text-sm">
+          <strong>Save failed:</strong> {saveError}
+        </div>
+      )}
 
       <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl p-6 space-y-6">
         <Field label="SEO Rules" hint="Keyword placement, heading structure, internal linking rules.">
