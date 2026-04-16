@@ -27,14 +27,47 @@ const DEFAULT_STORE: AgentStore = {
   },
 };
 
-// Use Vercel KV if available (production), otherwise use file storage (local dev)
+// Use Vercel KV if available (production), otherwise use file storage (local dev).
+// Supports multiple env var patterns:
+// 1. KV_REST_API_URL + KV_REST_API_TOKEN (Vercel KV native)
+// 2. REDIS_URL (Upstash Redis addon — parse host + token from URL)
 function useKV(): boolean {
-  return !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+  return !!(
+    (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) ||
+    process.env.REDIS_URL
+  );
+}
+
+function parseRedisUrl(url: string): { url: string; token: string } | null {
+  try {
+    // redis://default:TOKEN@host:port or rediss://default:TOKEN@host:port
+    const parsed = new URL(url);
+    const token = parsed.password;
+    const host = parsed.hostname;
+    if (!token || !host) return null;
+    return { url: `https://${host}`, token };
+  } catch {
+    return null;
+  }
 }
 
 async function getKV() {
-  const { kv } = await import("@vercel/kv");
-  return kv;
+  // Try native Vercel KV env vars first
+  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+    const { kv } = await import("@vercel/kv");
+    return kv;
+  }
+
+  // Fallback: parse REDIS_URL into REST API credentials
+  if (process.env.REDIS_URL) {
+    const creds = parseRedisUrl(process.env.REDIS_URL);
+    if (creds) {
+      const { createClient } = await import("@vercel/kv");
+      return createClient(creds);
+    }
+  }
+
+  throw new Error("No KV credentials found in environment");
 }
 
 async function ensureDataDir(): Promise<void> {
