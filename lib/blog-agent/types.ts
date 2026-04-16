@@ -93,7 +93,10 @@ export interface GlobalSettings {
   contentInstructions: string;
   avoidTopics: string;
   preferredWordCount: { min: number; max: number };
+  /** @deprecated Use researchModel / writerModel instead */
   model: string;
+  researchModel?: string;
+  writerModel?: string;
 }
 
 export interface AgentStore {

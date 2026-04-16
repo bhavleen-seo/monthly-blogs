@@ -73,7 +73,7 @@ Respond in JSON format:
 Return ONLY the JSON object, no other text.`;
 
   const text = await complete({
-    model: settings.model || "anthropic/claude-sonnet-4.5",
+    model: settings.writerModel || settings.model || "anthropic/claude-sonnet-4.5",
     prompt,
     maxTokens: 8192,
   });

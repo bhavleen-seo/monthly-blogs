@@ -167,7 +167,7 @@ Return ONLY a JSON array, no other text. ${numTopics} topics, each with all fiel
 Return ONLY the JSON array.`;
 
   const text = await complete({
-    model: settings.model || "anthropic/claude-sonnet-4.5",
+    model: settings.researchModel || settings.model || "anthropic/claude-sonnet-4.5",
     prompt,
     maxTokens: 8192,
   });
