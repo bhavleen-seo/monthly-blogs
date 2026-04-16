@@ -172,14 +172,19 @@ export default function BlogAgentDashboard() {
     if (res.ok) { showToast(`${topicIds.length} topics approved!`, "success"); fetchTopics(); }
   };
 
-  const handleWritePosts = async (clientId?: string) => {
+  const handleWritePosts = async (clientId?: string, topicIds?: string[]) => {
     setLoading(true);
-    showToast("Writing blog posts...", "info");
+    showToast(
+      topicIds?.length
+        ? `Writing ${topicIds.length} selected post(s)...`
+        : "Writing blog posts...",
+      "info"
+    );
     try {
       const res = await fetch("/api/blog-agent/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId }),
+        body: JSON.stringify({ clientId, topicIds }),
       });
       const data = await res.json();
       res.ok ? showToast(`Wrote ${data.postsWritten} post(s)!`, "success") : showToast(`Error: ${data.error}`, "error");
@@ -300,6 +305,7 @@ export default function BlogAgentDashboard() {
               onReject={(id) => handleTopicAction(id, "reject")}
               onBulkApprove={handleBulkApprove}
               onRegenerate={(clientId) => handleResearchTopics(clientId, true)}
+              onWriteSelected={(topicIds) => handleWritePosts(undefined, topicIds)}
             />
           )}
 

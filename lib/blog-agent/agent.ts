@@ -98,7 +98,10 @@ export async function runResearch(clientId?: string): Promise<{
   return { run, topicsByClient };
 }
 
-export async function runWriting(clientId?: string): Promise<{
+export async function runWriting(
+  clientId?: string,
+  topicIds?: string[]
+): Promise<{
   run: AgentRun;
   posts: BlogPost[];
 }> {
@@ -107,7 +110,9 @@ export async function runWriting(clientId?: string): Promise<{
     type: "write",
     clientId,
     status: "running",
-    message: "Writing blog posts from approved topics...",
+    message: topicIds?.length
+      ? `Writing ${topicIds.length} selected blog post(s)...`
+      : "Writing blog posts from approved topics...",
     startedAt: new Date().toISOString(),
   };
   await addRun(run);
@@ -115,10 +120,16 @@ export async function runWriting(clientId?: string): Promise<{
   const posts: BlogPost[] = [];
 
   try {
-    const approvedTopics = await getTopics({
+    let approvedTopics = await getTopics({
       clientId,
       status: "approved",
     });
+
+    // If a specific selection was provided, narrow to just those.
+    if (topicIds && topicIds.length > 0) {
+      const idSet = new Set(topicIds);
+      approvedTopics = approvedTopics.filter((t) => idSet.has(t.id));
+    }
 
     if (approvedTopics.length === 0) {
       await updateRun(run.id, {

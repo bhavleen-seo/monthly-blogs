@@ -58,8 +58,11 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const clientId = body.clientId || undefined;
+    const topicIds: string[] | undefined = Array.isArray(body.topicIds) && body.topicIds.length > 0
+      ? body.topicIds
+      : undefined;
 
-    const { run, posts } = await runWriting(clientId);
+    const { run, posts } = await runWriting(clientId, topicIds);
 
     return NextResponse.json({
       run,

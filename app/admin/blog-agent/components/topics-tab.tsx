@@ -11,6 +11,7 @@ export default function TopicsTab({
   onReject,
   onBulkApprove,
   onRegenerate,
+  onWriteSelected,
 }: {
   clients: Client[];
   topics: Topic[];
@@ -19,13 +20,29 @@ export default function TopicsTab({
   onReject: (id: string) => void;
   onBulkApprove: (ids: string[]) => void;
   onRegenerate: (clientId: string) => void;
+  onWriteSelected: (topicIds: string[]) => void;
 }) {
   const [clientFilter, setClientFilter] = useState("");
-  const [approvedExpanded, setApprovedExpanded] = useState(false);
+  const [approvedExpanded, setApprovedExpanded] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const filtered = clientFilter ? topics.filter((t) => t.clientId === clientFilter) : topics;
   const pending = filtered.filter((t) => t.status === "pending");
   const approved = filtered.filter((t) => t.status === "approved");
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllApproved = () => setSelectedIds(new Set(approved.map((t) => t.id)));
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const selectedCount = approved.filter((t) => selectedIds.has(t.id)).length;
 
   // Group pending by client
   const pendingByClient = new Map<string, { clientName: string; clientId: string; topics: Topic[] }>();
@@ -99,14 +116,14 @@ export default function TopicsTab({
         </div>
       )}
 
-      {/* Approved — collapsible */}
+      {/* Approved — collapsible with checkbox selection */}
       {approved.length > 0 && (
         <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl overflow-hidden">
-          <button
-            onClick={() => setApprovedExpanded(!approvedExpanded)}
-            className="w-full flex items-center justify-between px-5 py-3 hover:bg-[var(--color-hover)] transition-colors"
-          >
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between px-5 py-3">
+            <button
+              onClick={() => setApprovedExpanded(!approvedExpanded)}
+              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            >
               <svg
                 className={`w-4 h-4 text-[var(--color-muted-foreground)] transition-transform ${approvedExpanded ? "rotate-90" : ""}`}
                 fill="none"
@@ -119,15 +136,55 @@ export default function TopicsTab({
               <h3 className="text-xs font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">
                 Approved ({approved.length})
               </h3>
-            </div>
-            <span className="text-[10px] text-[var(--color-muted-foreground)]">
-              {approvedExpanded ? "Hide" : "Show"}
-            </span>
-          </button>
+              {selectedCount > 0 && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--color-primary)]/10 text-[var(--color-primary)] font-medium">
+                  {selectedCount} selected
+                </span>
+              )}
+            </button>
+            {approvedExpanded && (
+              <div className="flex items-center gap-2">
+                {selectedCount > 0 ? (
+                  <>
+                    <button
+                      onClick={clearSelection}
+                      className="text-[10px] font-medium text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      onClick={() => {
+                        onWriteSelected(Array.from(selectedIds));
+                        clearSelection();
+                      }}
+                      disabled={loading}
+                      className="text-xs font-medium bg-[var(--color-primary)] text-[var(--color-primary-foreground)] px-3 py-1.5 rounded-lg hover:opacity-90 disabled:opacity-40"
+                    >
+                      Write Selected ({selectedCount})
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={selectAllApproved}
+                    className="text-[10px] font-medium text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
+                  >
+                    Select all
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
           {approvedExpanded && (
             <div className="border-t border-[var(--color-border)] divide-y divide-[var(--color-border)]">
               {approved.map((topic) => (
-                <TopicRow key={topic.id} topic={topic} onApprove={onApprove} onReject={onReject} />
+                <TopicRow
+                  key={topic.id}
+                  topic={topic}
+                  onApprove={onApprove}
+                  onReject={onReject}
+                  selected={selectedIds.has(topic.id)}
+                  onToggleSelect={() => toggleSelect(topic.id)}
+                />
               ))}
             </div>
           )}
@@ -143,10 +200,32 @@ export default function TopicsTab({
   );
 }
 
-function TopicRow({ topic, onApprove, onReject, showActions }: { topic: Topic; onApprove: (id: string) => void; onReject: (id: string) => void; showActions?: boolean }) {
+function TopicRow({
+  topic,
+  onApprove,
+  onReject,
+  showActions,
+  selected,
+  onToggleSelect,
+}: {
+  topic: Topic;
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
+  showActions?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
+}) {
   return (
-    <div className="px-5 py-4 hover:bg-[var(--color-hover)] transition-colors">
-      <div className="flex items-start justify-between gap-4">
+    <div className={`px-5 py-4 transition-colors ${selected ? "bg-[var(--color-primary)]/5" : "hover:bg-[var(--color-hover)]"}`}>
+      <div className="flex items-start gap-3">
+        {onToggleSelect && (
+          <input
+            type="checkbox"
+            checked={!!selected}
+            onChange={onToggleSelect}
+            className="mt-1 w-4 h-4 shrink-0 cursor-pointer accent-[var(--color-primary)]"
+          />
+        )}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-[var(--color-foreground)]">{topic.title}</p>
           <p className="text-xs text-[var(--color-muted-foreground)] mt-1 line-clamp-2">{topic.description}</p>
