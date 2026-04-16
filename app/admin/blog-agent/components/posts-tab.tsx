@@ -3,6 +3,10 @@
 import { useState, useEffect } from "react";
 import type { Client, Topic, Post } from "./types";
 
+function generateSlugPreview(title: string): string {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
 export default function PostsTab({
   clients,
   topics,
@@ -194,17 +198,23 @@ export default function PostsTab({
             {/* Modal header */}
             <div className="flex items-start justify-between px-6 py-4 border-b border-[var(--color-border)]">
               <div className="min-w-0 mr-4 flex-1">
+                <label className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">Page Title</label>
                 {editing ? (
                   <input
                     type="text"
                     value={draft.title || ""}
                     onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                    className="w-full text-lg font-bold text-[var(--color-foreground)] bg-transparent border-b border-[var(--color-border)] focus:border-[var(--color-primary)] outline-none pb-1"
+                    className="w-full text-lg font-bold text-[var(--color-foreground)] bg-transparent border-b border-[var(--color-border)] focus:border-[var(--color-primary)] outline-none pb-1 mt-1"
                   />
                 ) : (
-                  <h2 className="text-lg font-bold text-[var(--color-foreground)]">{selectedPost.title}</h2>
+                  <h2 className="text-lg font-bold text-[var(--color-foreground)] mt-1">{selectedPost.title}</h2>
                 )}
-                <p className="text-xs text-[var(--color-muted-foreground)] mt-1">{selectedPost.clientName} &middot; {selectedPost.wordCount} words</p>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className="text-[10px] font-mono text-[var(--color-muted-foreground)] bg-[var(--color-muted)] px-2 py-0.5 rounded">/{(selectedPost as unknown as Record<string, string>).slug || generateSlugPreview(selectedPost.title)}</span>
+                  <span className="text-[10px] text-[var(--color-muted-foreground)]">{selectedPost.clientName}</span>
+                  <span className="text-[10px] text-[var(--color-muted-foreground)]">{selectedPost.wordCount} words</span>
+                  <span className={`text-[10px] ${(selectedPost.title?.length || 0) <= 60 ? "text-[var(--color-success)]" : "text-[var(--color-destructive)]"}`}>{selectedPost.title?.length || 0}/60 chars</span>
+                </div>
               </div>
               <div className="flex gap-2 shrink-0">
                 {!editing && selectedPost.status !== "published" && (
