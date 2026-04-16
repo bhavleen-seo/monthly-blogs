@@ -1,9 +1,7 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { v4 as uuidv4 } from "uuid";
 import type { Client, TopicSuggestion } from "./types";
 import { getTopics, getGlobalSettings } from "./store";
-
-const anthropic = new Anthropic();
+import { complete } from "./llm";
 
 export async function researchTopics(
   client: Client,
@@ -70,13 +68,11 @@ Respond in JSON format as an array:
 
 Return ONLY the JSON array, no other text.`;
 
-  const response = await anthropic.messages.create({
-    model: settings.model || "claude-opus-4-6",
-    max_tokens: 4096,
-    messages: [{ role: "user", content: prompt }],
+  const text = await complete({
+    model: settings.model || "anthropic/claude-sonnet-4.5",
+    prompt,
+    maxTokens: 4096,
   });
-
-  const text = response.content[0].type === "text" ? response.content[0].text : "";
 
   let suggestions: Array<{
     title: string;

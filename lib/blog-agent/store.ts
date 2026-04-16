@@ -23,7 +23,7 @@ const DEFAULT_STORE: AgentStore = {
     contentInstructions: "",
     avoidTopics: "",
     preferredWordCount: { min: 1200, max: 1800 },
-    model: "claude-opus-4-6",
+    model: "anthropic/claude-sonnet-4.5",
   },
 };
 

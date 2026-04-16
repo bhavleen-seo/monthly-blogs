@@ -1,9 +1,7 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { v4 as uuidv4 } from "uuid";
 import type { Client, TopicSuggestion, BlogPost } from "./types";
 import { getGlobalSettings } from "./store";
-
-const anthropic = new Anthropic();
+import { complete } from "./llm";
 
 function generateSlug(title: string): string {
   return title
@@ -71,13 +69,11 @@ Respond in JSON format:
 
 Return ONLY the JSON object, no other text.`;
 
-  const response = await anthropic.messages.create({
-    model: settings.model || "claude-opus-4-6",
-    max_tokens: 8192,
-    messages: [{ role: "user", content: prompt }],
+  const text = await complete({
+    model: settings.model || "anthropic/claude-sonnet-4.5",
+    prompt,
+    maxTokens: 8192,
   });
-
-  const text = response.content[0].type === "text" ? response.content[0].text : "";
 
   let parsed: {
     content: string;
