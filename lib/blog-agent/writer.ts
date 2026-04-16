@@ -10,79 +10,127 @@ function generateSlug(title: string): string {
     .replace(/^-|-$/g, "");
 }
 
+// ─── Hardcoded core rules (always applied, never lost to KV issues) ──────────
+
+const CORE_SEO_RULES = `
+- Primary keyword in the first 100 words and naturally in the final paragraph.
+- Use H2 for main sections (2–5 per post), H3 for subsections.
+- Include at least 3 internal links (to the client's other pages/posts) and 1 authoritative external link per post.
+- Build content around topic clusters — every blog should link to its pillar page and at least one related cluster post.
+- Use semantic keyword variations and related entities throughout (avoid exact-match keyword stuffing).
+- Include a concise, direct-answer paragraph (40–60 words) near the top of the post optimized for featured snippets and AI overviews.
+- Structure at least one section as a FAQ using proper FAQ schema markup (Question + Answer pairs).
+- Write meta titles under 60 characters with the primary keyword front-loaded.
+- Write meta descriptions between 140–155 characters that include the keyword and a clear value proposition.
+- Use descriptive, keyword-rich alt text on all images.
+- Keep URLs short, lowercase, hyphenated, and keyword-relevant.
+- Target one primary keyword and 3–5 semantically related secondary keywords per post.
+- Use "People Also Ask" and related search queries as H2/H3 headings where natural.
+- Ensure every post addresses search intent (informational, navigational, or transactional) within the first two scroll depths.
+- Aim for a content depth that covers the topic comprehensively enough that no critical subtopic is left for the reader to search elsewhere.
+`.trim();
+
+const CORE_CONTENT_INSTRUCTIONS = `
+- Write in a conversational but authoritative tone — the reader should feel like they're learning from a trusted expert, not reading a textbook.
+- Open every post with a hook that acknowledges the reader's problem or question directly.
+- Structure content using the inverted pyramid: lead with the clearest answer or takeaway, then expand with detail, context, and nuance.
+- Include real-world examples, mini case studies, or data points to back up claims.
+- Write in short paragraphs (2–4 sentences max) and use transition sentences between sections to maintain flow.
+- Include actionable tips the reader can implement immediately — avoid vague advice.
+- Naturally weave in question-based phrases that mirror how people ask voice assistants and AI chatbots (e.g., "What is...", "How do you...", "Why does...").
+- Write at least one section that gives a definitive, concise answer suitable for AI engines to extract and cite.
+- Avoid filler, fluff, and obvious statements — every sentence should earn its place.
+- End every post with a clear call-to-action tied to a business goal.
+- Include a TL;DR or key takeaways summary box for longer posts.
+- Write for a Flesch reading ease score of 60–70 (accessible to a broad audience).
+- Never publish thin content — if a topic can't sustain the minimum depth, combine it with a related topic.
+`.trim();
+
+// ─── Writer ──────────────────────────────────────────────────────────────────
+
 export async function writeBlogPost(
   client: Client,
   topic: TopicSuggestion
 ): Promise<BlogPost> {
   const settings = await getGlobalSettings();
   const { min: minWords, max: maxWords } = settings.preferredWordCount;
+  const model = settings.writerModel || settings.model || "anthropic/claude-sonnet-4.5";
 
-  console.log(`[writer] SEO Rules: ${settings.seoRules?.length || 0} chars, Content Instructions: ${settings.contentInstructions?.length || 0} chars, Model: ${settings.writerModel || settings.model || "default"}`);
+  console.log(`[writer] Model: ${model}, Min: ${minWords}, Max: ${maxWords}`);
 
-  const globalRulesSection = [
-    settings.seoRules && `## SEO Rules (MANDATORY — follow every single one)\n${settings.seoRules}`,
-    settings.contentInstructions && `## Content Instructions (MANDATORY — follow every single one)\n${settings.contentInstructions}`,
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  // KV-stored rules are ADDITIVE on top of the hardcoded core rules.
+  // Even if KV is empty, the core rules always apply.
+  const extraSeoRules = settings.seoRules
+    ? `\n\n## Additional SEO Rules from Settings (also mandatory)\n${settings.seoRules}`
+    : "";
+  const extraContentInstructions = settings.contentInstructions
+    ? `\n\n## Additional Content Instructions from Settings (also mandatory)\n${settings.contentInstructions}`
+    : "";
 
-  if (!settings.seoRules && !settings.contentInstructions) {
-    console.warn("[writer] WARNING: No SEO rules or content instructions found in settings. Writing without rules.");
-  }
+  const internalLinkTargets: string[] = [];
+  if (topic.internalLinkTarget) internalLinkTargets.push(topic.internalLinkTarget);
+  const websiteUrl = client.websiteUrl || client.wordpressUrl;
 
-  const prompt = `You are an expert blog writer at CS Design Studios. Write a complete, SEO-optimized blog post.
+  const prompt = `You are an expert SEO blog writer. Write a complete, publication-ready blog post. You MUST follow every rule below — no exceptions.
 
-${globalRulesSection}
+# MANDATORY SEO RULES (follow ALL of these)
+${CORE_SEO_RULES}${extraSeoRules}
 
-## Client Profile
+# MANDATORY CONTENT INSTRUCTIONS (follow ALL of these)
+${CORE_CONTENT_INSTRUCTIONS}${extraContentInstructions}
+
+# Client Profile
 - **Business:** ${client.businessName}
 - **Industry:** ${client.industry}
 - **Target Audience:** ${client.targetAudience}
 - **Location:** ${client.location}
+- **Website:** ${websiteUrl}
 - **Brand Tone:** ${client.tone}
 
-## Blog Topic
+# Blog Topic
 - **Title:** ${topic.title}
 - **Description:** ${topic.description}
 - **Target Keywords:** ${topic.targetKeywords.join(", ")}
-${topic.supportsCommercialKeyword ? `- **Supporting commercial keyword:** "${topic.supportsCommercialKeyword}" — this informational post should naturally funnel readers toward the client's service for this commercial keyword.` : ""}
-${topic.internalLinkTarget ? `- **Internal link target:** You MUST include a contextual internal link to this URL/page in the body, naturally integrated (not a dropped CTA box). Anchor text should be keyword-rich but not spammy.\n  ${topic.internalLinkTarget}` : ""}
-${topic.funnelStage ? `- **Funnel stage:** ${topic.funnelStage} — ${topic.funnelStage === "TOFU" ? "educate and build trust, soft CTAs only" : topic.funnelStage === "MOFU" ? "compare options, address objections, stronger nudge toward client's service" : "decision-stage reader — clear CTA with service-page link"}` : ""}
+${topic.supportsCommercialKeyword ? `- **Supporting commercial keyword:** "${topic.supportsCommercialKeyword}" — funnel readers toward this service naturally.` : ""}
+${topic.funnelStage ? `- **Funnel stage:** ${topic.funnelStage} — ${topic.funnelStage === "TOFU" ? "educate and build trust, soft CTAs" : topic.funnelStage === "MOFU" ? "compare options, address objections, nudge toward service" : "decision-stage — clear CTA with service link"}` : ""}
 
-## Requirements
-1. Write ${minWords}-${maxWords} words of high-quality, engaging content
-2. Use proper HTML formatting (h2, h3, p, ul, ol, strong, em tags)
-3. Include the target keywords naturally (1-2% keyword density)
-4. Structure with clear headings and subheadings
-5. Include an engaging introduction that hooks the reader
-6. ${topic.internalLinkTarget ? `**Include at least one contextual internal link** to ${topic.internalLinkTarget} — anchor it to relevant text within a paragraph, not as a standalone button.` : "Add a strong conclusion with a call-to-action relevant to " + client.businessName}
-7. Write in a ${client.tone} tone
-8. Make it locally relevant to ${client.location} where appropriate
-9. Include practical, actionable advice
-10. Do NOT include the h1 title — WordPress adds that automatically
+# Internal Linking Requirements (CRITICAL)
+You MUST include at least 3 internal links to pages on ${websiteUrl}. These should be:
+1. ${topic.internalLinkTarget ? `Link to the primary service page: ${topic.internalLinkTarget}` : `A link to the most relevant service page on ${websiteUrl}`}
+2. A link to another relevant page or blog post on ${websiteUrl} (use a related topic)
+3. A link to the homepage or another service category page on ${websiteUrl}
 
-Also provide:
-- **Excerpt** (150-160 character summary for search results)
-- **Meta Description** (150-160 characters, includes primary keyword)
-- **Tags** (5-8 relevant tags)
-- **Featured Image Prompt** (description for generating a featured image)
+Internal links MUST be:
+- Embedded naturally within paragraph text using keyword-rich anchor text
+- NOT standalone buttons, banners, or "click here" CTAs
+- Distributed throughout the post (not all in one section)
 
-Respond in JSON format:
+You MUST also include at least 1 authoritative external link to a high-authority source (government site, industry publication, research study — NOT a competitor).
+
+# Word Count
+Write ${minWords}–${maxWords} words. If the topic demands more depth, go up to ${Math.round(maxWords * 1.2)}. Never go below ${minWords}.
+
+# HTML Formatting
+- Use semantic HTML: h2, h3, p, ul, ol, strong, em, blockquote, a (with href)
+- Do NOT include the h1 title — WordPress adds that automatically
+- Include at least one FAQ section using this structure:
+  <h2>Frequently Asked Questions</h2>
+  <h3>Question here?</h3>
+  <p>Answer here.</p>
+
+# Output Format
+Return ONLY a JSON object with these fields:
 {
-  "content": "<h2>...</h2><p>...</p>...",
-  "excerpt": "...",
-  "metaDescription": "...",
-  "tags": ["...", "..."],
-  "featuredImagePrompt": "..."
+  "content": "<h2>...</h2><p>...</p>... (the full blog post HTML)",
+  "excerpt": "150-160 character summary for search results",
+  "metaDescription": "140-155 characters, includes primary keyword, clear value prop",
+  "tags": ["tag1", "tag2", "..."],
+  "featuredImagePrompt": "A detailed description for generating a featured image"
 }
 
 Return ONLY the JSON object, no other text.`;
 
-  const text = await complete({
-    model: settings.writerModel || settings.model || "anthropic/claude-sonnet-4.5",
-    prompt,
-    maxTokens: 8192,
-  });
+  const text = await complete({ model, prompt, maxTokens: 8192 });
 
   let parsed: {
     content: string;
@@ -100,7 +148,7 @@ Return ONLY the JSON object, no other text.`;
     throw new Error(`Failed to parse blog post: ${text.slice(0, 200)}`);
   }
 
-  const wordCount = parsed.content.replace(/<[^>]*>/g, "").split(/\s+/).length;
+  const wordCount = parsed.content.replace(/<[^>]*>/g, "").split(/\s+/).filter(Boolean).length;
 
   return {
     id: uuidv4(),
