@@ -88,6 +88,10 @@ Return ONLY the JSON array, no other text.`;
     throw new Error(`Failed to parse topic suggestions: ${text.slice(0, 200)}`);
   }
 
+  if (suggestions.length === 0) {
+    throw new Error(`Model returned no topics. First 200 chars of response: ${text.slice(0, 200)}`);
+  }
+
   return suggestions.map((s) => ({
     id: uuidv4(),
     clientId: client.id,

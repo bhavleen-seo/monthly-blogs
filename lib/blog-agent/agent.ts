@@ -66,13 +66,18 @@ export async function runResearch(clientId?: string): Promise<{
         totalTopics += topics.length;
         if (topics.length > 0) {
           await notify.topicsReadyForApproval(client.businessName, topics.length);
+        } else {
+          const msg = `No topics generated for ${client.businessName} (model returned no valid JSON).`;
+          run.details = run.details ? `${run.details}\n${msg}` : msg;
+          await updateRun(run.id, { details: run.details });
         }
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : "Unknown error";
         topicsByClient[client.id] = [];
-        await updateRun(run.id, {
-          details: `Error for ${client.businessName}: ${errMsg}`,
-        });
+        const detail = `Error for ${client.businessName}: ${errMsg}`;
+        run.details = run.details ? `${run.details}\n${detail}` : detail;
+        console.error("[runResearch]", detail);
+        await updateRun(run.id, { details: run.details });
       }
     }
 
