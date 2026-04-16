@@ -7,6 +7,7 @@ export { notify } from "./notifier";
 export {
   getStore,
   saveStore,
+  getStorageDiagnostics,
   getClients,
   getClient,
   saveClient,

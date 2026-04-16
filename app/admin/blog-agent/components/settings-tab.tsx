@@ -66,12 +66,16 @@ export default function SettingsTab() {
   });
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [storageInfo, setStorageInfo] = useState<Record<string, unknown> | null>(null);
   const [customModel, setCustomModel] = useState(false);
 
   useEffect(() => {
-    fetch("/api/blog-agent/settings", { cache: "no-store" })
+    fetch("/api/blog-agent/settings?" + Date.now(), { cache: "no-store" })
       .then((r) => r.json())
-      .then((data) => { if (data.settings) setSettings(data.settings); })
+      .then((data) => {
+        if (data.settings) setSettings(data.settings);
+        if (data._storage) setStorageInfo(data._storage);
+      })
       .catch(() => {});
   }, []);
 
@@ -84,11 +88,11 @@ export default function SettingsTab() {
         body: JSON.stringify(settings),
       });
       const data = await res.json();
+      if (data._storage) setStorageInfo(data._storage);
       if (!res.ok) {
         setSaveError(data.error || `Save failed (HTTP ${res.status})`);
         return;
       }
-      // Update local state from the server response to confirm what was persisted
       if (data.settings) setSettings(data.settings);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -214,6 +218,24 @@ export default function SettingsTab() {
           </div>
         </div>
       </div>
+      {/* Storage diagnostic */}
+      {storageInfo && (
+        <div className={`text-[10px] font-mono px-4 py-2 rounded-lg border ${
+          storageInfo.backend === "kv"
+            ? "bg-[var(--color-success)]/10 border-[var(--color-success)]/20 text-[var(--color-success)]"
+            : "bg-[var(--color-destructive)]/10 border-[var(--color-destructive)]/20 text-[var(--color-destructive)]"
+        }`}>
+          Storage: {storageInfo.backend === "kv" ? "KV (persistent)" : "FILE (ephemeral — settings WILL NOT persist!)"}
+          {storageInfo.backend === "file" && (
+            <span className="block mt-1 opacity-70">
+              Missing env vars: {!storageInfo.hasKvRestApiUrl && "KV_REST_API_URL "}{!storageInfo.hasKvRestApiToken && "KV_REST_API_TOKEN "}{!storageInfo.hasRedisUrl && "REDIS_URL"}
+            </span>
+          )}
+          {storageInfo.backend === "kv" && storageInfo.redisUrlHost && (
+            <span className="block mt-0.5 opacity-70">host: {String(storageInfo.redisUrlHost)}</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

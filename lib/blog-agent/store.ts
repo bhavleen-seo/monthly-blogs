@@ -27,10 +27,20 @@ const DEFAULT_STORE: AgentStore = {
   },
 };
 
-// Use Vercel KV if available (production), otherwise use file storage (local dev).
-// Supports multiple env var patterns:
-// 1. KV_REST_API_URL + KV_REST_API_TOKEN (Vercel KV native)
-// 2. REDIS_URL (Upstash Redis addon — parse host + token from URL)
+// ─── Storage backend detection ───────────────────────────────────────────────
+
+export function getStorageDiagnostics(): Record<string, unknown> {
+  return {
+    backend: useKV() ? "kv" : "file",
+    hasKvRestApiUrl: !!process.env.KV_REST_API_URL,
+    hasKvRestApiToken: !!process.env.KV_REST_API_TOKEN,
+    hasRedisUrl: !!process.env.REDIS_URL,
+    redisUrlHost: process.env.REDIS_URL
+      ? (() => { try { return new URL(process.env.REDIS_URL).hostname; } catch { return "PARSE_FAILED"; } })()
+      : null,
+  };
+}
+
 function useKV(): boolean {
   return !!(
     (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) ||
@@ -40,7 +50,6 @@ function useKV(): boolean {
 
 function parseRedisUrl(url: string): { url: string; token: string } | null {
   try {
-    // redis://default:TOKEN@host:port or rediss://default:TOKEN@host:port
     const parsed = new URL(url);
     const token = parsed.password;
     const host = parsed.hostname;
@@ -52,73 +61,80 @@ function parseRedisUrl(url: string): { url: string; token: string } | null {
 }
 
 async function getKV() {
-  // Try native Vercel KV env vars first
   if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
     const { kv } = await import("@vercel/kv");
     return kv;
   }
-
-  // Fallback: parse REDIS_URL into REST API credentials
   if (process.env.REDIS_URL) {
     const creds = parseRedisUrl(process.env.REDIS_URL);
     if (creds) {
       const { createClient } = await import("@vercel/kv");
       return createClient(creds);
     }
+    throw new Error("Failed to parse REDIS_URL into REST API credentials");
   }
-
   throw new Error("No KV credentials found in environment");
 }
 
+// ─── Core store CRUD ─────────────────────────────────────────────────────────
+
 async function ensureDataDir(): Promise<void> {
-  try {
-    await fs.access(DATA_DIR);
-  } catch {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-  }
+  try { await fs.access(DATA_DIR); } catch { await fs.mkdir(DATA_DIR, { recursive: true }); }
 }
 
 export async function getStore(): Promise<AgentStore> {
   if (useKV()) {
-    const kv = await getKV();
-    const store = await kv.get<AgentStore>(KV_KEY);
-    if (store) {
-      if (!store.globalSettings) {
-        store.globalSettings = DEFAULT_STORE.globalSettings;
-        await saveStore(store);
+    try {
+      const kv = await getKV();
+      const store = await kv.get<AgentStore>(KV_KEY);
+      if (store) {
+        if (!store.globalSettings) {
+          store.globalSettings = DEFAULT_STORE.globalSettings;
+          await kv.set(KV_KEY, store);
+        }
+        return store;
       }
-      return store;
+      console.log("[store] KV key not found — initializing with defaults");
+      await kv.set(KV_KEY, DEFAULT_STORE);
+      return DEFAULT_STORE;
+    } catch (err) {
+      console.error("[store] KV read failed:", err);
+      throw new Error(`KV storage error: ${err instanceof Error ? err.message : String(err)}`);
     }
-    await saveStore(DEFAULT_STORE);
-    return DEFAULT_STORE;
   }
 
-  // File storage fallback for local dev
+  // File storage — LOCAL DEV ONLY (ephemeral on Vercel serverless!)
   await ensureDataDir();
   try {
     const data = await fs.readFile(STORE_FILE, "utf-8");
     const store = JSON.parse(data) as AgentStore;
     if (!store.globalSettings) {
       store.globalSettings = DEFAULT_STORE.globalSettings;
-      await saveStore(store);
+      await fs.writeFile(STORE_FILE, JSON.stringify(store, null, 2), "utf-8");
     }
     return store;
   } catch {
-    await saveStore(DEFAULT_STORE);
+    await fs.writeFile(STORE_FILE, JSON.stringify(DEFAULT_STORE, null, 2), "utf-8");
     return DEFAULT_STORE;
   }
 }
 
 export async function saveStore(store: AgentStore): Promise<void> {
   if (useKV()) {
-    const kv = await getKV();
-    await kv.set(KV_KEY, store);
-    return;
+    try {
+      const kv = await getKV();
+      await kv.set(KV_KEY, store);
+      return;
+    } catch (err) {
+      console.error("[store] KV write failed:", err);
+      throw new Error(`KV save error: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
-
   await ensureDataDir();
   await fs.writeFile(STORE_FILE, JSON.stringify(store, null, 2), "utf-8");
 }
+
+// ─── Global Settings ─────────────────────────────────────────────────────────
 
 export async function getGlobalSettings(): Promise<GlobalSettings> {
   const store = await getStore();
@@ -130,6 +146,8 @@ export async function saveGlobalSettings(settings: GlobalSettings): Promise<void
   store.globalSettings = settings;
   await saveStore(store);
 }
+
+// ─── Clients ─────────────────────────────────────────────────────────────────
 
 export async function getClients(): Promise<Client[]> {
   const store = await getStore();
@@ -157,6 +175,8 @@ export async function deleteClient(id: string): Promise<void> {
   store.clients = store.clients.filter((c) => c.id !== id);
   await saveStore(store);
 }
+
+// ─── Topics ──────────────────────────────────────────────────────────────────
 
 export async function getTopics(filters?: {
   clientId?: string;
@@ -204,6 +224,8 @@ export async function deleteTopic(id: string): Promise<boolean> {
   return deleted;
 }
 
+// ─── Posts ────────────────────────────────────────────────────────────────────
+
 export async function getPosts(filters?: {
   clientId?: string;
   status?: string;
@@ -230,6 +252,8 @@ export async function savePost(post: BlogPost): Promise<void> {
   }
   await saveStore(store);
 }
+
+// ─── Runs ────────────────────────────────────────────────────────────────────
 
 export async function addRun(run: AgentRun): Promise<void> {
   const store = await getStore();
