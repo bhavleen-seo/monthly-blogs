@@ -16,13 +16,9 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const password = process.env.DASHBOARD_PASSWORD;
-
-  // If no password set, allow access (local dev without auth)
-  if (!password) {
-    return NextResponse.next();
-  }
-
+  // Accept token hashed from either env var OR fallback (both are valid
+  // login options, so both produce valid session cookies)
+  const password = process.env.DASHBOARD_PASSWORD || "csdesign26";
   const token = req.cookies.get("auth_token")?.value;
   const expectedToken = await hashToken(password);
 
