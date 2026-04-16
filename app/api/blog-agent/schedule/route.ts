@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStore, saveStore, getRuns } from "@/lib/blog-agent";
 import type { ScheduleConfig } from "@/lib/blog-agent";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const store = await getStore();

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getGlobalSettings, saveGlobalSettings } from "@/lib/blog-agent";
 import type { GlobalSettings } from "@/lib/blog-agent";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const settings = await getGlobalSettings();

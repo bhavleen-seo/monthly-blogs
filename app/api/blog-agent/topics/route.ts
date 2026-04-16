@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTopics, getClients, getClient, runResearch, deleteTopicsByClient } from "@/lib/blog-agent";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -48,6 +50,14 @@ export async function POST(req: NextRequest) {
       (sum, topics) => sum + topics.length,
       0
     );
+
+    // Surface research errors (e.g. bad model ID, missing API key) to the UI
+    if (totalTopics === 0 && run.details) {
+      return NextResponse.json(
+        { error: run.details, run, totalTopics, topicsByClient },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ run, totalTopics, topicsByClient });
   } catch (error) {

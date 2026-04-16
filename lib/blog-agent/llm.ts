@@ -18,8 +18,20 @@ export async function complete({ model, prompt, maxTokens }: CompleteOptions): P
     throw new Error("OPENROUTER_API_KEY not set in environment");
   }
 
-  // Translate legacy Anthropic-native model IDs to OpenRouter format.
-  const normalizedModel = model.includes("/") ? model : `anthropic/${model}`;
+  // Translate legacy Anthropic-native model IDs to valid OpenRouter IDs.
+  // Old saved settings may have values like "claude-opus-4-6" which don't
+  // exist on OpenRouter; map them to the closest current OpenRouter model.
+  const LEGACY_MAP: Record<string, string> = {
+    "claude-opus-4-6": "anthropic/claude-opus-4.1",
+    "claude-opus-4": "anthropic/claude-opus-4",
+    "claude-sonnet-4-6": "anthropic/claude-sonnet-4.5",
+    "claude-sonnet-4-5": "anthropic/claude-sonnet-4.5",
+    "claude-sonnet-4": "anthropic/claude-sonnet-4",
+    "claude-haiku-4-5": "anthropic/claude-haiku-4.5",
+    "claude-haiku-4-5-20251001": "anthropic/claude-haiku-4.5",
+  };
+  const normalizedModel =
+    LEGACY_MAP[model] || (model.includes("/") ? model : `anthropic/${model}`);
 
   const res = await fetch(OPENROUTER_URL, {
     method: "POST",
