@@ -162,6 +162,15 @@ export async function deleteTopicsByClient(clientId: string, status?: string): P
   return deleted;
 }
 
+export async function deleteTopic(id: string): Promise<boolean> {
+  const store = await getStore();
+  const before = store.topics.length;
+  store.topics = store.topics.filter((t) => t.id !== id);
+  const deleted = before !== store.topics.length;
+  if (deleted) await saveStore(store);
+  return deleted;
+}
+
 export async function getPosts(filters?: {
   clientId?: string;
   status?: string;

@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTopics, saveTopic } from "@/lib/blog-agent";
+import { getTopics, saveTopic, deleteTopic } from "@/lib/blog-agent";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { topicId, action, rejectionReason } = body;
+    const { topicId, action } = body;
 
     if (!topicId || !action) {
       return NextResponse.json(
@@ -18,6 +20,15 @@ export async function POST(req: NextRequest) {
         { error: "action must be 'approve' or 'reject'" },
         { status: 400 }
       );
+    }
+
+    // Reject = delete. Rejected topics are never useful later, no reason to keep them.
+    if (action === "reject") {
+      const deleted = await deleteTopic(topicId);
+      if (!deleted) {
+        return NextResponse.json({ error: "Topic not found" }, { status: 404 });
+      }
+      return NextResponse.json({ deleted: true });
     }
 
     const topics = await getTopics();
@@ -34,14 +45,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (action === "approve") {
-      topic.status = "approved";
-      topic.approvedAt = new Date().toISOString();
-    } else {
-      topic.status = "rejected";
-      topic.rejectedAt = new Date().toISOString();
-      topic.rejectionReason = rejectionReason || "";
-    }
+    topic.status = "approved";
+    topic.approvedAt = new Date().toISOString();
 
     await saveTopic(topic);
     return NextResponse.json({ topic });
@@ -65,6 +70,16 @@ export async function PUT(req: NextRequest) {
       );
     }
 
+    // Bulk reject = bulk delete
+    if (action === "reject") {
+      let deletedCount = 0;
+      for (const topicId of topicIds) {
+        const ok = await deleteTopic(topicId);
+        if (ok) deletedCount++;
+      }
+      return NextResponse.json({ deleted: deletedCount });
+    }
+
     const topics = await getTopics();
     const updated = [];
 
@@ -72,13 +87,8 @@ export async function PUT(req: NextRequest) {
       const topic = topics.find((t) => t.id === topicId);
       if (!topic || topic.status !== "pending") continue;
 
-      if (action === "approve") {
-        topic.status = "approved";
-        topic.approvedAt = new Date().toISOString();
-      } else {
-        topic.status = "rejected";
-        topic.rejectedAt = new Date().toISOString();
-      }
+      topic.status = "approved";
+      topic.approvedAt = new Date().toISOString();
 
       await saveTopic(topic);
       updated.push(topic);

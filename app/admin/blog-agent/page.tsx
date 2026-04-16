@@ -136,7 +136,10 @@ export default function BlogAgentDashboard() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ topicId, action }),
     });
-    if (res.ok) { showToast(`Topic ${action}d!`, "success"); fetchTopics(); }
+    if (res.ok) {
+      showToast(action === "approve" ? "Topic approved!" : "Topic removed", action === "approve" ? "success" : "info");
+      fetchTopics();
+    }
   };
 
   const handleBulkApprove = async (topicIds: string[]) => {
