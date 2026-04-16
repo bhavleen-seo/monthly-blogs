@@ -108,3 +108,36 @@ This skill codifies the methodology implemented in `lib/blog-agent/researcher.ts
 - Client homepage structure (`lib/blog-agent/site-context.ts`)
 
 Use this skill when you need the methodology without the live data fetching (e.g. researching in a different codebase, or when APIs aren't available).
+
+# Recommended API Setup
+
+For the best research quality, set up these APIs. Without them the skill still works but relies on Claude's training data instead of live search data.
+
+## Required
+| Service | What it does | Env var | Free tier | Sign up |
+|---|---|---|---|---|
+| **OpenRouter** | Routes LLM calls to Claude, GPT, Gemini, etc. | `OPENROUTER_API_KEY` | Pay-as-you-go | [openrouter.ai](https://openrouter.ai) |
+
+## Strongly Recommended
+| Service | What it does | Env var | Free tier | Sign up |
+|---|---|---|---|---|
+| **Serper.dev** | Live Google SERP data (top 10 results, PAA, related searches) | `SERPER_API_KEY` | 2,500 free queries | [serper.dev](https://serper.dev) |
+| **AlsoAsked** | "People Also Asked" question trees for any keyword | `ALSOASKED_API_KEY` | Limited free | [alsoaskedapi.com](https://alsoaskedapi.com) |
+
+## Optional
+| Service | What it does | Env var | Free tier | Sign up |
+|---|---|---|---|---|
+| **Slack** | Notifications when topics/posts are ready | `SLACK_WEBHOOK_URL` | Free | Slack → Apps → Incoming Webhooks |
+
+## How to add API keys
+1. Go to your **Vercel project** → Settings → Environment Variables
+2. Add each key name + value
+3. Click Save → Deployments → Redeploy
+
+**Never put API keys in code or commit them to GitHub.** They go in Vercel env vars only.
+
+## Impact of missing APIs
+- **No Serper** → researcher suggests topics based on Claude's knowledge only (no live SERP gap analysis, weaker suggestions)
+- **No AlsoAsked** → no real "People Also Asked" data (misses genuine user search intent)
+- **No OpenRouter** → nothing works (this is required)
+- **No Slack** → no notifications, everything else still works
