@@ -26,6 +26,7 @@ export default function PostsTab({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Partial<Post>>({});
   const [saving, setSaving] = useState(false);
+  const [contentView, setContentView] = useState<"preview" | "html">("preview");
 
   const approvedTopics = topics.filter((t) => t.status === "approved");
   const filtered = clientFilter ? posts.filter((p) => p.clientId === clientFilter) : posts;
@@ -42,6 +43,7 @@ export default function PostsTab({
         featuredImageUrl: selectedPost.featuredImageUrl || "",
       });
       setEditing(false);
+      setContentView("preview");
     }
   }, [selectedPost]);
 
@@ -266,18 +268,45 @@ export default function PostsTab({
                 </div>
               </div>
 
-              {/* Content */}
+              {/* Content — tabbed Preview / HTML */}
               <div>
-                <label className="text-xs font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">Content (HTML)</label>
-                {editing ? (
+                <div className="flex items-center gap-1 mb-2">
+                  <button
+                    onClick={() => setContentView("preview")}
+                    className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
+                      contentView === "preview"
+                        ? "bg-[var(--color-primary)] text-[var(--color-primary-foreground)]"
+                        : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-hover)]"
+                    }`}
+                  >
+                    Preview
+                  </button>
+                  {editing && (
+                    <button
+                      onClick={() => setContentView("html")}
+                      className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
+                        contentView === "html"
+                          ? "bg-[var(--color-primary)] text-[var(--color-primary-foreground)]"
+                          : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-hover)]"
+                      }`}
+                    >
+                      Edit HTML
+                    </button>
+                  )}
+                </div>
+
+                {contentView === "html" && editing ? (
                   <textarea
                     value={draft.content || ""}
                     onChange={(e) => setDraft({ ...draft, content: e.target.value })}
-                    rows={20}
-                    className="w-full mt-2 bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-xs font-mono text-[var(--color-foreground)] resize-y"
+                    rows={25}
+                    className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-4 py-3 text-xs font-mono text-[var(--color-foreground)] resize-y leading-relaxed"
                   />
                 ) : (
-                  <div className="prose prose-sm max-w-none mt-2 text-[var(--color-foreground)] [&_h2]:text-[var(--color-foreground)] [&_h3]:text-[var(--color-foreground)] [&_a]:text-[var(--color-primary)] [&_p]:text-[var(--color-foreground)] [&_li]:text-[var(--color-foreground)]" dangerouslySetInnerHTML={{ __html: selectedPost.content }} />
+                  <div
+                    className="prose prose-sm max-w-none text-[var(--color-foreground)] bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg px-6 py-5 [&_h2]:text-[var(--color-foreground)] [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-8 [&_h2]:mb-3 [&_h3]:text-[var(--color-foreground)] [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-6 [&_h3]:mb-2 [&_p]:text-[var(--color-foreground)] [&_p]:leading-relaxed [&_p]:mb-4 [&_a]:text-[var(--color-primary)] [&_a]:underline [&_li]:text-[var(--color-foreground)] [&_li]:leading-relaxed [&_ul]:mb-4 [&_ol]:mb-4 [&_strong]:font-semibold [&_em]:italic [&_blockquote]:border-l-4 [&_blockquote]:border-[var(--color-primary)] [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-[var(--color-muted-foreground)]"
+                    dangerouslySetInnerHTML={{ __html: editing ? (draft.content || "") : selectedPost.content }}
+                  />
                 )}
               </div>
             </div>
