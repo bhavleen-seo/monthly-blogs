@@ -19,6 +19,7 @@ export {
   getPosts,
   getPost,
   savePost,
+  deletePost,
   addRun,
   getRuns,
   getGlobalSettings,

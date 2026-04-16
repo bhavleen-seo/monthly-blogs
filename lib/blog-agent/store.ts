@@ -355,6 +355,14 @@ export async function savePost(post: BlogPost): Promise<void> {
   await savePosts(all);
 }
 
+export async function deletePost(id: string): Promise<boolean> {
+  const all = await getPosts();
+  const filtered = all.filter((p) => p.id !== id);
+  if (filtered.length === all.length) return false;
+  await savePosts(filtered);
+  return true;
+}
+
 // ─── Runs ────────────────────────────────────────────────────────────────────
 
 export async function addRun(run: AgentRun): Promise<void> {

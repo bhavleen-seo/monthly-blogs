@@ -11,6 +11,7 @@ export default function PostsTab({
   onWritePosts,
   onPublishPosts,
   onPostUpdated,
+  onDeletePost,
 }: {
   clients: Client[];
   topics: Topic[];
@@ -19,6 +20,7 @@ export default function PostsTab({
   onWritePosts: () => void;
   onPublishPosts: () => void;
   onPostUpdated: () => void;
+  onDeletePost: (id: string) => void;
 }) {
   const [clientFilter, setClientFilter] = useState("");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
@@ -117,7 +119,7 @@ export default function PostsTab({
             <h3 className="text-xs font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">{label} ({items.length})</h3>
             <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl overflow-hidden divide-y divide-[var(--color-border)]">
               {items.map((post) => (
-                <div key={post.id} className="flex items-center justify-between px-5 py-4 hover:bg-[var(--color-hover)] transition-colors">
+                <div key={post.id} className="group flex items-center justify-between px-5 py-4 hover:bg-[var(--color-hover)] transition-colors">
                   <div className="flex-1 min-w-0 mr-4">
                     <p className="text-sm font-medium text-[var(--color-foreground)] truncate">{post.title}</p>
                     <div className="flex items-center gap-3 mt-1 flex-wrap">
@@ -145,12 +147,22 @@ export default function PostsTab({
                       )}
                     </div>
                   </div>
-                  <button
-                    onClick={() => { setSelectedPost(post); setCopied(false); }}
-                    className="text-xs font-medium px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:bg-[var(--color-hover)] hover:text-[var(--color-foreground)] transition-all"
-                  >
-                    Preview
-                  </button>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={() => { setSelectedPost(post); setCopied(false); }}
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:bg-[var(--color-hover)] hover:text-[var(--color-foreground)] transition-all"
+                    >
+                      Preview
+                    </button>
+                    {post.status !== "published" && (
+                      <button
+                        onClick={() => onDeletePost(post.id)}
+                        className="text-xs font-medium px-2 py-1.5 rounded-lg text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)] transition-all opacity-0 group-hover:opacity-100"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

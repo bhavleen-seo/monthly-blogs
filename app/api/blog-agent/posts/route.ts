@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPosts, getClients, runWriting, getPost, savePost } from "@/lib/blog-agent";
+import { getPosts, getClients, runWriting, getPost, savePost, deletePost } from "@/lib/blog-agent";
 
 export async function GET(req: NextRequest) {
   try {
@@ -49,6 +49,26 @@ export async function PUT(req: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to update post" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    if (!id) {
+      return NextResponse.json({ error: "Post ID required" }, { status: 400 });
+    }
+    const deleted = await deletePost(id);
+    if (!deleted) {
+      return NextResponse.json({ error: "Post not found" }, { status: 404 });
+    }
+    return NextResponse.json({ deleted: true });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to delete post" },
       { status: 500 }
     );
   }

@@ -194,6 +194,17 @@ export default function BlogAgentDashboard() {
     setLoading(false);
   };
 
+  const handleDeletePost = async (id: string) => {
+    if (!confirm("Remove this post?")) return;
+    const res = await fetch(`/api/blog-agent/posts?id=${id}`, { method: "DELETE" });
+    if (res.ok) {
+      showToast("Post removed", "info");
+      fetchPosts();
+    } else {
+      showToast("Failed to remove post", "error");
+    }
+  };
+
   const handlePublishPosts = async (clientId?: string) => {
     setLoading(true);
     showToast("Publishing to WordPress...", "info");
@@ -318,6 +329,7 @@ export default function BlogAgentDashboard() {
               onWritePosts={() => handleWritePosts()}
               onPublishPosts={() => handlePublishPosts()}
               onPostUpdated={fetchPosts}
+              onDeletePost={handleDeletePost}
             />
           )}
 
