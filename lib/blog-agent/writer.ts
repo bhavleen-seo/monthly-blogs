@@ -17,12 +17,18 @@ export async function writeBlogPost(
   const settings = await getGlobalSettings();
   const { min: minWords, max: maxWords } = settings.preferredWordCount;
 
+  console.log(`[writer] SEO Rules: ${settings.seoRules?.length || 0} chars, Content Instructions: ${settings.contentInstructions?.length || 0} chars, Model: ${settings.writerModel || settings.model || "default"}`);
+
   const globalRulesSection = [
-    settings.seoRules && `## SEO Rules (MUST follow)\n${settings.seoRules}`,
-    settings.contentInstructions && `## Content Instructions (MUST follow)\n${settings.contentInstructions}`,
+    settings.seoRules && `## SEO Rules (MANDATORY — follow every single one)\n${settings.seoRules}`,
+    settings.contentInstructions && `## Content Instructions (MANDATORY — follow every single one)\n${settings.contentInstructions}`,
   ]
     .filter(Boolean)
     .join("\n\n");
+
+  if (!settings.seoRules && !settings.contentInstructions) {
+    console.warn("[writer] WARNING: No SEO rules or content instructions found in settings. Writing without rules.");
+  }
 
   const prompt = `You are an expert blog writer at CS Design Studios. Write a complete, SEO-optimized blog post.
 
