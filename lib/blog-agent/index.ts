@@ -2,7 +2,7 @@ export { runResearch, runWriting, runPublishing } from "./agent";
 export { startScheduler, stopScheduler } from "./scheduler";
 export { researchTopics } from "./researcher";
 export { writeBlogPost } from "./writer";
-export { publishToWordPress, testWordPressConnection } from "./publisher";
+export { publishToWordPress, testWordPressConnection, getPublishedPostTitles } from "./publisher";
 export { notify } from "./notifier";
 export {
   getStore,

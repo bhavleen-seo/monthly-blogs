@@ -22,6 +22,48 @@ function getApiBase(client: Client): string {
   return `${base}/wp-json/wp/v2`;
 }
 
+/**
+ * Fetch titles of already-published blog posts from the client's WordPress site.
+ * Used by the researcher to avoid suggesting topics that already exist.
+ * Returns up to ~500 most recent posts. Failures return an empty array so research
+ * can still proceed (the downside is we might suggest a duplicate).
+ */
+export async function getPublishedPostTitles(client: Client): Promise<string[]> {
+  try {
+    const apiBase = getApiBase(client);
+    const authHeader = getAuthHeader(client);
+    const titles: string[] = [];
+    const perPage = 100;
+    const maxPages = 5; // up to ~500 titles — plenty of context
+
+    for (let page = 1; page <= maxPages; page++) {
+      const res = await fetch(
+        `${apiBase}/posts?per_page=${perPage}&page=${page}&_fields=title,status&status=publish,draft,pending,future,private`,
+        { headers: { Authorization: authHeader } }
+      );
+      if (!res.ok) break;
+      const posts: Array<{ title?: { rendered?: string } }> = await res.json();
+      if (!Array.isArray(posts) || posts.length === 0) break;
+
+      for (const p of posts) {
+        const raw = p?.title?.rendered;
+        if (typeof raw === "string") {
+          // Strip HTML entities and tags
+          const clean = raw.replace(/<[^>]*>/g, "").replace(/&[a-z]+;/gi, " ").trim();
+          if (clean) titles.push(clean);
+        }
+      }
+
+      if (posts.length < perPage) break;
+    }
+
+    return titles;
+  } catch (err) {
+    console.error("[getPublishedPostTitles] failed:", err);
+    return [];
+  }
+}
+
 async function uploadFeaturedImage(
   client: Client,
   imageUrl: string,

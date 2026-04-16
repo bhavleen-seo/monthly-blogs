@@ -2,6 +2,19 @@ import { v4 as uuidv4 } from "uuid";
 import type { Client, TopicSuggestion } from "./types";
 import { getTopics, getGlobalSettings } from "./store";
 import { complete } from "./llm";
+import { getPublishedPostTitles } from "./publisher";
+import { getRelatedQuestions } from "./alsoasked";
+
+// Rough country/region mapping from free-text location for AlsoAsked regionality
+function inferRegion(location: string): string {
+  const loc = location.toLowerCase();
+  if (/\b(au|australia|melbourne|sydney|brisbane|perth|adelaide|queensland|nsw|victoria)\b/.test(loc)) return "au";
+  if (/\b(us|usa|united states|america|california|texas|new york|florida|arizona)\b/.test(loc)) return "us";
+  if (/\b(uk|united kingdom|britain|england|london|scotland|wales)\b/.test(loc)) return "gb";
+  if (/\b(ca|canada|toronto|vancouver|ontario|quebec)\b/.test(loc)) return "ca";
+  if (/\b(nz|new zealand|auckland|wellington)\b/.test(loc)) return "nz";
+  return "au"; // CS Design Studios default
+}
 
 export async function researchTopics(
   client: Client,
@@ -13,6 +26,18 @@ export async function researchTopics(
 
   const pastTopics = await getTopics({ clientId: client.id });
   const pastTitles = pastTopics.map((t) => t.title).slice(-20);
+
+  // Fetch in parallel: already-published posts on the client's WP site, and
+  // "People Also Asked" questions grounded in their target keywords. Both are
+  // best-effort — failures just reduce research quality, not break the flow.
+  const [publishedTitles, relatedQuestions] = await Promise.all([
+    getPublishedPostTitles(client),
+    getRelatedQuestions(client.keywords.slice(0, 3), {
+      region: inferRegion(client.location),
+      language: "en",
+      limit: 25,
+    }),
+  ]);
 
   const globalRulesSection = [
     settings.seoRules && `## SEO Rules (MUST follow)\n${settings.seoRules}`,
@@ -38,10 +63,22 @@ ${client.seoNotes ? `\n## Client-Specific SEO Instructions (MUST follow)\n${clie
 
 ## Month: ${month}
 
-## Previously Written Topics (avoid repeating):
+## Previously Suggested Topics (avoid repeating):
 ${pastTitles.length > 0 ? pastTitles.map((t) => `- ${t}`).join("\n") : "None yet"}
 
-## Task
+## Already Published on Client's Website — DO NOT SUGGEST DUPLICATES OR CLOSE VARIANTS
+These are posts that already exist on ${client.wordpressUrl}. Every topic you suggest MUST cover a distinctly different angle, subtopic, or search intent than ANY of these:
+${publishedTitles.length > 0 ? publishedTitles.map((t) => `- ${t}`).join("\n") : "None fetched"}
+
+${
+  relatedQuestions.length > 0
+    ? `## Real "People Also Asked" Questions (from Google, via AlsoAsked)
+Use these as inspiration for what real users are searching for. Strong topics often answer one or more of these questions:
+${relatedQuestions.map((q) => `- ${q}`).join("\n")}
+
+`
+    : ""
+}## Task
 Generate ${numTopics} unique, SEO-optimized blog topic suggestions for this client for ${month}. For each topic:
 
 1. **Title** — Compelling, SEO-friendly blog title (50-70 characters)
