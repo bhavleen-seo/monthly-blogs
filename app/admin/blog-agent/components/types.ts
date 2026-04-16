@@ -40,6 +40,7 @@ export interface Post {
   id: string;
   clientId: string;
   clientName: string;
+  topicId: string;
   title: string;
   wordCount: number;
   status: string;

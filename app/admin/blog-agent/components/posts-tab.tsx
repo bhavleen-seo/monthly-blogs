@@ -12,6 +12,7 @@ export default function PostsTab({
   onPublishPosts,
   onPostUpdated,
   onDeletePost,
+  onRewritePost,
 }: {
   clients: Client[];
   topics: Topic[];
@@ -21,6 +22,7 @@ export default function PostsTab({
   onPublishPosts: () => void;
   onPostUpdated: () => void;
   onDeletePost: (id: string) => void;
+  onRewritePost: (postId: string) => void;
 }) {
   const [clientFilter, setClientFilter] = useState("");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
@@ -155,12 +157,21 @@ export default function PostsTab({
                       Preview
                     </button>
                     {post.status !== "published" && (
-                      <button
-                        onClick={() => onDeletePost(post.id)}
-                        className="text-xs font-medium px-2 py-1.5 rounded-lg text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)] transition-all opacity-0 group-hover:opacity-100"
-                      >
-                        Remove
-                      </button>
+                      <>
+                        <button
+                          onClick={() => onRewritePost(post.id)}
+                          disabled={loading}
+                          className="text-xs font-medium px-3 py-1.5 rounded-lg text-[var(--color-warning)] hover:bg-[var(--color-warning)]/10 transition-all opacity-0 group-hover:opacity-100 disabled:opacity-40"
+                        >
+                          Rewrite
+                        </button>
+                        <button
+                          onClick={() => onDeletePost(post.id)}
+                          className="text-xs font-medium px-2 py-1.5 rounded-lg text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)] transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          Remove
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>

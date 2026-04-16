@@ -194,6 +194,28 @@ export default function BlogAgentDashboard() {
     setLoading(false);
   };
 
+  const handleRewritePost = async (postId: string) => {
+    const post = posts.find((p) => p.id === postId);
+    if (!post) return;
+    if (!confirm(`Rewrite "${post.title}"? The current version will be replaced.`)) return;
+    setLoading(true);
+    showToast("Rewriting post...", "info");
+    try {
+      // Delete old version
+      await fetch(`/api/blog-agent/posts?id=${postId}`, { method: "DELETE" });
+      // Write a fresh version from the same topic
+      const res = await fetch("/api/blog-agent/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topicIds: [post.topicId] }),
+      });
+      const data = await res.json();
+      res.ok ? showToast(`Rewritten! ${data.postsWritten} post(s)`, "success") : showToast(`Error: ${data.error}`, "error");
+      fetchPosts();
+    } catch { showToast("Failed to rewrite post", "error"); }
+    setLoading(false);
+  };
+
   const handleDeletePost = async (id: string) => {
     if (!confirm("Remove this post?")) return;
     const res = await fetch(`/api/blog-agent/posts?id=${id}`, { method: "DELETE" });
@@ -330,6 +352,7 @@ export default function BlogAgentDashboard() {
               onPublishPosts={() => handlePublishPosts()}
               onPostUpdated={fetchPosts}
               onDeletePost={handleDeletePost}
+              onRewritePost={handleRewritePost}
             />
           )}
 

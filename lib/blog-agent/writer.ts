@@ -41,8 +41,6 @@ const CORE_CONTENT_INSTRUCTIONS = `
 - Write at least one section that gives a definitive, concise answer suitable for AI engines to extract and cite.
 - Avoid filler, fluff, and obvious statements — every sentence should earn its place.
 - End every post with a clear call-to-action tied to a business goal.
-- Include a TL;DR or key takeaways summary box for longer posts.
-- Write for a Flesch reading ease score of 60–70 (accessible to a broad audience).
 - Never publish thin content — if a topic can't sustain the minimum depth, combine it with a related topic.
 `.trim();
 
