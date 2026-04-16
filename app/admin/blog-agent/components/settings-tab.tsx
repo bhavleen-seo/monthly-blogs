@@ -70,15 +70,26 @@ export default function SettingsTab() {
   const [saveError, setSaveError] = useState("");
   const [storageInfo, setStorageInfo] = useState<Record<string, unknown> | null>(null);
 
+  // Merge loaded settings with defaults so newly-added fields
+  // (researchModel, writerModel) don't vanish when KV has old format
+  const applySettings = (loaded: Record<string, unknown>) => {
+    setSettings((prev) => ({
+      ...prev,
+      ...loaded,
+      researchModel: (loaded.researchModel as string) || "",
+      writerModel: (loaded.writerModel as string) || "",
+    }));
+  };
+
   useEffect(() => {
     fetch("/api/blog-agent/settings?" + Date.now(), { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
-        if (data.settings) setSettings(data.settings);
+        if (data.settings) applySettings(data.settings);
         if (data._storage) setStorageInfo(data._storage);
       })
       .catch(() => {});
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSave = async () => {
     setSaveError("");
@@ -94,7 +105,7 @@ export default function SettingsTab() {
         setSaveError(data.error || `Save failed (HTTP ${res.status})`);
         return;
       }
-      if (data.settings) setSettings(data.settings);
+      if (data.settings) applySettings(data.settings);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
