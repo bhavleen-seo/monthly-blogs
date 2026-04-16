@@ -139,16 +139,36 @@ function TopicRow({ topic, onApprove, onReject, showActions }: { topic: Topic; o
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-[var(--color-foreground)]">{topic.title}</p>
           <p className="text-xs text-[var(--color-muted-foreground)] mt-1 line-clamp-2">{topic.description}</p>
+          {topic.seoRationale && (
+            <div className="mt-2 px-3 py-2 bg-[var(--color-muted)]/60 border-l-2 border-[var(--color-primary)] rounded">
+              <p className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider mb-0.5">SEO Rationale</p>
+              <p className="text-xs text-[var(--color-foreground)]">{topic.seoRationale}</p>
+            </div>
+          )}
           <div className="flex gap-1.5 mt-2 flex-wrap">
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--color-secondary)] text-[var(--color-secondary-foreground)]">{topic.clientName}</span>
+            {topic.topicalCluster && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--color-primary)]/10 text-[var(--color-primary)] font-medium" title="Topical cluster">
+                🎯 {topic.topicalCluster}
+              </span>
+            )}
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--color-secondary)] text-[var(--color-secondary-foreground)]">{topic.month}</span>
             <span className={`text-[10px] px-2 py-0.5 rounded-full ${
               topic.estimatedSearchVolume === "high" ? "bg-[var(--color-success)]/15 text-[var(--color-success)]" :
               topic.estimatedSearchVolume === "medium" ? "bg-[var(--color-warning)]/15 text-[var(--color-warning)]" :
               "bg-[var(--color-secondary)] text-[var(--color-muted-foreground)]"
             }`}>
-              {topic.estimatedSearchVolume}
+              vol: {topic.estimatedSearchVolume}
             </span>
+            {topic.rankingDifficulty && (
+              <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                topic.rankingDifficulty === "easy" ? "bg-[var(--color-success)]/15 text-[var(--color-success)]" :
+                topic.rankingDifficulty === "medium" ? "bg-[var(--color-warning)]/15 text-[var(--color-warning)]" :
+                "bg-[var(--color-destructive)]/15 text-[var(--color-destructive)]"
+              }`}>
+                difficulty: {topic.rankingDifficulty}
+              </span>
+            )}
             {topic.targetKeywords.slice(0, 3).map((kw) => (
               <span key={kw} className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--color-secondary)] text-[var(--color-muted-foreground)]">{kw}</span>
             ))}

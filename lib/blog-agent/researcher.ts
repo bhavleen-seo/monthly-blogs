@@ -4,8 +4,9 @@ import { getTopics, getGlobalSettings } from "./store";
 import { complete } from "./llm";
 import { getPublishedPostTitles } from "./publisher";
 import { getRelatedQuestions } from "./alsoasked";
+import { analyzeKeywords, formatSerpForPrompt } from "./serper";
 
-// Rough country/region mapping from free-text location for AlsoAsked regionality
+// Rough country/region mapping from free-text location for regionality
 function inferRegion(location: string): string {
   const loc = location.toLowerCase();
   if (/\b(au|australia|melbourne|sydney|brisbane|perth|adelaide|queensland|nsw|victoria)\b/.test(loc)) return "au";
@@ -23,20 +24,20 @@ export async function researchTopics(
 ): Promise<TopicSuggestion[]> {
   const numTopics = count || Math.max(5, client.postsPerMonth * 2);
   const settings = await getGlobalSettings();
+  const region = inferRegion(client.location);
 
   const pastTopics = await getTopics({ clientId: client.id });
   const pastTitles = pastTopics.map((t) => t.title).slice(-20);
 
-  // Fetch in parallel: already-published posts on the client's WP site, and
-  // "People Also Asked" questions grounded in their target keywords. Both are
-  // best-effort — failures just reduce research quality, not break the flow.
-  const [publishedTitles, relatedQuestions] = await Promise.all([
+  // Use up to 5 keywords for SERP analysis — more than that blows up the prompt
+  const seedKeywords = client.keywords.slice(0, 5);
+
+  // Fetch all three research signals in parallel.
+  // All are best-effort: failure just reduces research quality.
+  const [publishedTitles, relatedQuestions, serpAnalyses] = await Promise.all([
     getPublishedPostTitles(client),
-    getRelatedQuestions(client.keywords.slice(0, 3), {
-      region: inferRegion(client.location),
-      language: "en",
-      limit: 25,
-    }),
+    getRelatedQuestions(seedKeywords.slice(0, 3), { region, language: "en", limit: 25 }),
+    analyzeKeywords(seedKeywords, { gl: region, hl: "en" }),
   ]);
 
   const globalRulesSection = [
@@ -47,76 +48,104 @@ export async function researchTopics(
     .filter(Boolean)
     .join("\n\n");
 
-  const prompt = `You are a senior content strategist at CS Design Studios, a digital marketing agency. Your job is to research and propose blog topics for a client.
+  const serpSection = serpAnalyses.length > 0
+    ? `## Live Google SERP Analysis (region: ${region.toUpperCase()})
+Below are the actual top-ranking pages right now for the client's target keywords. Use this to find content gaps, weak spots in current rankings, and long-tail angles that aren't well-covered.
+
+${serpAnalyses.map(formatSerpForPrompt).join("\n\n")}`
+    : "## Live Google SERP Analysis\n(SERPER_API_KEY not configured — proceeding without live SERP data. Suggestions will be weaker without it.)";
+
+  const prompt = `# Role
+You are a senior SEO strategist with 10+ years of experience, specializing in topical authority and first-page rankings for small-to-mid-sized service businesses. You have deep expertise in:
+- Content gap analysis using live SERP data
+- Long-tail keyword opportunity identification
+- Topical cluster architecture (pillar + supporting posts)
+- E-E-A-T (Experience, Expertise, Authoritativeness, Trust) signals
+- Local SEO for service businesses
+
+Your #1 priority is to suggest topics that will help this client **build topical authority** in their niche AND have a realistic chance of **ranking on page 1 within 3–6 months**.
 
 ${globalRulesSection}
 
-## Client Profile
+# Client Profile
 - **Business:** ${client.businessName}
 - **Industry:** ${client.industry}
 - **Target Audience:** ${client.targetAudience}
 - **Location:** ${client.location}
+- **Website:** ${client.websiteUrl || client.wordpressUrl}
 - **Brand Tone:** ${client.tone}
-- **Target Keywords:** ${client.keywords.join(", ")}
+- **Primary Target Keywords:** ${client.keywords.join(", ")}
 - **Blog Categories:** ${client.blogCategories.join(", ")}
 ${client.seoNotes ? `\n## Client-Specific SEO Instructions (MUST follow)\n${client.seoNotes}` : ""}
 
+# Research Context
+
 ## Month: ${month}
 
-## Previously Suggested Topics (avoid repeating):
-${pastTitles.length > 0 ? pastTitles.map((t) => `- ${t}`).join("\n") : "None yet"}
-
-## Already Published on Client's Website — DO NOT SUGGEST DUPLICATES OR CLOSE VARIANTS
-These are posts that already exist on ${client.wordpressUrl}. Every topic you suggest MUST cover a distinctly different angle, subtopic, or search intent than ANY of these:
-${publishedTitles.length > 0 ? publishedTitles.map((t) => `- ${t}`).join("\n") : "None fetched"}
+${serpSection}
 
 ${
   relatedQuestions.length > 0
-    ? `## Real "People Also Asked" Questions (from Google, via AlsoAsked)
-Use these as inspiration for what real users are searching for. Strong topics often answer one or more of these questions:
+    ? `## People Also Asked (from AlsoAsked — real questions users type)
+These are genuine search intents — the best topics often answer 2-3 of these in a single post.
 ${relatedQuestions.map((q) => `- ${q}`).join("\n")}
 
 `
     : ""
-}## Task
-Generate ${numTopics} unique, SEO-optimized blog topic suggestions for this client for ${month}. For each topic:
+}## Already Published on ${client.wordpressUrl} — STRICT EXCLUSIONS
+Every topic you suggest MUST cover a distinctly different angle, subtopic, or intent than ALL of these. Do not suggest close variants or re-phrasings:
+${publishedTitles.length > 0 ? publishedTitles.map((t) => `- ${t}`).join("\n") : "None fetched"}
 
-1. **Title** — Compelling, SEO-friendly blog title (50-70 characters)
-2. **Description** — 2-3 sentence overview of what the post would cover
-3. **Target Keywords** — 3-5 keywords to target
-4. **Estimated Search Volume** — "high", "medium", or "low"
+## Previously Suggested (don't repeat):
+${pastTitles.length > 0 ? pastTitles.map((t) => `- ${t}`).join("\n") : "None yet"}
 
-Consider:
-- Current trends and seasonality for ${month}
-- The client's industry and target audience
-- Local relevance to ${client.location}
-- Search intent and keyword opportunity
-- Topics that establish authority and drive organic traffic
+# Your Task
+Propose ${numTopics} blog topics. For each topic, apply this decision framework:
 
-Respond in JSON format as an array:
+1. **Gap analysis:** Looking at the SERP data above, is there a question, angle, or sub-intent that the top 10 results are NOT answering well? Those are your opportunities.
+2. **Ranking feasibility:** Can a new site realistically beat those top 10? Look for weak pages (thin content, old, not truly matching intent). Favor long-tail over head terms.
+3. **Topical authority:** Does this topic reinforce ${client.businessName} as the go-to authority in ${client.industry}? Group topics into 2-3 topical clusters so the site builds density around key themes.
+4. **Local intent:** Where possible, exploit local-specific angles for ${client.location} that national competitors can't match.
+5. **User intent match:** Does this answer a real, commercially-relevant question from the target audience?
+
+# Output Format
+Return ONLY a JSON array, no other text. Each topic object must include:
+
+\`\`\`json
 [
   {
-    "title": "...",
-    "description": "...",
-    "targetKeywords": ["...", "..."],
-    "estimatedSearchVolume": "high|medium|low"
+    "title": "SEO-friendly title, 50-70 characters, includes primary keyword naturally",
+    "description": "2-3 sentences: what the post will cover and the unique angle vs. current SERP",
+    "targetKeywords": ["primary keyword", "2-4 long-tail variants"],
+    "estimatedSearchVolume": "high | medium | low",
+    "rankingDifficulty": "easy | medium | hard",
+    "topicalCluster": "The theme/pillar this post belongs to (group your ${numTopics} topics into 2-3 clusters)",
+    "seoRationale": "1-2 sentences explaining WHY this can rank — reference specific SERP weaknesses, gaps, or intent mismatches you spotted. Be concrete."
   }
 ]
+\`\`\`
 
-Return ONLY the JSON array, no other text.`;
+Prioritize "easy" and "medium" ranking difficulty. Group topics into 2-3 clusters to build topical authority. Every topic must have strong commercial or informational intent for ${client.businessName}'s target audience.
+
+Return ONLY the JSON array.`;
 
   const text = await complete({
     model: settings.model || "anthropic/claude-sonnet-4.5",
     prompt,
-    maxTokens: 4096,
+    maxTokens: 8192,
   });
 
-  let suggestions: Array<{
+  interface RawSuggestion {
     title: string;
     description: string;
     targetKeywords: string[];
     estimatedSearchVolume: "high" | "medium" | "low";
-  }>;
+    rankingDifficulty?: "easy" | "medium" | "hard";
+    topicalCluster?: string;
+    seoRationale?: string;
+  }
+
+  let suggestions: RawSuggestion[];
 
   try {
     const jsonMatch = text.match(/\[[\s\S]*\]/);
@@ -136,6 +165,9 @@ Return ONLY the JSON array, no other text.`;
     description: s.description,
     targetKeywords: s.targetKeywords,
     estimatedSearchVolume: s.estimatedSearchVolume,
+    rankingDifficulty: s.rankingDifficulty,
+    topicalCluster: s.topicalCluster,
+    seoRationale: s.seoRationale,
     status: "pending" as const,
     month,
     createdAt: new Date().toISOString(),

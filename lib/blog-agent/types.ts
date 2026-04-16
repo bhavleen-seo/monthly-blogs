@@ -26,6 +26,12 @@ export interface TopicSuggestion {
   description: string;
   targetKeywords: string[];
   estimatedSearchVolume: "high" | "medium" | "low";
+  /** Why this topic can rank + how it builds topical authority */
+  seoRationale?: string;
+  /** The topical cluster/pillar this post belongs to */
+  topicalCluster?: string;
+  /** Expected difficulty to rank on page 1 */
+  rankingDifficulty?: "easy" | "medium" | "hard";
   status: "pending" | "approved" | "rejected";
   month: string;
   createdAt: string;

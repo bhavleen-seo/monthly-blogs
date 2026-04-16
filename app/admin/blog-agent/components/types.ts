@@ -28,6 +28,9 @@ export interface Topic {
   estimatedSearchVolume: string;
   status: string;
   month: string;
+  seoRationale?: string;
+  topicalCluster?: string;
+  rankingDifficulty?: "easy" | "medium" | "hard";
 }
 
 export interface Post {
