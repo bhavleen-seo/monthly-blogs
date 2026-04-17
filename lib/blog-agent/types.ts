@@ -50,7 +50,10 @@ export interface BlogPost {
   id: string;
   clientId: string;
   topicId: string;
+  /** SEO page title — used as the <title> tag / Yoast SEO title */
   title: string;
+  /** On-page H1 heading — what readers see at the top of the post. Distinct from SEO title for best-practice SEO. Falls back to title if absent. */
+  h1?: string;
   slug: string;
   content: string;
   excerpt: string;

@@ -35,7 +35,7 @@ export async function PUT(req: NextRequest) {
     if (!existing) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
-    const ALLOWED = ["title", "content", "excerpt", "metaDescription", "tags", "featuredImageUrl"];
+    const ALLOWED = ["title", "h1", "slug", "content", "excerpt", "metaDescription", "tags", "featuredImageUrl"];
     const updates: Record<string, unknown> = {};
     for (const key of ALLOWED) {
       if (key in body) updates[key] = body[key];

@@ -30,7 +30,7 @@ export default function PostsTab({
 }) {
   const [clientFilter, setClientFilter] = useState("");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Partial<Post>>({});
   const [saving, setSaving] = useState(false);
@@ -45,8 +45,9 @@ export default function PostsTab({
     if (selectedPost) {
       setDraft({
         title: selectedPost.title,
+        h1: selectedPost.h1 || "",
+        slug: selectedPost.slug || generateSlugPreview(selectedPost.title),
         content: selectedPost.content,
-        excerpt: selectedPost.excerpt,
         metaDescription: selectedPost.metaDescription,
         featuredImageUrl: selectedPost.featuredImageUrl || "",
       });
@@ -55,10 +56,10 @@ export default function PostsTab({
     }
   }, [selectedPost]);
 
-  const copyContent = async (content: string) => {
-    await navigator.clipboard.writeText(content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const copyField = async (key: string, value: string) => {
+    await navigator.clipboard.writeText(value);
+    setCopiedField(key);
+    setTimeout(() => setCopiedField((k) => (k === key ? null : k)), 2000);
   };
 
   const saveEdits = async () => {
@@ -155,7 +156,7 @@ export default function PostsTab({
                   </div>
                   <div className="flex gap-2 shrink-0">
                     <button
-                      onClick={() => { setSelectedPost(post); setCopied(false); }}
+                      onClick={() => { setSelectedPost(post); setCopiedField(null); }}
                       className="text-xs font-medium px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:bg-[var(--color-hover)] hover:text-[var(--color-foreground)] transition-all"
                     >
                       Preview
@@ -192,29 +193,33 @@ export default function PostsTab({
       )}
 
       {/* Preview modal */}
-      {selectedPost && (
+      {selectedPost && (() => {
+        const displaySlug = (editing ? draft.slug : selectedPost.slug) || generateSlugPreview(selectedPost.title);
+        const displayH1 = (editing ? draft.h1 : selectedPost.h1) || "";
+        const displayTitle = editing ? (draft.title || "") : selectedPost.title;
+        const displayMeta = editing ? (draft.metaDescription || "") : selectedPost.metaDescription;
+        const h1SameAsTitle = displayH1.trim().length > 0 && displayH1.trim().toLowerCase() === displayTitle.trim().toLowerCase();
+        const titleLen = displayTitle.length;
+        const metaLen = displayMeta.length;
+        const h1Len = displayH1.length;
+
+        return (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setSelectedPost(null)}>
           <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl max-w-3xl w-full max-h-[90vh] flex flex-col animate-slide-up" onClick={(e) => e.stopPropagation()}>
-            {/* Modal header */}
-            <div className="flex items-start justify-between px-6 py-4 border-b border-[var(--color-border)]">
-              <div className="min-w-0 mr-4 flex-1">
-                <label className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">Page Title</label>
-                {editing ? (
-                  <input
-                    type="text"
-                    value={draft.title || ""}
-                    onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                    className="w-full text-lg font-bold text-[var(--color-foreground)] bg-transparent border-b border-[var(--color-border)] focus:border-[var(--color-primary)] outline-none pb-1 mt-1"
-                  />
-                ) : (
-                  <h2 className="text-lg font-bold text-[var(--color-foreground)] mt-1">{selectedPost.title}</h2>
-                )}
-                <div className="flex items-center gap-2 mt-1.5">
-                  <span className="text-[10px] font-mono text-[var(--color-muted-foreground)] bg-[var(--color-muted)] px-2 py-0.5 rounded">/{(selectedPost as unknown as Record<string, string>).slug || generateSlugPreview(selectedPost.title)}</span>
-                  <span className="text-[10px] text-[var(--color-muted-foreground)]">{selectedPost.clientName}</span>
-                  <span className="text-[10px] text-[var(--color-muted-foreground)]">{selectedPost.wordCount} words</span>
-                  <span className={`text-[10px] ${(selectedPost.title?.length || 0) <= 60 ? "text-[var(--color-success)]" : "text-[var(--color-destructive)]"}`}>{selectedPost.title?.length || 0}/60 chars</span>
-                </div>
+            {/* Modal header — compact post meta only */}
+            <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--color-border)]">
+              <div className="flex items-center gap-3 min-w-0">
+                <p className="text-sm font-semibold text-[var(--color-foreground)] truncate">{selectedPost.clientName}</p>
+                <span className="text-[10px] text-[var(--color-muted-foreground)]">&middot;</span>
+                <span className="text-[10px] text-[var(--color-muted-foreground)]">{selectedPost.wordCount} words</span>
+                <span className={`text-[10px] inline-flex items-center gap-1 ${
+                  selectedPost.status === "published" ? "text-[var(--color-success)]" :
+                  selectedPost.status === "ready" ? "text-[var(--color-primary)]" :
+                  selectedPost.status === "failed" ? "text-[var(--color-destructive)]" :
+                  "text-[var(--color-muted-foreground)]"
+                }`}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-current" />{selectedPost.status}
+                </span>
               </div>
               <div className="flex gap-2 shrink-0">
                 {!editing && selectedPost.status !== "published" && (
@@ -227,14 +232,14 @@ export default function PostsTab({
                 )}
                 {!editing && (
                   <button
-                    onClick={() => copyContent(selectedPost.content)}
+                    onClick={() => copyField("content", selectedPost.content)}
                     className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-all ${
-                      copied
+                      copiedField === "content"
                         ? "border-[var(--color-success)] text-[var(--color-success)]"
                         : "border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
                     }`}
                   >
-                    {copied ? "Copied!" : "Copy HTML"}
+                    {copiedField === "content" ? "Copied!" : "Copy HTML"}
                   </button>
                 )}
                 <button onClick={() => setSelectedPost(null)} className="text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors text-xl leading-none">&times;</button>
@@ -242,7 +247,132 @@ export default function PostsTab({
             </div>
 
             {/* Modal body */}
-            <div className="overflow-y-auto px-6 py-5 space-y-4 flex-1">
+            <div className="overflow-y-auto px-6 py-5 space-y-5 flex-1">
+              {/* H1 Heading — what readers see on the page */}
+              <div className="bg-[var(--color-background)] border-2 border-[var(--color-primary)]/40 rounded-lg px-4 py-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-[var(--color-primary)] uppercase tracking-wider">H1 Heading</span>
+                    <span className="text-[10px] text-[var(--color-muted-foreground)]">visible to readers at top of post</span>
+                  </div>
+                  <button
+                    onClick={() => copyField("h1", displayH1 || displayTitle)}
+                    className={`text-[10px] font-medium px-2 py-1 rounded transition-all ${
+                      copiedField === "h1"
+                        ? "bg-[var(--color-success)] text-[var(--color-primary-foreground)]"
+                        : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-hover)]"
+                    }`}
+                  >
+                    {copiedField === "h1" ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+                {editing ? (
+                  <input
+                    type="text"
+                    value={draft.h1 || ""}
+                    onChange={(e) => setDraft({ ...draft, h1: e.target.value })}
+                    placeholder="e.g. How Much Do You Need to Earn to Afford a $200,000 Home?"
+                    className="w-full text-base font-bold text-[var(--color-foreground)] bg-transparent border-b border-[var(--color-border)] focus:border-[var(--color-primary)] outline-none pb-1"
+                  />
+                ) : (
+                  <h2 className="text-base font-bold text-[var(--color-foreground)]">{displayH1 || <span className="italic font-normal text-[var(--color-muted-foreground)]">(falls back to page title — edit to set a distinct H1)</span>}</h2>
+                )}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="text-[10px] text-[var(--color-muted-foreground)]">{h1Len} chars</span>
+                  {h1SameAsTitle && (
+                    <span className="text-[10px] text-[var(--color-destructive)] font-medium">&#9888; H1 matches page title — should be different for SEO</span>
+                  )}
+                </div>
+              </div>
+
+              {/* SEO Metadata — copy-friendly */}
+              <div className="bg-[var(--color-muted)] rounded-lg px-4 py-3 space-y-4">
+                <p className="text-[10px] font-bold text-[var(--color-muted-foreground)] uppercase tracking-wider">SEO Metadata</p>
+
+                {/* Page Title */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">Page Title <span className="normal-case font-normal">(&lt;title&gt; tag / SERP)</span></label>
+                    <button
+                      onClick={() => copyField("title", displayTitle)}
+                      className={`text-[10px] font-medium px-2 py-1 rounded transition-all ${
+                        copiedField === "title"
+                          ? "bg-[var(--color-success)] text-[var(--color-primary-foreground)]"
+                          : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-hover)]"
+                      }`}
+                    >
+                      {copiedField === "title" ? "Copied!" : "Copy"}
+                    </button>
+                  </div>
+                  {editing ? (
+                    <input
+                      type="text"
+                      value={draft.title || ""}
+                      onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                      className="w-full bg-[var(--color-card)] border border-[var(--color-border)] rounded px-2 py-1.5 text-sm text-[var(--color-foreground)]"
+                    />
+                  ) : (
+                    <p className="text-sm font-medium text-[var(--color-foreground)]">{displayTitle}</p>
+                  )}
+                  <span className={`text-[10px] ${titleLen <= 60 ? "text-[var(--color-success)]" : "text-[var(--color-destructive)]"}`}>{titleLen}/60 chars</span>
+                </div>
+
+                {/* URL Slug */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">URL Slug</label>
+                    <button
+                      onClick={() => copyField("slug", displaySlug)}
+                      className={`text-[10px] font-medium px-2 py-1 rounded transition-all ${
+                        copiedField === "slug"
+                          ? "bg-[var(--color-success)] text-[var(--color-primary-foreground)]"
+                          : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-hover)]"
+                      }`}
+                    >
+                      {copiedField === "slug" ? "Copied!" : "Copy"}
+                    </button>
+                  </div>
+                  {editing ? (
+                    <input
+                      type="text"
+                      value={draft.slug || ""}
+                      onChange={(e) => setDraft({ ...draft, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-") })}
+                      className="w-full bg-[var(--color-card)] border border-[var(--color-border)] rounded px-2 py-1.5 text-sm font-mono text-[var(--color-foreground)]"
+                    />
+                  ) : (
+                    <p className="text-sm font-mono text-[var(--color-foreground)]">/{displaySlug}</p>
+                  )}
+                </div>
+
+                {/* Meta Description */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">Meta Description</label>
+                    <button
+                      onClick={() => copyField("meta", displayMeta)}
+                      className={`text-[10px] font-medium px-2 py-1 rounded transition-all ${
+                        copiedField === "meta"
+                          ? "bg-[var(--color-success)] text-[var(--color-primary-foreground)]"
+                          : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-hover)]"
+                      }`}
+                    >
+                      {copiedField === "meta" ? "Copied!" : "Copy"}
+                    </button>
+                  </div>
+                  {editing ? (
+                    <textarea
+                      value={draft.metaDescription || ""}
+                      onChange={(e) => setDraft({ ...draft, metaDescription: e.target.value })}
+                      rows={2}
+                      className="w-full bg-[var(--color-card)] border border-[var(--color-border)] rounded px-2 py-1.5 text-xs text-[var(--color-foreground)]"
+                    />
+                  ) : (
+                    <p className="text-xs text-[var(--color-foreground)]">{displayMeta}</p>
+                  )}
+                  <span className={`text-[10px] ${metaLen >= 140 && metaLen <= 160 ? "text-[var(--color-success)]" : "text-[var(--color-muted-foreground)]"}`}>{metaLen}/160 chars</span>
+                </div>
+              </div>
+
               {/* Featured image */}
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">Featured Image URL</label>
@@ -269,36 +399,6 @@ export default function PostsTab({
                     className="w-full max-h-64 object-cover rounded-lg border border-[var(--color-border)]"
                   />
                 )}
-              </div>
-
-              {/* Excerpt + meta */}
-              <div className="bg-[var(--color-muted)] rounded-lg px-4 py-3 space-y-3">
-                <div>
-                  <label className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">Excerpt</label>
-                  {editing ? (
-                    <textarea
-                      value={draft.excerpt || ""}
-                      onChange={(e) => setDraft({ ...draft, excerpt: e.target.value })}
-                      rows={2}
-                      className="w-full mt-1 bg-[var(--color-card)] border border-[var(--color-border)] rounded px-2 py-1 text-xs text-[var(--color-foreground)]"
-                    />
-                  ) : (
-                    <p className="text-xs text-[var(--color-muted-foreground)] mt-1">{selectedPost.excerpt}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">Meta description</label>
-                  {editing ? (
-                    <textarea
-                      value={draft.metaDescription || ""}
-                      onChange={(e) => setDraft({ ...draft, metaDescription: e.target.value })}
-                      rows={2}
-                      className="w-full mt-1 bg-[var(--color-card)] border border-[var(--color-border)] rounded px-2 py-1 text-xs text-[var(--color-foreground)]"
-                    />
-                  ) : (
-                    <p className="text-xs text-[var(--color-muted-foreground)] mt-1">{selectedPost.metaDescription}</p>
-                  )}
-                </div>
               </div>
 
               {/* Content — tabbed Preview / HTML */}
@@ -348,7 +448,7 @@ export default function PostsTab({
             {editing && (
               <div className="flex justify-end gap-2 px-6 py-3 border-t border-[var(--color-border)]">
                 <button
-                  onClick={() => { setEditing(false); setDraft({ title: selectedPost.title, content: selectedPost.content, excerpt: selectedPost.excerpt, metaDescription: selectedPost.metaDescription, featuredImageUrl: selectedPost.featuredImageUrl || "" }); }}
+                  onClick={() => { setEditing(false); setDraft({ title: selectedPost.title, h1: selectedPost.h1 || "", slug: selectedPost.slug || generateSlugPreview(selectedPost.title), content: selectedPost.content, metaDescription: selectedPost.metaDescription, featuredImageUrl: selectedPost.featuredImageUrl || "" }); }}
                   className="text-xs font-medium px-4 py-2 rounded-lg border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
                 >
                   Cancel
@@ -364,7 +464,8 @@ export default function PostsTab({
             )}
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

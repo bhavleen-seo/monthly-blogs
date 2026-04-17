@@ -42,6 +42,8 @@ export interface Post {
   clientName: string;
   topicId: string;
   title: string;
+  h1?: string;
+  slug?: string;
   wordCount: number;
   status: string;
   publishedUrl?: string;

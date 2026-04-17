@@ -43,14 +43,28 @@ const CORE_CONTENT_INSTRUCTIONS = `
 - End every post with a clear call-to-action tied to a business goal.
 - Never publish thin content — if a topic can't sustain the minimum depth, combine it with a related topic.
 
-## Page Title & URL Slug Rules
-- The page title (H1 / SEO title) MUST be under 60 characters.
-- Front-load the primary keyword in the title (first 3-4 words).
-- Make the title compelling — it should promise a clear benefit or answer.
-- The URL slug MUST be short (3-5 words max), lowercase, hyphenated, keyword-rich.
+## Page Title, H1 & URL Slug Rules
+**Page Title (SEO <title> tag)** — shown in SERPs and browser tabs:
+- MUST be under 60 characters.
+- Front-load the primary keyword in the first 3-4 words.
+- Keyword-dense, scannable, and optimized for CTR in search results.
+- Can include year/numbers and brand suffix if space allows.
+
+**H1 Heading** — the big headline readers see on the page itself:
+- MUST be DIFFERENT from the page title (never identical) — this is an SEO best practice.
+- Can be longer (up to ~70 chars) and more conversational/benefit-driven.
+- Still includes the primary keyword but can rephrase it naturally.
+- Should feel welcoming and human, not keyword-stuffed.
+- Example pair:
+  - Page Title: "$200K Mortgage Income Requirements (2026 Guide)"
+  - H1: "How Much Do You Need to Earn to Afford a $200,000 Home?"
+
+**URL Slug**:
+- MUST be short (3-5 words max), lowercase, hyphenated, keyword-rich.
 - Remove stop words from slugs (a, the, and, or, in, of, for, to, is, etc.).
-- Example: Title "How Much Income Do You Need for a $200K Mortgage in 2026?" → Slug: "income-needed-200k-mortgage"
-- ALWAYS generate an optimized title — do NOT just reuse the topic title verbatim if it's too long or not keyword-optimized.
+- Example: Page Title above → Slug: "income-needed-200k-mortgage"
+
+ALWAYS generate an optimized page title AND a distinct H1 — do NOT just reuse the topic title verbatim, and never output the same text for both fields.
 `.trim();
 
 // ─── Writer ──────────────────────────────────────────────────────────────────
@@ -127,7 +141,8 @@ Write ${minWords}–${maxWords} words. If the topic demands more depth, go up to
 # Output Format
 Return ONLY a JSON object with these fields:
 {
-  "seoTitle": "Optimized page title, under 60 chars, primary keyword front-loaded. Do NOT just copy the topic title — optimize it for search.",
+  "seoTitle": "Page title for <title> tag, under 60 chars, primary keyword front-loaded, optimized for SERP CTR.",
+  "h1": "On-page H1 heading — MUST be different wording from seoTitle. Longer, conversational, reader-friendly. Up to ~70 chars.",
   "slug": "short-keyword-rich-slug (3-5 words, no stop words, lowercase, hyphenated)",
   "content": "<h2>...</h2><p>...</p>... (the full blog post HTML)",
   "excerpt": "150-160 character summary for search results",
@@ -142,6 +157,7 @@ Return ONLY the JSON object, no other text.`;
 
   let parsed: {
     seoTitle?: string;
+    h1?: string;
     slug?: string;
     content: string;
     excerpt: string;
@@ -161,12 +177,14 @@ Return ONLY the JSON object, no other text.`;
   const wordCount = parsed.content.replace(/<[^>]*>/g, "").split(/\s+/).filter(Boolean).length;
   const finalTitle = parsed.seoTitle || topic.title;
   const finalSlug = parsed.slug || generateSlug(finalTitle);
+  const finalH1 = parsed.h1 && parsed.h1 !== finalTitle ? parsed.h1 : undefined;
 
   return {
     id: uuidv4(),
     clientId: client.id,
     topicId: topic.id,
     title: finalTitle,
+    h1: finalH1,
     slug: finalSlug,
     content: parsed.content,
     excerpt: parsed.excerpt,

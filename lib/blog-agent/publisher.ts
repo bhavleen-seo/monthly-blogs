@@ -213,8 +213,12 @@ export async function publishToWordPress(
       : Promise.resolve(null),
   ]);
 
+  // Separate on-page H1 from SEO <title> tag:
+  // - WP post_title renders as the on-page H1 → use post.h1 if present
+  // - Yoast seo title overrides the <title> tag → use post.title (the SEO title)
+  const onPageH1 = post.h1 || post.title;
   const wpPost: Record<string, unknown> = {
-    title: post.title,
+    title: onPageH1,
     slug: post.slug,
     content: post.content,
     excerpt: post.excerpt,
@@ -222,6 +226,7 @@ export async function publishToWordPress(
     categories: categoryIds,
     tags: tagIds,
     meta: {
+      _yoast_wpseo_title: post.title,
       _yoast_wpseo_metadesc: post.metaDescription,
     },
   };
