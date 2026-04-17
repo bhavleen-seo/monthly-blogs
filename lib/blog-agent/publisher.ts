@@ -215,8 +215,12 @@ export async function publishToWordPress(
 
   // Separate on-page H1 from SEO <title> tag:
   // - WP post_title renders as the on-page H1 → use post.h1 if present
-  // - Yoast seo title overrides the <title> tag → use post.title (the SEO title)
+  // - Plugin "seo title" overrides the <title> tag → use post.title (the SEO title)
   const onPageH1 = post.h1 || post.title;
+  const focusKeyword = post.targetKeywords?.[0] || "";
+
+  // Send both RankMath and Yoast meta keys. Whichever plugin is installed
+  // picks up its own keys; the other set is ignored harmlessly.
   const wpPost: Record<string, unknown> = {
     title: onPageH1,
     slug: post.slug,
@@ -226,8 +230,14 @@ export async function publishToWordPress(
     categories: categoryIds,
     tags: tagIds,
     meta: {
+      // RankMath
+      rank_math_title: post.title,
+      rank_math_description: post.metaDescription,
+      rank_math_focus_keyword: focusKeyword,
+      // Yoast (fallback for clients still on Yoast)
       _yoast_wpseo_title: post.title,
       _yoast_wpseo_metadesc: post.metaDescription,
+      _yoast_wpseo_focuskw: focusKeyword,
     },
   };
 
