@@ -56,6 +56,7 @@ export default function DashboardTab({
     { step: "3", title: "Publish", desc: `Publish ${readyPosts.length} ready posts to WordPress`, btn: "Publish All", onClick: onPublishPosts, disabled: loading || readyPosts.length === 0 },
   ];
 
+  // Pipeline: per-client overview
   const pipeline = activeClients.map((c) => {
     const cTopics = topics.filter((t) => t.clientId === c.id);
     const cPosts = posts.filter((p) => p.clientId === c.id);
@@ -70,105 +71,77 @@ export default function DashboardTab({
   }).filter((c) => c.pending + c.approved + c.written + c.published > 0);
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-6 auto-rows-[minmax(110px,auto)] gap-3 sm:gap-4 animate-fade-in">
-      {/* Hero — large tile (4x2 on desktop) */}
-      <div className="col-span-2 lg:col-span-4 lg:row-span-2 relative overflow-hidden rounded-2xl bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 dark:from-zinc-100 dark:via-zinc-200 dark:to-zinc-100 p-5 sm:p-7">
+    <div className="space-y-8 animate-fade-in">
+      {/* Hero banner */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 dark:from-zinc-100 dark:via-zinc-200 dark:to-zinc-100 p-5 sm:p-8">
+        {/* Decorative circles */}
         <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-white/5 dark:bg-black/5" />
         <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-white/5 dark:bg-black/5" />
         <div className="absolute top-4 right-4 w-20 h-20 rounded-full bg-white/5 dark:bg-black/5" />
 
-        <div className="relative z-10 h-full flex flex-col justify-between gap-6">
-          <div className="flex items-start gap-4">
-            <div className="shrink-0 bg-white/10 dark:bg-black/10 rounded-xl p-2.5 backdrop-blur-sm">
-              <img
-                src="https://www.csdesignstudios.com/wp-content/uploads/yootheme/cache/8d/cs-design-studios-logo-8d06a929.webp"
-                alt="CS Design Studios"
-                className="w-10 h-10 sm:w-12 sm:h-12 object-contain block dark:hidden"
-              />
-              <img
-                src="https://www.csdesignstudios.com/wp-content/uploads/CSLOGONAV.webp"
-                alt="CS Design Studios"
-                className="w-10 h-10 sm:w-12 sm:h-12 object-contain hidden dark:block"
-              />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-white/60 dark:text-black/50">{greeting}</p>
-              <h2 className="text-2xl sm:text-3xl font-bold text-white dark:text-black tracking-tight">{currentMonth} Overview</h2>
-              <p className="text-sm text-white/50 dark:text-black/40 mt-1">
-                {activeClients.length} active client{activeClients.length !== 1 ? "s" : ""} &middot; {publishedPosts.length} published this cycle
-              </p>
-            </div>
+        <div className="relative z-10 flex items-start sm:items-center gap-4 sm:gap-5 flex-col sm:flex-row">
+          <div className="shrink-0 bg-white/10 dark:bg-black/10 rounded-xl p-2.5 backdrop-blur-sm">
+            {/* White logo on dark hero bg (light mode), dark logo on light hero bg (dark mode) */}
+            <img
+              src="https://www.csdesignstudios.com/wp-content/uploads/yootheme/cache/8d/cs-design-studios-logo-8d06a929.webp"
+              alt="CS Design Studios"
+              className="w-10 h-10 sm:w-12 sm:h-12 object-contain block dark:hidden"
+            />
+            <img
+              src="https://www.csdesignstudios.com/wp-content/uploads/CSLOGONAV.webp"
+              alt="CS Design Studios"
+              className="w-10 h-10 sm:w-12 sm:h-12 object-contain hidden dark:block"
+            />
           </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={onResearch}
-              disabled={loading || clients.length === 0}
-              className="bg-white/15 dark:bg-black/15 backdrop-blur-sm text-white dark:text-black text-sm font-medium px-4 py-2 rounded-lg hover:bg-white/25 dark:hover:bg-black/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Research
-            </button>
-            <button
-              onClick={onWritePosts}
-              disabled={loading || approvedTopics.length === 0}
-              className="bg-white/15 dark:bg-black/15 backdrop-blur-sm text-white dark:text-black text-sm font-medium px-4 py-2 rounded-lg hover:bg-white/25 dark:hover:bg-black/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Write
-            </button>
-            <button
-              onClick={onPublishPosts}
-              disabled={loading || readyPosts.length === 0}
-              className="bg-white dark:bg-black text-black dark:text-white text-sm font-medium px-4 py-2 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Publish All
-            </button>
+          <div>
+            <p className="text-sm font-medium text-white/60 dark:text-black/50">{greeting}</p>
+            <h2 className="text-2xl font-bold text-white dark:text-black tracking-tight">{currentMonth} Overview</h2>
+            <p className="text-sm text-white/50 dark:text-black/40 mt-1">
+              {activeClients.length} active client{activeClients.length !== 1 ? "s" : ""} &middot; {publishedPosts.length} published this cycle
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Stat tiles — 2x2 block next to hero on desktop */}
-      {stats.map((s, i) => (
-        <div
-          key={s.label}
-          className={`stat-card stat-card-${i} col-span-1 lg:col-span-1 bg-[var(--color-card)] border border-[var(--color-border)] rounded-2xl p-4 sm:p-5 flex flex-col justify-between transition-all duration-200 hover:border-[var(--color-primary)]/30 hover:-translate-y-0.5 hover:shadow-md`}
-        >
-          <p className="text-[10px] sm:text-xs font-medium text-[var(--color-muted-foreground)] uppercase tracking-wider leading-tight">{s.label}</p>
-          <p className="text-2xl sm:text-3xl font-bold" style={{ color: s.color }}>{s.value}</p>
-        </div>
-      ))}
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {stats.map((s, i) => (
+          <div key={s.label} className={`stat-card stat-card-${i} bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl p-5 transition-all duration-200 hover:border-[var(--color-primary)]/30 hover:-translate-y-0.5 hover:shadow-md`}>
+            <p className="text-xs font-medium text-[var(--color-muted-foreground)] uppercase tracking-wider">{s.label}</p>
+            <p className="text-3xl font-bold mt-2" style={{ color: s.color }}>{s.value}</p>
+          </div>
+        ))}
+      </div>
 
-      {/* Action tiles — row of 3 */}
-      {actions.map((a) => (
-        <div
-          key={a.step}
-          className="col-span-2 lg:col-span-2 bg-[var(--color-card)] border border-[var(--color-border)] rounded-2xl p-5 flex flex-col justify-between gap-3 transition-all duration-200 hover:border-[var(--color-primary)]/30"
-        >
-          <div>
+      {/* Action cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {actions.map((a) => (
+          <div key={a.step} className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl p-5 transition-all duration-200 hover:border-[var(--color-primary)]/30">
             <div className="flex items-center gap-2 mb-2">
               <span className="w-6 h-6 rounded-full bg-[var(--color-primary)] text-[var(--color-primary-foreground)] text-xs font-bold flex items-center justify-center">{a.step}</span>
               <h3 className="font-semibold text-[var(--color-foreground)]">{a.title}</h3>
             </div>
-            <p className="text-sm text-[var(--color-muted-foreground)]">{a.desc}</p>
+            <p className="text-sm text-[var(--color-muted-foreground)] mb-4">{a.desc}</p>
+            <button
+              onClick={a.onClick}
+              disabled={a.disabled}
+              className="w-full bg-[var(--color-primary)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {a.btn}
+            </button>
           </div>
-          <button
-            onClick={a.onClick}
-            disabled={a.disabled}
-            className="w-full bg-[var(--color-primary)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {a.btn}
-          </button>
-        </div>
-      ))}
+        ))}
+      </div>
 
-      {/* Pipeline — wide tile */}
+      {/* Pipeline overview */}
       {pipeline.length > 0 && (
-        <div className="col-span-2 lg:col-span-4 lg:row-span-2 bg-[var(--color-card)] border border-[var(--color-border)] rounded-2xl overflow-hidden flex flex-col">
+        <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl overflow-hidden">
           <div className="px-5 py-4 border-b border-[var(--color-border)]">
             <h3 className="font-semibold text-[var(--color-foreground)]">Client Pipeline</h3>
           </div>
-          <div className="overflow-auto flex-1">
+          <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-[var(--color-card)]">
+              <thead>
                 <tr className="border-b border-[var(--color-border)]">
                   <th className="text-left px-5 py-3 text-xs font-medium text-[var(--color-muted-foreground)] uppercase tracking-wider">Client</th>
                   <th className="text-center px-4 py-3 text-xs font-medium text-[var(--color-muted-foreground)] uppercase tracking-wider">Pending</th>
@@ -201,22 +174,22 @@ export default function DashboardTab({
         </div>
       )}
 
-      {/* Pending approvals — tall narrow tile */}
+      {/* Pending topics quick list */}
       {pendingTopics.length > 0 && (
-        <div className="col-span-2 lg:col-span-2 lg:row-span-2 bg-[var(--color-card)] border border-[var(--color-border)] rounded-2xl overflow-hidden flex flex-col">
+        <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
             <h3 className="font-semibold text-[var(--color-foreground)]">Awaiting Approval</h3>
             <button
               onClick={() => onBulkApprove(pendingTopics.map((t) => t.id))}
-              className="text-xs font-medium bg-[var(--color-success)] text-[var(--color-primary-foreground)] px-2.5 py-1.5 rounded-lg hover:opacity-90 transition-opacity"
+              className="text-xs font-medium bg-[var(--color-success)] text-[var(--color-primary-foreground)] px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity"
             >
-              Approve all ({pendingTopics.length})
+              Approve All ({pendingTopics.length})
             </button>
           </div>
-          <div className="divide-y divide-[var(--color-border)] overflow-auto flex-1">
-            {pendingTopics.slice(0, 10).map((topic) => (
+          <div className="divide-y divide-[var(--color-border)]">
+            {pendingTopics.slice(0, 8).map((topic) => (
               <div key={topic.id} className="flex items-center justify-between px-5 py-3 hover:bg-[var(--color-hover)] transition-colors">
-                <div className="flex-1 min-w-0 mr-3">
+                <div className="flex-1 min-w-0 mr-4">
                   <p className="text-sm font-medium text-[var(--color-foreground)] truncate">{topic.title}</p>
                   <p className="text-xs text-[var(--color-muted-foreground)]">{topic.clientName}</p>
                 </div>
@@ -227,9 +200,9 @@ export default function DashboardTab({
               </div>
             ))}
           </div>
-          {pendingTopics.length > 10 && (
+          {pendingTopics.length > 8 && (
             <div className="px-5 py-3 text-center text-xs text-[var(--color-muted-foreground)] border-t border-[var(--color-border)]">
-              +{pendingTopics.length - 10} more — go to Topics tab
+              +{pendingTopics.length - 8} more — go to Topics tab
             </div>
           )}
         </div>
