@@ -4,19 +4,9 @@ import { getTopics, getGlobalSettings } from "./store";
 import { complete } from "./llm";
 import { getPublishedPostTitles } from "./publisher";
 import { getRelatedQuestions } from "./alsoasked";
-import { analyzeKeywords, formatSerpForPrompt } from "./serper";
+import { analyzeKeywords, formatSerpForPrompt, inferRegion } from "./serper";
 import { fetchSiteContext } from "./site-context";
-
-// Rough country/region mapping from free-text location for regionality
-function inferRegion(location: string): string {
-  const loc = location.toLowerCase();
-  if (/\b(au|australia|melbourne|sydney|brisbane|perth|adelaide|queensland|nsw|victoria)\b/.test(loc)) return "au";
-  if (/\b(us|usa|united states|america|california|texas|new york|florida|arizona)\b/.test(loc)) return "us";
-  if (/\b(uk|united kingdom|britain|england|london|scotland|wales)\b/.test(loc)) return "gb";
-  if (/\b(ca|canada|toronto|vancouver|ontario|quebec)\b/.test(loc)) return "ca";
-  if (/\b(nz|new zealand|auckland|wellington)\b/.test(loc)) return "nz";
-  return "au"; // CS Design Studios default
-}
+import { fetchPageContents, formatPageForPrompt } from "./youcom";
 
 export async function researchTopics(
   client: Client,
@@ -50,6 +40,29 @@ export async function researchTopics(
   ]
     .filter(Boolean)
     .join("\n\n");
+
+  // Pull real page content for the #1 ranking page of each analyzed keyword.
+  // Gives the LLM actual competitor content (not just snippets) to detect gaps.
+  const competitorUrls = Array.from(
+    new Set(
+      serpAnalyses
+        .map((a) => a.organic[0]?.link)
+        .filter((u): u is string => typeof u === "string" && u.length > 0)
+    )
+  );
+  const competitorPages = competitorUrls.length > 0
+    ? await fetchPageContents(competitorUrls, { formats: ["markdown"], crawlTimeout: 8 })
+    : [];
+
+  const competitorContentSection = competitorPages.length > 0
+    ? `## Top-Ranking Competitor Content (full page markdown)
+These are the ACTUAL pages currently ranking #1 for the client's commercial keywords. Read them to identify:
+- What depth of coverage Google is rewarding
+- What informational questions they leave unanswered (your opportunity)
+- What structure / sub-topics dominate the SERP
+
+${competitorPages.map((p) => formatPageForPrompt(p, 1500)).join("\n\n---\n\n")}`
+    : "";
 
   const serpSection = serpAnalyses.length > 0
     ? `## Live Google SERP Data for the Client's Commercial Keywords (region: ${region.toUpperCase()})
@@ -114,7 +127,7 @@ ${siteContextSection}
 
 ${serpSection}
 
-${
+${competitorContentSection ? competitorContentSection + "\n\n" : ""}${
   relatedQuestions.length > 0
     ? `## People Also Asked (from AlsoAsked — the real informational questions users search)
 These are GOLD. They reveal what real users want to KNOW (informational intent) around the commercial keywords. Your best topics will answer 2-4 of these in a single well-structured post.

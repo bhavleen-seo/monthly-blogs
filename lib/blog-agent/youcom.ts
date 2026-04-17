@@ -35,6 +35,19 @@ interface FetchOptions {
 }
 
 /**
+ * Trim a fetched page's markdown to a compact excerpt suitable for an LLM prompt.
+ * Returns a formatted block with title, URL, and a truncated body.
+ */
+export function formatPageForPrompt(
+  page: YouComPageContent,
+  maxChars = 1200
+): string {
+  const md = (page.markdown || "").trim();
+  const truncated = md.length > maxChars ? md.slice(0, maxChars) + "…" : md;
+  return `**${page.title || page.url}** (${page.url})\n${truncated}`;
+}
+
+/**
  * Fetch clean content from one or more URLs in a single batched request.
  * Returns [] on failure so callers can gracefully degrade.
  */

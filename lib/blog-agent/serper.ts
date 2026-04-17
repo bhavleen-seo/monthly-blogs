@@ -50,6 +50,21 @@ export interface SerpAnalysis {
 const API_URL = "https://google.serper.dev/search";
 
 /**
+ * Rough country/region mapping from a free-text location field.
+ * Used for Serper `gl` (country) targeting and shared with any caller
+ * that needs a region code derived from a client's location.
+ */
+export function inferRegion(location: string): string {
+  const loc = location.toLowerCase();
+  if (/\b(au|australia|melbourne|sydney|brisbane|perth|adelaide|queensland|nsw|victoria)\b/.test(loc)) return "au";
+  if (/\b(us|usa|united states|america|california|texas|new york|florida|arizona)\b/.test(loc)) return "us";
+  if (/\b(uk|united kingdom|britain|england|london|scotland|wales)\b/.test(loc)) return "gb";
+  if (/\b(ca|canada|toronto|vancouver|ontario|quebec)\b/.test(loc)) return "ca";
+  if (/\b(nz|new zealand|auckland|wellington)\b/.test(loc)) return "nz";
+  return "au"; // CS Design Studios default
+}
+
+/**
  * Fetch SERP data for a single keyword. Returns a structured analysis or null
  * on failure (caller should skip gracefully).
  */

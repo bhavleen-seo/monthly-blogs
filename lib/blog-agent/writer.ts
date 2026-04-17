@@ -2,6 +2,8 @@ import { v4 as uuidv4 } from "uuid";
 import type { Client, TopicSuggestion, BlogPost } from "./types";
 import { getGlobalSettings } from "./store";
 import { complete } from "./llm";
+import { analyzeKeywords, inferRegion } from "./serper";
+import { fetchPageContents, formatPageForPrompt } from "./youcom";
 
 function generateSlug(title: string): string {
   return title
@@ -92,6 +94,37 @@ export async function writeBlogPost(
   if (topic.internalLinkTarget) internalLinkTargets.push(topic.internalLinkTarget);
   const websiteUrl = client.websiteUrl || client.wordpressUrl;
 
+  // Pull top 3 currently-ranking pages for the primary informational keyword
+  // so the writer can outperform them on depth and differentiation.
+  const primaryKeyword = topic.targetKeywords?.[0];
+  const region = inferRegion(client.location);
+  let competitorSection = "";
+  if (primaryKeyword) {
+    try {
+      const [serp] = await analyzeKeywords([primaryKeyword], { gl: region, hl: "en" });
+      const topUrls = (serp?.organic || [])
+        .slice(0, 3)
+        .map((r) => r.link)
+        .filter((u): u is string => typeof u === "string" && u.length > 0);
+      if (topUrls.length > 0) {
+        const pages = await fetchPageContents(topUrls, { formats: ["markdown"], crawlTimeout: 8 });
+        if (pages.length > 0) {
+          competitorSection = `\n\n# Currently Ranking Pages (study then beat them)
+These are the top ${pages.length} pages ranking for "${primaryKeyword}" right now. Read them carefully. Your post must:
+- Cover everything these pages cover — PLUS at least 2 angles/questions they miss
+- Go deeper on the most important sub-topics (more specifics, examples, numbers)
+- Be better structured (clearer headings, more scannable, better FAQ)
+- Never duplicate their phrasing — write in the client's brand voice
+- Surface newer data / 2026 context where relevant
+
+${pages.map((p) => formatPageForPrompt(p, 1500)).join("\n\n---\n\n")}`;
+        }
+      }
+    } catch (err) {
+      console.error("[writer] competitor content fetch failed:", err);
+    }
+  }
+
   const prompt = `You are an expert SEO blog writer. Write a complete, publication-ready blog post. You MUST follow every rule below — no exceptions.
 
 # MANDATORY SEO RULES (follow ALL of these)
@@ -114,6 +147,7 @@ ${CORE_CONTENT_INSTRUCTIONS}${extraContentInstructions}
 - **Target Keywords:** ${topic.targetKeywords.join(", ")}
 ${topic.supportsCommercialKeyword ? `- **Supporting commercial keyword:** "${topic.supportsCommercialKeyword}" — funnel readers toward this service naturally.` : ""}
 ${topic.funnelStage ? `- **Funnel stage:** ${topic.funnelStage} — ${topic.funnelStage === "TOFU" ? "educate and build trust, soft CTAs" : topic.funnelStage === "MOFU" ? "compare options, address objections, nudge toward service" : "decision-stage — clear CTA with service link"}` : ""}
+${competitorSection}
 
 # Internal Linking Requirements (CRITICAL)
 You MUST include at least 2 internal links to pages on ${websiteUrl}. These should be:
