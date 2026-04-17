@@ -7,6 +7,7 @@ import { getRelatedQuestions } from "./alsoasked";
 import { analyzeKeywords, formatSerpForPrompt, inferRegion } from "./serper";
 import { fetchSiteContext } from "./site-context";
 import { fetchPageContents, formatPageForPrompt } from "./youcom";
+import { fetchKeywordMetrics, formatMetricsForPrompt } from "./semrush";
 
 export async function researchTopics(
   client: Client,
@@ -26,11 +27,12 @@ export async function researchTopics(
 
   // Fetch all research signals in parallel.
   // All are best-effort: failure just reduces research quality.
-  const [publishedTitles, relatedQuestions, serpAnalyses, siteContext] = await Promise.all([
+  const [publishedTitles, relatedQuestions, serpAnalyses, siteContext, seedMetrics] = await Promise.all([
     getPublishedPostTitles(client),
     getRelatedQuestions(seedKeywords.slice(0, 3), { region, language: "en", limit: 25 }),
     analyzeKeywords(seedKeywords, { gl: region, hl: "en" }),
     fetchSiteContext(websiteUrl),
+    fetchKeywordMetrics(seedKeywords, region),
   ]);
 
   const globalRulesSection = [
@@ -53,6 +55,18 @@ export async function researchTopics(
   const competitorPages = competitorUrls.length > 0
     ? await fetchPageContents(competitorUrls, { formats: ["markdown"], crawlTimeout: 8 })
     : [];
+
+  const seedMetricsSection = seedMetrics.size > 0
+    ? `## Real Keyword Metrics for Seed Keywords (SEMrush, live)
+Use these REAL numbers to judge which commercial keywords are winnable vs. saturated. Avoid proposing blog topics whose primary keyword has zero search volume or a KD above ~55 (those won't rank).
+
+${seedKeywords
+  .map((kw) => {
+    const m = seedMetrics.get(kw.toLowerCase().trim());
+    return m ? `- ${formatMetricsForPrompt(m)}` : `- "${kw}" — no SEMrush data (treat with caution)`;
+  })
+  .join("\n")}`
+    : "";
 
   const competitorContentSection = competitorPages.length > 0
     ? `## Top-Ranking Competitor Content (full page markdown)
@@ -125,7 +139,7 @@ ${client.seoNotes ? `\n## Client-Specific SEO Instructions (MUST follow)\n${clie
 
 ${siteContextSection}
 
-${serpSection}
+${seedMetricsSection ? seedMetricsSection + "\n\n" : ""}${serpSection}
 
 ${competitorContentSection ? competitorContentSection + "\n\n" : ""}${
   relatedQuestions.length > 0
@@ -211,13 +225,33 @@ Return ONLY the JSON array.`;
     throw new Error(`Model returned no topics. First 200 chars of response: ${text.slice(0, 200)}`);
   }
 
-  return suggestions.map((s) => ({
+  // Validate each suggested topic against real SEMrush metrics.
+  // Drop zero-volume topics (no demand). Annotate the rest with real numbers.
+  const topicPrimaryKeywords = suggestions
+    .map((s) => s.targetKeywords?.[0])
+    .filter((k): k is string => typeof k === "string" && k.length > 0);
+  const topicMetrics = await fetchKeywordMetrics(topicPrimaryKeywords, region);
+
+  const validated = suggestions
+    .map((s) => {
+      const primary = s.targetKeywords?.[0]?.toLowerCase().trim();
+      const m = primary ? topicMetrics.get(primary) : undefined;
+      return { s, m };
+    })
+    // If SEMrush returned metrics and volume is 0, drop the topic.
+    // If SEMrush had no data at all for the keyword, keep it (fall back to LLM estimate).
+    .filter(({ m }) => !(m && m.volume === 0));
+
+  return validated.map(({ s, m }) => ({
     id: uuidv4(),
     clientId: client.id,
     title: s.title,
     description: s.description,
     targetKeywords: s.targetKeywords,
     estimatedSearchVolume: s.estimatedSearchVolume,
+    searchVolume: m?.volume,
+    keywordDifficulty: m?.difficulty ?? undefined,
+    cpc: m?.cpc,
     rankingDifficulty: s.rankingDifficulty,
     topicalCluster: s.topicalCluster,
     supportsCommercialKeyword: s.supportsCommercialKeyword,

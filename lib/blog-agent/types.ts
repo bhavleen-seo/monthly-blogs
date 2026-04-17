@@ -26,6 +26,12 @@ export interface TopicSuggestion {
   description: string;
   targetKeywords: string[];
   estimatedSearchVolume: "high" | "medium" | "low";
+  /** Real monthly search volume from SEMrush (when available) */
+  searchVolume?: number;
+  /** Real keyword difficulty 0-100 from SEMrush (when available) */
+  keywordDifficulty?: number;
+  /** Cost per click in USD from SEMrush (when available) */
+  cpc?: number;
   /** Why this topic can rank + how it builds topical authority */
   seoRationale?: string;
   /** The topical cluster/pillar this post belongs to */

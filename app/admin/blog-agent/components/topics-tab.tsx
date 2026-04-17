@@ -251,20 +251,49 @@ function TopicRow({
                 {topic.funnelStage}
               </span>
             )}
-            <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-              topic.estimatedSearchVolume === "high" ? "bg-[var(--color-success)]/15 text-[var(--color-success)]" :
-              topic.estimatedSearchVolume === "medium" ? "bg-[var(--color-warning)]/15 text-[var(--color-warning)]" :
-              "bg-[var(--color-secondary)] text-[var(--color-muted-foreground)]"
-            }`}>
-              vol: {topic.estimatedSearchVolume}
-            </span>
-            {topic.rankingDifficulty && (
+            {typeof topic.searchVolume === "number" ? (
+              <span
+                className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                  topic.searchVolume >= 1000 ? "bg-[var(--color-success)]/15 text-[var(--color-success)]" :
+                  topic.searchVolume >= 100 ? "bg-[var(--color-warning)]/15 text-[var(--color-warning)]" :
+                  "bg-[var(--color-destructive)]/15 text-[var(--color-destructive)]"
+                }`}
+                title="Real monthly search volume (SEMrush)"
+              >
+                {topic.searchVolume.toLocaleString()}/mo
+              </span>
+            ) : (
+              <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                topic.estimatedSearchVolume === "high" ? "bg-[var(--color-success)]/15 text-[var(--color-success)]" :
+                topic.estimatedSearchVolume === "medium" ? "bg-[var(--color-warning)]/15 text-[var(--color-warning)]" :
+                "bg-[var(--color-secondary)] text-[var(--color-muted-foreground)]"
+              }`} title="LLM-estimated volume (no SEMrush data)">
+                vol: ~{topic.estimatedSearchVolume}
+              </span>
+            )}
+            {typeof topic.keywordDifficulty === "number" ? (
+              <span
+                className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                  topic.keywordDifficulty < 30 ? "bg-[var(--color-success)]/15 text-[var(--color-success)]" :
+                  topic.keywordDifficulty <= 55 ? "bg-[var(--color-warning)]/15 text-[var(--color-warning)]" :
+                  "bg-[var(--color-destructive)]/15 text-[var(--color-destructive)]"
+                }`}
+                title="Keyword difficulty 0-100 (SEMrush)"
+              >
+                KD {topic.keywordDifficulty.toFixed(0)}
+              </span>
+            ) : topic.rankingDifficulty ? (
               <span className={`text-[10px] px-2 py-0.5 rounded-full ${
                 topic.rankingDifficulty === "easy" ? "bg-[var(--color-success)]/15 text-[var(--color-success)]" :
                 topic.rankingDifficulty === "medium" ? "bg-[var(--color-warning)]/15 text-[var(--color-warning)]" :
                 "bg-[var(--color-destructive)]/15 text-[var(--color-destructive)]"
-              }`}>
-                difficulty: {topic.rankingDifficulty}
+              }`} title="LLM-estimated difficulty (no SEMrush data)">
+                ~{topic.rankingDifficulty}
+              </span>
+            ) : null}
+            {typeof topic.cpc === "number" && topic.cpc > 0 && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--color-secondary)] text-[var(--color-muted-foreground)]" title="Cost per click (SEMrush)">
+                ${topic.cpc.toFixed(2)}
               </span>
             )}
             {topic.targetKeywords.slice(0, 3).map((kw) => (

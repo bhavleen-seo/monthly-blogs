@@ -26,6 +26,9 @@ export interface Topic {
   description: string;
   targetKeywords: string[];
   estimatedSearchVolume: string;
+  searchVolume?: number;
+  keywordDifficulty?: number;
+  cpc?: number;
   status: string;
   month: string;
   seoRationale?: string;
