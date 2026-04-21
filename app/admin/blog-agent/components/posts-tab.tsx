@@ -14,6 +14,7 @@ export default function PostsTab({
   loading,
   onWritePosts,
   onPublishPosts,
+  onPublishPost,
   onPostUpdated,
   onDeletePost,
   onRewritePost,
@@ -24,6 +25,7 @@ export default function PostsTab({
   loading: boolean;
   onWritePosts: () => void;
   onPublishPosts: () => void;
+  onPublishPost: (postId: string) => void;
   onPostUpdated: () => void;
   onDeletePost: (id: string) => void;
   onRewritePost: (postId: string) => void;
@@ -125,7 +127,16 @@ export default function PostsTab({
           <div key={status} className="space-y-3">
             <h3 className="text-xs font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">{label} ({items.length})</h3>
             <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl overflow-hidden divide-y divide-[var(--color-border)]">
-              {items.map((post) => (
+              {items.map((post) => {
+                const isGhostPublished = post.status === "published" && !post.publishedUrl;
+                const canPublish =
+                  post.status === "ready" ||
+                  post.status === "draft" ||
+                  post.status === "failed" ||
+                  isGhostPublished;
+                const publishLabel =
+                  post.status === "failed" || isGhostPublished ? "Retry Publish" : "Publish";
+                return (
                 <div key={post.id} className="group flex items-center justify-between px-5 py-4 hover:bg-[var(--color-hover)] transition-colors">
                   <div className="flex-1 min-w-0 mr-4">
                     <p className="text-sm font-medium text-[var(--color-foreground)] truncate">{post.title}</p>
@@ -141,6 +152,9 @@ export default function PostsTab({
                         <span className="w-1.5 h-1.5 rounded-full bg-current" />
                         {status}
                       </span>
+                      {isGhostPublished && (
+                        <span className="text-xs text-[var(--color-warning)]">no live URL — likely never reached WP</span>
+                      )}
                       {post.featuredImageUrl && (
                         <span className="inline-flex items-center gap-1 text-xs text-[var(--color-muted-foreground)]">
                           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -161,6 +175,15 @@ export default function PostsTab({
                     >
                       Preview
                     </button>
+                    {canPublish && (
+                      <button
+                        onClick={() => onPublishPost(post.id)}
+                        disabled={loading}
+                        className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-success)] text-[var(--color-primary-foreground)] hover:opacity-90 transition-all disabled:opacity-40"
+                      >
+                        {publishLabel}
+                      </button>
+                    )}
                     {post.status !== "published" && (
                       <>
                         <button
@@ -180,7 +203,8 @@ export default function PostsTab({
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         );

@@ -5,8 +5,9 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const clientId = body.clientId || undefined;
+    const postId = body.postId || undefined;
 
-    const { run, results } = await runPublishing(clientId);
+    const { run, results } = await runPublishing(clientId, postId);
 
     return NextResponse.json({
       run,

@@ -243,6 +243,29 @@ export default function BlogAgentDashboard() {
     setLoading(false);
   };
 
+  const handlePublishSinglePost = async (postId: string) => {
+    setLoading(true);
+    showToast("Publishing to WordPress...", "info");
+    try {
+      const res = await fetch("/api/blog-agent/posts/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(`Error: ${data.error}`, "error");
+      } else if (data.summary.success === 1) {
+        showToast("Published!", "success");
+      } else {
+        const err = data.results?.[0]?.error || "Unknown error";
+        showToast(`Publish failed: ${err}`, "error");
+      }
+      fetchPosts();
+    } catch { showToast("Failed to publish post", "error"); }
+    setLoading(false);
+  };
+
   const pendingTopics = topics.filter((t) => t.status === "pending");
   const readyPosts = posts.filter((p) => p.status === "ready");
 
@@ -350,6 +373,7 @@ export default function BlogAgentDashboard() {
               loading={loading}
               onWritePosts={() => handleWritePosts()}
               onPublishPosts={() => handlePublishPosts()}
+              onPublishPost={handlePublishSinglePost}
               onPostUpdated={fetchPosts}
               onDeletePost={handleDeletePost}
               onRewritePost={handleRewritePost}

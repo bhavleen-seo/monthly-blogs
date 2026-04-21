@@ -6,6 +6,7 @@ import {
   getTopics,
   saveTopic,
   savePost,
+  getPost,
   getPosts as getPostsFromStore,
   addRun,
   updateRun,
@@ -176,7 +177,10 @@ export async function runWriting(
   return { run, posts };
 }
 
-export async function runPublishing(clientId?: string): Promise<{
+export async function runPublishing(
+  clientId?: string,
+  postId?: string
+): Promise<{
   run: AgentRun;
   results: Array<{ postId: string; success: boolean; url?: string; error?: string }>;
 }> {
@@ -185,7 +189,9 @@ export async function runPublishing(clientId?: string): Promise<{
     type: "publish",
     clientId,
     status: "running",
-    message: "Publishing blog posts to WordPress...",
+    message: postId
+      ? "Publishing single post to WordPress..."
+      : "Publishing blog posts to WordPress...",
     startedAt: new Date().toISOString(),
   };
   await addRun(run);
@@ -193,9 +199,26 @@ export async function runPublishing(clientId?: string): Promise<{
   const results: Array<{ postId: string; success: boolean; url?: string; error?: string }> = [];
 
   try {
-    const readyPosts = await getPostsFromStore({ clientId, status: "ready" });
+    // Single-post retry path: fetch that specific post regardless of status so
+    // failed or ghost-published (status=published with no publishedUrl) posts
+    // can be retried from the UI.
+    let postsToPublish: BlogPost[];
+    if (postId) {
+      const one = await getPost(postId);
+      if (!one) {
+        await updateRun(run.id, {
+          status: "failed",
+          message: `Post ${postId} not found`,
+          completedAt: new Date().toISOString(),
+        });
+        return { run, results };
+      }
+      postsToPublish = [one];
+    } else {
+      postsToPublish = await getPostsFromStore({ clientId, status: "ready" });
+    }
 
-    if (readyPosts.length === 0) {
+    if (postsToPublish.length === 0) {
       await updateRun(run.id, {
         status: "completed",
         message: "No posts ready for publishing",
@@ -204,7 +227,7 @@ export async function runPublishing(clientId?: string): Promise<{
       return { run, results };
     }
 
-    for (const post of readyPosts) {
+    for (const post of postsToPublish) {
       try {
         const client = await getClient(post.clientId);
         if (!client) {
