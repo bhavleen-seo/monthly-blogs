@@ -52,15 +52,33 @@ export async function POST(req: NextRequest) {
   }
 
   let body: { items?: BitwardenItem[] };
+  let rawText = "";
   try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    rawText = await req.text();
+  } catch (err) {
+    return NextResponse.json({
+      error: "Failed to read body",
+      detail: err instanceof Error ? err.message : String(err),
+    }, { status: 400 });
+  }
+  try {
+    body = JSON.parse(rawText);
+  } catch (err) {
+    return NextResponse.json({
+      error: "Invalid JSON body",
+      parseError: err instanceof Error ? err.message : String(err),
+      bodyLength: rawText.length,
+      first200: rawText.slice(0, 200),
+      last200: rawText.slice(-200),
+    }, { status: 400 });
   }
 
   const items = Array.isArray(body.items) ? body.items : null;
   if (!items) {
-    return NextResponse.json({ error: "Body must include items[]" }, { status: 400 });
+    return NextResponse.json({
+      error: "Body must include items[]",
+      gotKeys: body && typeof body === "object" ? Object.keys(body) : [],
+    }, { status: 400 });
   }
 
   try {
