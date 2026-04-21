@@ -41,6 +41,31 @@ function getApiBase(client: Client): string {
 }
 
 /**
+ * Resolve the canonical /wp-json/wp/v2 base for the client.
+ *
+ * If `client.wordpressUrl` points to a host that redirects (e.g. `foo.com` →
+ * `www.foo.com`), a POST would be silently converted to GET by Node's fetch
+ * (per HTTP spec) and the Authorization header stripped on cross-origin hops.
+ * WP would then return an array of existing posts as a 200 OK, our code would
+ * read `id`/`link` as `undefined`, and mark the post "published" without
+ * anything actually reaching WP.
+ *
+ * We avoid that by probing `/wp-json/wp/v2` with a redirect-following GET,
+ * then deriving the base URL from the final response's origin. All subsequent
+ * POSTs go to the canonical origin — no redirect, auth preserved.
+ */
+async function resolveCanonicalApiBase(client: Client): Promise<string> {
+  const configured = getApiBase(client);
+  try {
+    const res = await fetch(configured, { method: "GET", redirect: "follow" });
+    const finalOrigin = new URL(res.url).origin;
+    return `${finalOrigin}/wp-json/wp/v2`;
+  } catch {
+    return configured;
+  }
+}
+
+/**
  * Fetch titles of already-published blog posts from the client's WordPress site.
  * Used by the researcher to avoid suggesting topics that already exist.
  * Returns up to ~500 most recent posts. Failures return an empty array so research
@@ -84,11 +109,11 @@ export async function getPublishedPostTitles(client: Client): Promise<string[]> 
 
 async function uploadFeaturedImage(
   client: Client,
+  apiBase: string,
   imageUrl: string,
   postSlug: string
 ): Promise<number | null> {
   try {
-    const apiBase = getApiBase(client);
     const authHeader = await getAuthHeader(client);
 
     // Download the image
@@ -127,9 +152,9 @@ async function uploadFeaturedImage(
 
 async function getOrCreateCategories(
   client: Client,
+  apiBase: string,
   categoryNames: string[]
 ): Promise<number[]> {
-  const apiBase = getApiBase(client);
   const authHeader = await getAuthHeader(client);
   const categoryIds: number[] = [];
 
@@ -172,9 +197,9 @@ async function getOrCreateCategories(
 
 async function getOrCreateTags(
   client: Client,
+  apiBase: string,
   tagNames: string[]
 ): Promise<number[]> {
-  const apiBase = getApiBase(client);
   const authHeader = await getAuthHeader(client);
   const tagIds: number[] = [];
 
@@ -220,14 +245,14 @@ export async function publishToWordPress(
   post: BlogPost,
   publishAsDraft = false
 ): Promise<{ wordpressPostId: number; publishedUrl: string }> {
-  const apiBase = getApiBase(client);
+  const apiBase = await resolveCanonicalApiBase(client);
   const authHeader = await getAuthHeader(client);
 
   const [categoryIds, tagIds, featuredMediaId] = await Promise.all([
-    getOrCreateCategories(client, post.categories),
-    getOrCreateTags(client, post.tags),
+    getOrCreateCategories(client, apiBase, post.categories),
+    getOrCreateTags(client, apiBase, post.tags),
     post.featuredImageUrl
-      ? uploadFeaturedImage(client, post.featuredImageUrl, post.slug)
+      ? uploadFeaturedImage(client, apiBase, post.featuredImageUrl, post.slug)
       : Promise.resolve(null),
   ]);
 
@@ -263,6 +288,8 @@ export async function publishToWordPress(
     wpPost.featured_media = featuredMediaId;
   }
 
+  // `redirect: "manual"` so an unexpected redirect surfaces here instead of
+  // being silently converted POST→GET (dropping body + Authorization header).
   const res = await fetch(`${apiBase}/posts`, {
     method: "POST",
     headers: {
@@ -270,16 +297,43 @@ export async function publishToWordPress(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(wpPost),
+    redirect: "manual",
   });
+
+  if (res.status >= 300 && res.status < 400) {
+    const location = res.headers.get("location") || "(no Location header)";
+    throw new Error(
+      `WordPress redirected POST ${apiBase}/posts → ${location}. ` +
+      `Update the client's wordpressUrl to the canonical origin.`
+    );
+  }
 
   if (!res.ok) {
     const errorText = await res.text();
     throw new Error(
-      `Failed to publish to WordPress: ${res.status} ${res.statusText} — ${errorText}`
+      `Failed to publish to WordPress: ${res.status} ${res.statusText} — ${errorText.slice(0, 500)}`
     );
   }
 
-  const wpResponse: WordPressPostResponse = await res.json();
+  const parsed: unknown = await res.json();
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(
+      `WordPress returned a non-object response (got ${Array.isArray(parsed) ? "array" : typeof parsed}). ` +
+      `This usually means the POST was rewritten to GET by a redirect.`
+    );
+  }
+  const wpResponse = parsed as Partial<WordPressPostResponse>;
+  if (typeof wpResponse.id !== "number" || typeof wpResponse.link !== "string") {
+    throw new Error(
+      `WordPress response missing id/link — got keys: ${Object.keys(wpResponse).join(", ")}`
+    );
+  }
+  if (!publishAsDraft && wpResponse.status !== "publish") {
+    throw new Error(
+      `WordPress accepted the post but status=${wpResponse.status} (expected "publish"). ` +
+      `Check that the app-password user has publish_posts capability.`
+    );
+  }
 
   return {
     wordpressPostId: wpResponse.id,
@@ -291,20 +345,30 @@ export async function testWordPressConnection(
   client: Client
 ): Promise<{ success: boolean; message: string }> {
   try {
-    const apiBase = getApiBase(client);
+    const configured = getApiBase(client);
+    const canonical = await resolveCanonicalApiBase(client);
     const authHeader = await getAuthHeader(client);
 
-    const res = await fetch(`${apiBase}/posts?per_page=1`, {
+    const res = await fetch(`${canonical}/posts?per_page=1`, {
       headers: { Authorization: authHeader },
     });
 
-    if (res.ok) {
-      return { success: true, message: "Successfully connected to WordPress" };
+    if (!res.ok) {
+      return {
+        success: false,
+        message: `Connection failed: ${res.status} ${res.statusText}`,
+      };
     }
-    return {
-      success: false,
-      message: `Connection failed: ${res.status} ${res.statusText}`,
-    };
+    if (configured !== canonical) {
+      const canonicalOrigin = new URL(canonical).origin;
+      return {
+        success: true,
+        message:
+          `Connected, but wordpressUrl redirects to ${canonicalOrigin}. ` +
+          `Publish will fail unless you update the client's wordpressUrl to ${canonicalOrigin}.`,
+      };
+    }
+    return { success: true, message: "Successfully connected to WordPress" };
   } catch (error) {
     return {
       success: false,
