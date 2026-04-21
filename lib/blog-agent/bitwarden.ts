@@ -80,6 +80,11 @@ function runBw(
  * Pull all items whose name begins with "WordPress" from the vault.
  * Returns the raw Bitwarden items — callers decide how to match them to clients.
  *
+ * NOTE: @bitwarden/cli has native deps that can't build in Vercel's serverless
+ * sandbox. The sync is performed by a GitHub Action instead, which POSTs
+ * encrypted creds to /api/blog-agent/receive-credentials. This function
+ * is kept for local dev / self-hosted use.
+ *
  * Throws if required env vars are missing or the CLI fails.
  */
 export async function fetchWordPressItems(): Promise<BitwardenItem[]> {

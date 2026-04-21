@@ -25,9 +25,30 @@ export async function GET() {
   }
 }
 
-/** POST — run a fresh sync from Bitwarden. */
+/**
+ * POST — trigger a sync from Bitwarden.
+ *
+ * The actual Bitwarden CLI runs in a GitHub Action (its native deps don't
+ * build in Vercel serverless). This endpoint kicks off that workflow and
+ * returns immediately — the Action calls back into /receive-credentials
+ * with the encrypted blob.
+ *
+ * Until the GitHub Action path is wired, this returns a "not configured"
+ * error so the dashboard surfaces a clear message instead of hanging.
+ */
 export async function POST() {
   const start = Date.now();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _ = start; // reserved for future telemetry
+  const actionConfigured = false; // toggled on once the GH Action workflow is live
+  if (!actionConfigured) {
+    return NextResponse.json({
+      error: "Bitwarden sync runs via GitHub Action (not yet configured). Contact the admin to enable.",
+    }, { status: 501 });
+  }
+
+  // ↓ When the GH Action is live, we'll instead dispatch the workflow here.
+  // The code below is kept for local/self-hosted use where @bitwarden/cli is installed.
   try {
     const clients = await getClients();
     let items: BitwardenItem[];
