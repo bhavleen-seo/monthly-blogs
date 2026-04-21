@@ -16,6 +16,12 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // Bearer-token-protected ingest endpoint (GitHub Action posts encrypted
+  // credentials here). Its route handler validates SYNC_INGEST_TOKEN itself.
+  if (pathname === "/api/blog-agent/receive-credentials") {
+    return NextResponse.next();
+  }
+
   // Accept token hashed from either env var OR fallback (both are valid
   // login options, so both produce valid session cookies)
   const password = process.env.DASHBOARD_PASSWORD || "csdesign26";
