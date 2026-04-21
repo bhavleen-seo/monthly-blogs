@@ -55,12 +55,18 @@ jobs:
             echo "::error::SYNC_INGEST_TOKEN secret is not set"
             exit 1
           fi
+          # Strip trailing slash if someone set INGEST_URL with one
+          base="${INGEST_URL%/}"
+          target="$base/api/blog-agent/receive-credentials"
+          echo "Target: $target"
           payload=$(jq -c '{items: .}' items.json)
-          response=$(curl -sS -w "\n%{http_code}" \
-            -X POST "$INGEST_URL/api/blog-agent/receive-credentials" \
+          # -L follows redirects (e.g. http→https, apex→www). For 308 POSTs,
+          # curl preserves the method + body.
+          response=$(curl -sSL -w "\n%{http_code}" \
+            -X POST "$target" \
             -H "Authorization: Bearer $SYNC_INGEST_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "$payload")
+            --data-binary "$payload")
           body=$(echo "$response" | sed '$d')
           status=$(echo "$response" | tail -n1)
           echo "Ingest responded $status: $body"
