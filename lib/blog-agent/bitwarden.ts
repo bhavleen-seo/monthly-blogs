@@ -152,3 +152,27 @@ export function extractClientNameFromItem(itemName: string): string | null {
 export function normalizeBusinessName(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
+
+/**
+ * Dashboard `businessName` → extra Bitwarden item suffixes to match.
+ * The suffix is the part after `Wordpress - ` in the vault item name.
+ * Add entries here when the dashboard name and vault name drift apart.
+ */
+const CLIENT_BITWARDEN_ALIASES: Record<string, string[]> = {
+  "Easy Breezy": ["Eazy Breezy Heating & Cooling"],
+  "Nelson Greer Painting": ["Greer Painting"],
+  "Joe's Yard and Tree": ["Joe's Yard Tree & Irrigation"],
+};
+
+/**
+ * Return every normalized key that should match a given client — the primary
+ * name plus any aliases from CLIENT_BITWARDEN_ALIASES.
+ */
+export function matchKeysForClient(businessName: string): string[] {
+  const keys = [normalizeBusinessName(businessName)];
+  const aliases = CLIENT_BITWARDEN_ALIASES[businessName];
+  if (aliases) {
+    for (const a of aliases) keys.push(normalizeBusinessName(a));
+  }
+  return keys;
+}

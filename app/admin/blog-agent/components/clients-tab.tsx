@@ -174,7 +174,7 @@ export default function ClientsTab({
       {/* Sync status summary + warnings */}
       {syncStatus && clients.length > 0 && (
         <div className="space-y-2">
-          {(syncStatus.unmatchedClientIds.length > 0 || syncStatus.unmatchedItemNames.length > 0 || syncStatus.lastSyncError) && (
+          {(syncStatus.unmatchedClientIds.length > 0 || syncStatus.lastSyncError) && (
             <div className="bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/40 rounded-xl overflow-hidden">
               <button
                 onClick={() => setShowUnmatched(!showUnmatched)}
@@ -187,7 +187,7 @@ export default function ClientsTab({
                   <span className="font-medium">
                     {syncStatus.lastSyncError
                       ? "Last Bitwarden sync failed"
-                      : `${syncStatus.matchedCount}/${syncStatus.totalClients} clients matched Bitwarden — ${syncStatus.unmatchedClientIds.length + syncStatus.unmatchedItemNames.length} issue${syncStatus.unmatchedClientIds.length + syncStatus.unmatchedItemNames.length === 1 ? "" : "s"}`}
+                      : `${syncStatus.matchedCount}/${syncStatus.totalClients} clients matched Bitwarden — ${syncStatus.unmatchedClientIds.length} unmatched`}
                   </span>
                 </div>
                 <svg className={`w-4 h-4 text-[var(--color-muted-foreground)] transition-transform ${showUnmatched ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -212,21 +212,11 @@ export default function ClientsTab({
                       </ul>
                     </div>
                   )}
-                  {syncStatus.unmatchedItemNames.length > 0 && (
-                    <div>
-                      <p className="font-semibold text-[var(--color-foreground)] mb-1">
-                        Bitwarden items that didn&apos;t match any client ({syncStatus.unmatchedItemNames.length}):
-                      </p>
-                      <ul className="list-disc pl-5 space-y-0.5 text-[var(--color-muted-foreground)]">
-                        {syncStatus.unmatchedItemNames.map((n) => <li key={n}>{n}</li>)}
-                      </ul>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
           )}
-          {syncStatus.lastSyncAt && !syncStatus.lastSyncError && syncStatus.unmatchedClientIds.length === 0 && syncStatus.unmatchedItemNames.length === 0 && (
+          {syncStatus.lastSyncAt && !syncStatus.lastSyncError && syncStatus.unmatchedClientIds.length === 0 && (
             <p className="text-[10px] text-[var(--color-muted-foreground)]">
               Bitwarden sync: {syncStatus.matchedCount}/{syncStatus.totalClients} matched · {formatLastSync(syncStatus.lastSyncAt)}
             </p>

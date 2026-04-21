@@ -23,6 +23,7 @@ import {
 } from "@/lib/blog-agent/store";
 import {
   extractClientNameFromItem,
+  matchKeysForClient,
   normalizeBusinessName,
   type BitwardenItem,
 } from "@/lib/blog-agent/bitwarden";
@@ -85,10 +86,10 @@ export async function POST(req: NextRequest) {
     const clients = await getClients();
     const clientByKey = new Map<string, { id: string; businessName: string }>();
     for (const c of clients) {
-      clientByKey.set(normalizeBusinessName(c.businessName), {
-        id: c.id,
-        businessName: c.businessName,
-      });
+      const entry = { id: c.id, businessName: c.businessName };
+      for (const key of matchKeysForClient(c.businessName)) {
+        clientByKey.set(key, entry);
+      }
     }
 
     const entries: EncryptedWpCredEntry[] = [];
