@@ -349,26 +349,82 @@ export async function testWordPressConnection(
     const canonical = await resolveCanonicalApiBase(client);
     const authHeader = await getAuthHeader(client);
 
-    const res = await fetch(`${canonical}/posts?per_page=1`, {
+    // 1. Basic read check — any authenticated role can pass this.
+    const readRes = await fetch(`${canonical}/posts?per_page=1`, {
       headers: { Authorization: authHeader },
     });
-
-    if (!res.ok) {
+    if (!readRes.ok) {
       return {
         success: false,
-        message: `Connection failed: ${res.status} ${res.statusText}`,
+        message: `Read check failed: ${readRes.status} ${readRes.statusText}`,
       };
     }
+
+    // 2. Create-draft probe — exercises the `create_posts` capability (the same
+    // check that `POST /posts` with status=publish triggers). We use draft so
+    // nothing renders on the frontend even if cleanup fails. A low-privilege
+    // user (Subscriber, Customer, etc.) will fail here with rest_cannot_create,
+    // surfacing the real issue before a real publish attempt.
+    const probeTitle = `CS Design Studios publish-capability test ${new Date().toISOString()} (safe to delete)`;
+    const createRes = await fetch(`${canonical}/posts`, {
+      method: "POST",
+      headers: {
+        Authorization: authHeader,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        status: "draft",
+        title: probeTitle,
+        content: "<p>Automated capability check. Safe to delete.</p>",
+      }),
+      redirect: "manual",
+    });
+
+    if (createRes.status >= 300 && createRes.status < 400) {
+      const location = createRes.headers.get("location") || "(no Location)";
+      return {
+        success: false,
+        message: `POST redirected to ${location}. Canonical resolution missed — please report.`,
+      };
+    }
+    if (!createRes.ok) {
+      const errText = await createRes.text();
+      return {
+        success: false,
+        message:
+          `Publish-capability check failed: ${createRes.status} ${createRes.statusText} — ` +
+          `${errText.slice(0, 300)}`,
+      };
+    }
+
+    const created: { id?: number } = await createRes.json().catch(() => ({}));
+    let cleanupNote = "";
+    if (typeof created.id === "number") {
+      // 3. Best-effort cleanup with force=true to skip trash.
+      const deleteRes = await fetch(
+        `${canonical}/posts/${created.id}?force=true`,
+        { method: "DELETE", headers: { Authorization: authHeader } }
+      );
+      if (!deleteRes.ok) {
+        cleanupNote = ` (warning: test draft #${created.id} could not be deleted — remove manually)`;
+      }
+    } else {
+      cleanupNote = " (warning: WP accepted the draft but returned no id — no cleanup possible)";
+    }
+
     if (configured !== canonical) {
       const canonicalOrigin = new URL(canonical).origin;
       return {
         success: true,
         message:
-          `Connected, but wordpressUrl redirects to ${canonicalOrigin}. ` +
-          `Publish will fail unless you update the client's wordpressUrl to ${canonicalOrigin}.`,
+          `Connected and publish capability verified. Note: wordpressUrl redirects to ${canonicalOrigin} — ` +
+          `consider updating the client record to skip the redirect probe.${cleanupNote}`,
       };
     }
-    return { success: true, message: "Successfully connected to WordPress" };
+    return {
+      success: true,
+      message: `Connected and publish capability verified.${cleanupNote}`,
+    };
   } catch (error) {
     return {
       success: false,
