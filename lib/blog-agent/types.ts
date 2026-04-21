@@ -9,6 +9,13 @@ export interface Client {
   wordpressUrl: string;
   wordpressUsername: string;
   wordpressAppPassword: string;
+  /**
+   * Shared secret for the CS Publisher mu-plugin
+   * (wp-plugin/cs-publisher.php). When set, publishing uses the custom
+   * /wp-json/cs-publisher/v1/publish endpoint instead of native WP REST.
+   * Use this when Wordfence (or any other plugin) has blocked app passwords.
+   */
+  csPublisherSecret?: string;
   tone: "professional" | "casual" | "friendly" | "authoritative" | "conversational";
   keywords: string[];
   seoNotes: string;

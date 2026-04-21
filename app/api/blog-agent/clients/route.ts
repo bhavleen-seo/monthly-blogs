@@ -7,9 +7,10 @@ export async function GET() {
   try {
     const clients = await getClients();
     // Strip sensitive credentials from response
-    const safeClients = clients.map(({ wordpressAppPassword, ...rest }) => ({
+    const safeClients = clients.map(({ wordpressAppPassword, csPublisherSecret, ...rest }) => ({
       ...rest,
       hasWordpressPassword: !!wordpressAppPassword,
+      hasCsPublisherSecret: !!csPublisherSecret,
     }));
     return NextResponse.json({ clients: safeClients });
   } catch (error) {
@@ -34,6 +35,7 @@ export async function POST(req: NextRequest) {
       wordpressUrl: body.wordpressUrl,
       wordpressUsername: body.wordpressUsername,
       wordpressAppPassword: body.wordpressAppPassword,
+      csPublisherSecret: body.csPublisherSecret || undefined,
       tone: body.tone || "professional",
       keywords: body.keywords || [],
       seoNotes: body.seoNotes || "",
@@ -63,9 +65,13 @@ export async function PUT(req: NextRequest) {
     if (!existing) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
-    // Preserve existing WP password if not provided in update
+    // Preserve existing secrets if not provided in update (lets the UI send
+    // an empty field to mean "keep current" rather than "clear").
     if (!body.wordpressAppPassword) {
       body.wordpressAppPassword = existing.wordpressAppPassword;
+    }
+    if (body.csPublisherSecret === undefined || body.csPublisherSecret === "") {
+      body.csPublisherSecret = existing.csPublisherSecret;
     }
     const updated: Client = { ...existing, ...body, updatedAt: new Date().toISOString() };
     await saveClient(updated);

@@ -240,11 +240,93 @@ async function getOrCreateTags(
   return tagIds;
 }
 
+/**
+ * Publish via the CS Publisher mu-plugin (wp-plugin/cs-publisher.php).
+ *
+ * One JSON POST creates the post, uploads the featured image, writes
+ * categories/tags, and sets SEO meta. Auth is a shared-secret header
+ * (X-CS-Secret), so Wordfence's Application Password block is irrelevant.
+ */
+async function publishViaCsPublisher(
+  client: Client,
+  post: BlogPost,
+  publishAsDraft: boolean
+): Promise<{ wordpressPostId: number; publishedUrl: string }> {
+  const canonical = await resolveCanonicalApiBase(client);
+  const origin = new URL(canonical).origin;
+  const url = `${origin}/wp-json/cs-publisher/v1/publish`;
+
+  const onPageH1 = post.h1 || post.title;
+  const focusKeyword = post.targetKeywords?.[0] || "";
+
+  const body = {
+    title: onPageH1,
+    slug: post.slug,
+    content: post.content,
+    excerpt: post.excerpt,
+    status: publishAsDraft ? "draft" : "publish",
+    categories: post.categories,
+    tags: post.tags,
+    featured_image: post.featuredImageUrl
+      ? { url: post.featuredImageUrl, filename: `${post.slug || "featured"}.jpg` }
+      : undefined,
+    meta: {
+      rank_math_title: post.title,
+      rank_math_description: post.metaDescription,
+      rank_math_focus_keyword: focusKeyword,
+      _yoast_wpseo_title: post.title,
+      _yoast_wpseo_metadesc: post.metaDescription,
+      _yoast_wpseo_focuskw: focusKeyword,
+    },
+  };
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CS-Secret": client.csPublisherSecret!,
+    },
+    body: JSON.stringify(body),
+    redirect: "manual",
+  });
+
+  if (res.status >= 300 && res.status < 400) {
+    const location = res.headers.get("location") || "(no Location)";
+    throw new Error(`CS Publisher redirected to ${location} — update wordpressUrl to canonical origin.`);
+  }
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(
+      `CS Publisher failed: ${res.status} ${res.statusText} — ${errText.slice(0, 500)}`
+    );
+  }
+
+  const parsed: { id?: number; link?: string; status?: string } = await res.json();
+  if (typeof parsed.id !== "number" || typeof parsed.link !== "string") {
+    throw new Error(
+      `CS Publisher response missing id/link: ${JSON.stringify(parsed).slice(0, 200)}`
+    );
+  }
+  if (!publishAsDraft && parsed.status !== "publish") {
+    throw new Error(
+      `CS Publisher returned status=${parsed.status} (expected "publish").`
+    );
+  }
+
+  return { wordpressPostId: parsed.id, publishedUrl: parsed.link };
+}
+
 export async function publishToWordPress(
   client: Client,
   post: BlogPost,
   publishAsDraft = false
 ): Promise<{ wordpressPostId: number; publishedUrl: string }> {
+  // When the client has a CS Publisher mu-plugin installed (Wordfence-locked
+  // sites etc.), go through the custom endpoint instead of native WP REST.
+  if (client.csPublisherSecret) {
+    return publishViaCsPublisher(client, post, publishAsDraft);
+  }
+
   const apiBase = await resolveCanonicalApiBase(client);
   const authHeader = await getAuthHeader(client);
 
@@ -344,6 +426,39 @@ export async function publishToWordPress(
 export async function testWordPressConnection(
   client: Client
 ): Promise<{ success: boolean; message: string }> {
+  // CS Publisher path — ping the mu-plugin so the user sees which WP user
+  // the plugin posts as, and get a clear error if the plugin is missing or
+  // the secret is wrong.
+  if (client.csPublisherSecret) {
+    try {
+      const canonical = await resolveCanonicalApiBase(client);
+      const origin = new URL(canonical).origin;
+      const pingRes = await fetch(`${origin}/wp-json/cs-publisher/v1/ping`, {
+        headers: { "X-CS-Secret": client.csPublisherSecret },
+      });
+      if (!pingRes.ok) {
+        const errText = await pingRes.text();
+        return {
+          success: false,
+          message:
+            `CS Publisher ping failed: ${pingRes.status} ${pingRes.statusText} — ` +
+            `${errText.slice(0, 300)}`,
+        };
+      }
+      const info: { user_login?: string; user_id?: number; version?: string } =
+        await pingRes.json();
+      return {
+        success: true,
+        message: `CS Publisher v${info.version ?? "?"} active — posting as ${info.user_login} (user #${info.user_id})`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `CS Publisher error: ${error instanceof Error ? error.message : "Unknown error"}`,
+      };
+    }
+  }
+
   try {
     const configured = getApiBase(client);
     const canonical = await resolveCanonicalApiBase(client);

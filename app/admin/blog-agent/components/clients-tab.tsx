@@ -112,6 +112,7 @@ export default function ClientsTab({
       wordpressUrl: fd.get("wordpressUrl"),
       wordpressUsername: fd.get("wordpressUsername"),
       wordpressAppPassword: fd.get("wordpressAppPassword"),
+      csPublisherSecret: fd.get("csPublisherSecret") || undefined,
       tone: fd.get("tone"),
       keywords: (fd.get("keywords") as string).split(",").map((k) => k.trim()).filter(Boolean),
       blogCategories: (fd.get("blogCategories") as string).split(",").map((c) => c.trim()).filter(Boolean),
@@ -239,6 +240,7 @@ export default function ClientsTab({
             <Input name="wordpressUrl" label="WordPress URL" placeholder="https://example.com" required />
             <Input name="wordpressUsername" label="WP Username" placeholder="admin" required />
             <Input name="wordpressAppPassword" label="WP App Password" placeholder="xxxx xxxx xxxx" required type="password" />
+            <Input name="csPublisherSecret" label="CS Publisher Secret (optional)" placeholder="Only if the cs-publisher mu-plugin is installed" type="password" />
             <div>
               <label className="block text-xs font-medium text-[var(--color-muted-foreground)] mb-1.5">Tone</label>
               <select name="tone" className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)]">
@@ -272,9 +274,13 @@ export default function ClientsTab({
             </div>
             <p className="text-xs text-[var(--color-muted-foreground)]">{client.industry} &middot; {client.location} &middot; {client.tone}</p>
             <p className="text-[10px] text-[var(--color-muted-foreground)] mb-3 mt-1 font-mono truncate">
-              {syncStatus?.syncedUsernames?.[client.id]
-                ? <>Synced as: <span className="text-[var(--color-foreground)]">{syncStatus.syncedUsernames[client.id]}</span></>
-                : <span className="text-[var(--color-warning)]">No Bitwarden sync — using stored creds</span>}
+              {client.hasCsPublisherSecret ? (
+                <span className="text-[var(--color-success)]">Publishes via CS Publisher mu-plugin</span>
+              ) : syncStatus?.syncedUsernames?.[client.id] ? (
+                <>Synced as: <span className="text-[var(--color-foreground)]">{syncStatus.syncedUsernames[client.id]}</span></>
+              ) : (
+                <span className="text-[var(--color-warning)]">No Bitwarden sync — using stored creds</span>
+              )}
             </p>
 
             {/* Actions as text links */}
@@ -290,7 +296,7 @@ export default function ClientsTab({
                 onClick={() => {
                   setEditingClient(editingClient === client.id ? null : client.id);
                   setEditingKeywords(null);
-                  setEditDraft({ wordpressUrl: client.wordpressUrl, wordpressUsername: client.wordpressUsername, wordpressAppPassword: "", name: client.name, businessName: client.businessName, industry: client.industry, targetAudience: client.targetAudience, location: client.location, websiteUrl: client.websiteUrl, tone: client.tone, blogCategories: client.blogCategories, postsPerMonth: client.postsPerMonth });
+                  setEditDraft({ wordpressUrl: client.wordpressUrl, wordpressUsername: client.wordpressUsername, wordpressAppPassword: "", csPublisherSecret: "", name: client.name, businessName: client.businessName, industry: client.industry, targetAudience: client.targetAudience, location: client.location, websiteUrl: client.websiteUrl, tone: client.tone, blogCategories: client.blogCategories, postsPerMonth: client.postsPerMonth });
                 }}
                 className={`text-xs font-medium transition-colors ${editingClient === client.id ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"}`}
               >
@@ -367,6 +373,7 @@ export default function ClientsTab({
                   <EditInput label="WordPress URL" value={editDraft.wordpressUrl || ""} onChange={(v) => setEditDraft({ ...editDraft, wordpressUrl: v })} placeholder="https://example.com" />
                   <EditInput label="WP Username" value={editDraft.wordpressUsername || ""} onChange={(v) => setEditDraft({ ...editDraft, wordpressUsername: v })} placeholder="admin" />
                   <EditInput label="WP App Password" value={editDraft.wordpressAppPassword || ""} onChange={(v) => setEditDraft({ ...editDraft, wordpressAppPassword: v })} placeholder="Leave blank to keep current" type="password" />
+                  <EditInput label="CS Publisher Secret" value={editDraft.csPublisherSecret || ""} onChange={(v) => setEditDraft({ ...editDraft, csPublisherSecret: v })} placeholder={client.hasCsPublisherSecret ? "Leave blank to keep current" : "Paste mu-plugin secret here"} type="password" />
                 </div>
                 <h4 className="text-xs font-semibold text-[var(--color-foreground)] uppercase tracking-wider pt-2">Client Details</h4>
                 <div className="grid grid-cols-1 gap-3">

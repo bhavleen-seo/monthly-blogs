@@ -13,6 +13,8 @@ export interface Client {
   wordpressUsername: string;
   wordpressAppPassword?: string;
   hasWordpressPassword?: boolean;
+  csPublisherSecret?: string;
+  hasCsPublisherSecret?: boolean;
   targetAudience: string;
   blogCategories: string[];
   websiteUrl: string;
