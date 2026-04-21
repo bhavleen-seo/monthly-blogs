@@ -39,6 +39,10 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico).*)",
+    // Skip static assets AND the Bearer-auth ingest endpoint (its own
+    // handler validates SYNC_INGEST_TOKEN). Routing this endpoint through
+    // middleware was corrupting POST bodies (observed HTTP headers
+    // prepended to the body on the server side).
+    "/((?!_next/static|_next/image|favicon.ico|api/blog-agent/receive-credentials).*)",
   ],
 };
