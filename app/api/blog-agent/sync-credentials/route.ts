@@ -17,11 +17,25 @@
 
 import { NextResponse } from "next/server";
 import { getClients, getWpCredsStore } from "@/lib/blog-agent/store";
+import { decrypt } from "@/lib/blog-agent/credentials";
 
 /** GET — return current sync status. */
 export async function GET() {
   try {
     const [store, clients] = await Promise.all([getWpCredsStore(), getClients()]);
+
+    // Decrypt usernames only (passwords never leave the server). This lets
+    // the Clients tab show "Synced as: {username}" per card so it's obvious
+    // which WP account we're authenticating as without opening Bitwarden.
+    const syncedUsernames: Record<string, string> = {};
+    for (const entry of store.entries) {
+      try {
+        syncedUsernames[entry.clientId] = decrypt(entry.username);
+      } catch {
+        // Skip entries that fail to decrypt (e.g. after a key rotation).
+      }
+    }
+
     return NextResponse.json({
       lastSyncAt: store.lastSyncAt,
       lastSyncError: store.lastSyncError,
@@ -29,6 +43,7 @@ export async function GET() {
       matchedCount: store.entries.length,
       unmatchedClientIds: store.unmatchedClientIds,
       unmatchedItemNames: store.unmatchedItemNames,
+      syncedUsernames,
     });
   } catch (error) {
     return NextResponse.json(

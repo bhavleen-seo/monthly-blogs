@@ -10,6 +10,7 @@ interface SyncStatus {
   matchedCount: number;
   unmatchedClientIds: string[];
   unmatchedItemNames: string[];
+  syncedUsernames: Record<string, string>;
 }
 
 export default function ClientsTab({
@@ -269,7 +270,12 @@ export default function ClientsTab({
                 <div className="w-8 h-[18px] bg-[var(--color-muted)] peer-checked:bg-[var(--color-success)] rounded-full transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-[14px] after:w-[14px] after:transition-all peer-checked:after:translate-x-[14px]" />
               </label>
             </div>
-            <p className="text-xs text-[var(--color-muted-foreground)] mb-3">{client.industry} &middot; {client.location} &middot; {client.tone}</p>
+            <p className="text-xs text-[var(--color-muted-foreground)]">{client.industry} &middot; {client.location} &middot; {client.tone}</p>
+            <p className="text-[10px] text-[var(--color-muted-foreground)] mb-3 mt-1 font-mono truncate">
+              {syncStatus?.syncedUsernames?.[client.id]
+                ? <>Synced as: <span className="text-[var(--color-foreground)]">{syncStatus.syncedUsernames[client.id]}</span></>
+                : <span className="text-[var(--color-warning)]">No Bitwarden sync — using stored creds</span>}
+            </p>
 
             {/* Actions as text links */}
             <div className="flex items-center gap-3 pt-3 border-t border-[var(--color-border)]">
