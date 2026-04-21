@@ -1,4 +1,6 @@
 import type { Client, BlogPost } from "./types";
+import { getWpCredEntry } from "./store";
+import { decrypt } from "./credentials";
 
 interface WordPressCategory {
   id: number;
@@ -12,8 +14,24 @@ interface WordPressPostResponse {
   status: string;
 }
 
-function getAuthHeader(client: Client): string {
-  const credentials = `${client.wordpressUsername}:${client.wordpressAppPassword}`;
+/**
+ * Resolve the WP username/password for a client. Prefers encrypted creds
+ * synced from Bitwarden (KV key ba:wpcreds). Falls back to the plaintext
+ * fields on the client record if no Bitwarden match exists.
+ */
+async function getAuthHeader(client: Client): Promise<string> {
+  let username = client.wordpressUsername;
+  let password = client.wordpressAppPassword || "";
+  try {
+    const entry = await getWpCredEntry(client.id);
+    if (entry) {
+      username = decrypt(entry.username);
+      password = decrypt(entry.password);
+    }
+  } catch (err) {
+    console.error(`[publisher] Failed to decrypt creds for ${client.businessName}, falling back to stored:`, err);
+  }
+  const credentials = `${username}:${password}`;
   return `Basic ${Buffer.from(credentials).toString("base64")}`;
 }
 
@@ -31,7 +49,7 @@ function getApiBase(client: Client): string {
 export async function getPublishedPostTitles(client: Client): Promise<string[]> {
   try {
     const apiBase = getApiBase(client);
-    const authHeader = getAuthHeader(client);
+    const authHeader = await getAuthHeader(client);
     const titles: string[] = [];
     const perPage = 100;
     const maxPages = 5; // up to ~500 titles — plenty of context
@@ -71,7 +89,7 @@ async function uploadFeaturedImage(
 ): Promise<number | null> {
   try {
     const apiBase = getApiBase(client);
-    const authHeader = getAuthHeader(client);
+    const authHeader = await getAuthHeader(client);
 
     // Download the image
     const imgRes = await fetch(imageUrl);
@@ -112,7 +130,7 @@ async function getOrCreateCategories(
   categoryNames: string[]
 ): Promise<number[]> {
   const apiBase = getApiBase(client);
-  const authHeader = getAuthHeader(client);
+  const authHeader = await getAuthHeader(client);
   const categoryIds: number[] = [];
 
   const res = await fetch(`${apiBase}/categories?per_page=100`, {
@@ -157,7 +175,7 @@ async function getOrCreateTags(
   tagNames: string[]
 ): Promise<number[]> {
   const apiBase = getApiBase(client);
-  const authHeader = getAuthHeader(client);
+  const authHeader = await getAuthHeader(client);
   const tagIds: number[] = [];
 
   const res = await fetch(`${apiBase}/tags?per_page=100`, {
@@ -203,7 +221,7 @@ export async function publishToWordPress(
   publishAsDraft = false
 ): Promise<{ wordpressPostId: number; publishedUrl: string }> {
   const apiBase = getApiBase(client);
-  const authHeader = getAuthHeader(client);
+  const authHeader = await getAuthHeader(client);
 
   const [categoryIds, tagIds, featuredMediaId] = await Promise.all([
     getOrCreateCategories(client, post.categories),
@@ -274,7 +292,7 @@ export async function testWordPressConnection(
 ): Promise<{ success: boolean; message: string }> {
   try {
     const apiBase = getApiBase(client);
-    const authHeader = getAuthHeader(client);
+    const authHeader = await getAuthHeader(client);
 
     const res = await fetch(`${apiBase}/posts?per_page=1`, {
       headers: { Authorization: authHeader },
