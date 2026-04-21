@@ -50,6 +50,9 @@ jobs:
           mv filtered.json items.json
 
       - name: POST to Vercel ingest endpoint
+        env:
+          INGEST_URL: ${{ secrets.INGEST_URL }}
+          SYNC_INGEST_TOKEN: ${{ secrets.SYNC_INGEST_TOKEN }}
         run: |
           if [ -z "$INGEST_URL" ]; then
             echo "::error::INGEST_URL secret is not set"
@@ -59,27 +62,34 @@ jobs:
             echo "::error::SYNC_INGEST_TOKEN secret is not set"
             exit 1
           fi
-          # Strip trailing slash if someone set INGEST_URL with one
-          base="${INGEST_URL%/}"
-          target="$base/api/blog-agent/receive-credentials"
-          echo "Target: $target"
-          # Write payload to file so passwords with shell-special chars
-          # (quotes, $, backticks) can't break the JSON body.
           jq -c '{items: .}' items.json > payload.json
           echo "Payload bytes: $(wc -c < payload.json)"
-          # -L follows redirects. 307/308 preserve method + body.
-          response=$(curl -sSL -w "\n%{http_code}" \
-            -X POST "$target" \
-            -H "Authorization: Bearer $SYNC_INGEST_TOKEN" \
-            -H "Content-Type: application/json" \
-            --data-binary @payload.json)
-          body=$(echo "$response" | sed '$d')
-          status=$(echo "$response" | tail -n1)
-          echo "Ingest responded $status: $body"
+          node <<'EOF'
+          const fs = require("fs");
+          const { INGEST_URL, SYNC_INGEST_TOKEN } = process.env;
+          const base = INGEST_URL.replace(/\/+$/, "");
+          const target = base + "/api/blog-agent/receive-credentials";
+          console.log("Target:", target);
+          const body = fs.readFileSync("payload.json", "utf8");
+          (async () => {
+            const res = await fetch(target, {
+              method: "POST",
+              headers: {
+                "Authorization": "Bearer " + SYNC_INGEST_TOKEN,
+                "Content-Type": "application/json",
+              },
+              body,
+              redirect: "follow",
+            });
+            const text = await res.text();
+            console.log("Ingest responded", res.status + ":", text.slice(0, 500));
+            if (!res.ok) process.exit(1);
+          })().catch((err) => {
+            console.error("POST failed:", err);
+            process.exit(1);
+          });
+          EOF
           rm -f payload.json
-          if [ "$status" != "200" ]; then
-            exit 1
-          fi
 
       - name: Logout (always)
         if: always()
