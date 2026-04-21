@@ -56,21 +56,25 @@ export default function ClientsTab({
   useEffect(() => { fetchSyncStatus(); }, [fetchSyncStatus]);
 
   const handleSyncCredentials = async () => {
-    if (!confirm("Pull WordPress credentials from Bitwarden? This takes ~15-30s.")) return;
+    if (!confirm("Trigger Bitwarden sync? The GitHub Action runs in ~1-2 minutes; this page will auto-refresh.")) return;
     setSyncing(true);
     try {
       const res = await fetch("/api/blog-agent/sync-credentials", { method: "POST" });
       const data = await res.json();
-      if (res.ok) {
-        alert(`Synced ${data.matchedCount}/${data.totalClients} clients from Bitwarden (${data.itemsSeen} items seen).`);
-      } else {
-        alert(`Sync failed: ${data.error}`);
+      if (!res.ok) {
+        alert(`Sync dispatch failed: ${data.error}`);
+        setSyncing(false);
+        return;
       }
-      await fetchSyncStatus();
+      alert("Sync triggered. Refreshing status in 90s...");
+      setTimeout(async () => {
+        await fetchSyncStatus();
+        setSyncing(false);
+      }, 90_000);
     } catch (err) {
       alert(`Sync failed: ${err instanceof Error ? err.message : "unknown"}`);
+      setSyncing(false);
     }
-    setSyncing(false);
   };
 
   const formatLastSync = (iso: string | null): string => {

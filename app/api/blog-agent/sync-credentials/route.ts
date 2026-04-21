@@ -1,11 +1,24 @@
+/**
+ * Sync-credentials endpoint.
+ *
+ * GET  — returns the current sync status (last run time, matched/unmatched counts)
+ * POST — dispatches the Bitwarden-sync GitHub Action workflow.
+ *
+ * The actual Bitwarden CLI runs in a GitHub Action (its native deps don't
+ * build in Vercel serverless). The Action POSTs back to /receive-credentials
+ * with the raw items, which are matched + encrypted server-side.
+ *
+ * Required env for POST:
+ *   GITHUB_TOKEN       — PAT with `actions:write` on the repo
+ *   GITHUB_REPO        — owner/repo (e.g. "bhavleen-seo/monthly-blogs")
+ *   SYNC_WORKFLOW_FILE — workflow filename (defaults to "bitwarden-sync.yml")
+ *   SYNC_WORKFLOW_REF  — branch to run from (defaults to "main")
+ */
+
 import { NextResponse } from "next/server";
-import { getClients, getWpCredsStore, saveWpCredsStore, type EncryptedWpCredEntry } from "@/lib/blog-agent/store";
-import { fetchWordPressItems, extractClientNameFromItem, normalizeBusinessName, type BitwardenItem } from "@/lib/blog-agent/bitwarden";
-import { encrypt } from "@/lib/blog-agent/credentials";
+import { getClients, getWpCredsStore } from "@/lib/blog-agent/store";
 
-export const maxDuration = 60; // sync takes ~15-30s; give it headroom
-
-/** GET — return current sync status (last run time, counts, unmatched). */
+/** GET — return current sync status. */
 export async function GET() {
   try {
     const [store, clients] = await Promise.all([getWpCredsStore(), getClients()]);
@@ -25,108 +38,51 @@ export async function GET() {
   }
 }
 
-/**
- * POST — trigger a sync from Bitwarden.
- *
- * The actual Bitwarden CLI runs in a GitHub Action (its native deps don't
- * build in Vercel serverless). This endpoint kicks off that workflow and
- * returns immediately — the Action calls back into /receive-credentials
- * with the encrypted blob.
- *
- * Until the GitHub Action path is wired, this returns a "not configured"
- * error so the dashboard surfaces a clear message instead of hanging.
- */
+/** POST — dispatch the GitHub Action workflow. */
 export async function POST() {
-  const start = Date.now();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _ = start; // reserved for future telemetry
-  const actionConfigured = false; // toggled on once the GH Action workflow is live
-  if (!actionConfigured) {
-    return NextResponse.json({
-      error: "Bitwarden sync runs via GitHub Action (not yet configured). Contact the admin to enable.",
-    }, { status: 501 });
+  const token = process.env.GITHUB_TOKEN;
+  const repo = process.env.GITHUB_REPO;
+  const workflow = process.env.SYNC_WORKFLOW_FILE || "bitwarden-sync.yml";
+  const ref = process.env.SYNC_WORKFLOW_REF || "main";
+
+  if (!token || !repo) {
+    return NextResponse.json(
+      { error: "GITHUB_TOKEN and GITHUB_REPO must be set in Vercel env to dispatch the sync workflow." },
+      { status: 501 }
+    );
   }
 
-  // ↓ When the GH Action is live, we'll instead dispatch the workflow here.
-  // The code below is kept for local/self-hosted use where @bitwarden/cli is installed.
   try {
-    const clients = await getClients();
-    let items: BitwardenItem[];
-    try {
-      items = await fetchWordPressItems();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      const prev = await getWpCredsStore();
-      await saveWpCredsStore({ ...prev, lastSyncError: msg, lastSyncAt: new Date().toISOString() });
-      return NextResponse.json({ error: msg }, { status: 500 });
-    }
-
-    // Build lookup by normalized client name.
-    const clientByKey = new Map<string, { id: string; businessName: string }>();
-    for (const c of clients) {
-      clientByKey.set(normalizeBusinessName(c.businessName), { id: c.id, businessName: c.businessName });
-    }
-
-    const entries: EncryptedWpCredEntry[] = [];
-    const matchedClientIds = new Set<string>();
-    const unmatchedItemNames: string[] = [];
-
-    for (const item of items) {
-      const suffix = extractClientNameFromItem(item.name);
-      if (!suffix) continue;
-      const key = normalizeBusinessName(suffix);
-      const match = clientByKey.get(key);
-      if (!match) {
-        unmatchedItemNames.push(item.name);
-        continue;
+    const res = await fetch(
+      `https://api.github.com/repos/${repo}/actions/workflows/${workflow}/dispatches`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ ref }),
       }
-      const username = item.login?.username?.trim();
-      const password = item.login?.password?.trim();
-      if (!username || !password) {
-        unmatchedItemNames.push(`${item.name} (missing username/password)`);
-        continue;
-      }
-      entries.push({
-        clientId: match.id,
-        clientName: match.businessName,
-        bitwardenItemId: item.id,
-        bitwardenItemName: item.name,
-        username: encrypt(username),
-        password: encrypt(password),
-        uri: item.login?.uris?.[0]?.uri?.trim() || null,
-        updatedAt: new Date().toISOString(),
-      });
-      matchedClientIds.add(match.id);
+    );
+
+    if (res.status !== 204) {
+      const errText = await res.text();
+      return NextResponse.json(
+        { error: `GitHub dispatch failed (${res.status}): ${errText.slice(0, 300)}` },
+        { status: 500 }
+      );
     }
-
-    const unmatchedClientIds = clients
-      .filter((c) => !matchedClientIds.has(c.id))
-      .map((c) => c.id);
-
-    const store = {
-      lastSyncAt: new Date().toISOString(),
-      lastSyncError: null,
-      unmatchedClientIds,
-      unmatchedItemNames,
-      entries,
-    };
-    await saveWpCredsStore(store);
 
     return NextResponse.json({
       success: true,
-      durationMs: Date.now() - start,
-      matchedCount: entries.length,
-      totalClients: clients.length,
-      itemsSeen: items.length,
-      unmatchedClientCount: unmatchedClientIds.length,
-      unmatchedItemCount: unmatchedItemNames.length,
+      message: "Sync workflow dispatched. Results available in ~1-2 minutes.",
     });
   } catch (error) {
-    const msg = error instanceof Error ? error.message : "Sync failed";
-    try {
-      const prev = await getWpCredsStore();
-      await saveWpCredsStore({ ...prev, lastSyncError: msg, lastSyncAt: new Date().toISOString() });
-    } catch {}
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Dispatch failed" },
+      { status: 500 }
+    );
   }
 }
