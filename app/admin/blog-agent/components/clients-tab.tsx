@@ -337,73 +337,125 @@ export default function ClientsTab({
 
       {/* Client grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map((client) => (
-          <div key={client.id} className={`bg-[var(--color-card)] border rounded-xl p-5 transition-all duration-200 hover:border-[var(--color-primary)]/30 group ${connectionResults[client.id] ? (connectionResults[client.id].success ? "border-[var(--color-success)]/60" : "border-[var(--color-destructive)]/60") : "border-[var(--color-border)]"}`}>
-            <div className="flex items-start justify-between mb-1">
-              <h3 className="font-semibold text-[var(--color-foreground)] truncate">{client.businessName}</h3>
-              <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-2">
+        {filtered.map((client) => {
+          const connResult = connectionResults[client.id];
+          const borderClass = connResult
+            ? connResult.success
+              ? "border-[var(--color-success)]/50"
+              : "border-[var(--color-destructive)]/50"
+            : "border-[var(--color-border)] hover:border-[var(--color-primary)]/30";
+
+          return (
+          <div key={client.id} className={`bg-[var(--color-card)] border rounded-xl p-5 transition-all duration-200 group ${borderClass}`}>
+            {/* Name + toggle */}
+            <div className="flex items-start justify-between gap-2 mb-0.5">
+              <h3 className="font-semibold text-[var(--color-foreground)] leading-snug">{client.businessName}</h3>
+              <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-0.5">
                 <input type="checkbox" checked={client.isActive} onChange={() => onToggleActive(client)} className="sr-only peer" />
                 <div className="w-8 h-[18px] bg-[var(--color-muted)] peer-checked:bg-[var(--color-success)] rounded-full transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-[14px] after:w-[14px] after:transition-all peer-checked:after:translate-x-[14px]" />
               </label>
             </div>
-            <p className="text-xs text-[var(--color-muted-foreground)]">{client.industry} &middot; {client.location} &middot; {client.tone}</p>
-            <p className="text-[10px] text-[var(--color-muted-foreground)] mt-1 font-mono truncate">
-              {client.hasCsPublisherSecret ? (
-                <span className="text-[var(--color-success)]">Publishes via CS Publisher plugin</span>
-              ) : syncStatus?.syncedUsernames?.[client.id] ? (
-                <>Synced as: <span className="text-[var(--color-foreground)]">{syncStatus.syncedUsernames[client.id]}</span></>
-              ) : (
-                <span className="text-[var(--color-warning)]">No Bitwarden sync — using stored creds</span>
-              )}
-            </p>
-            {connectionResults[client.id] && (
-              <p className={`text-[10px] mb-3 mt-1 truncate font-medium ${connectionResults[client.id].success ? "text-[var(--color-success)]" : "text-[var(--color-destructive)]"}`}
-                 title={connectionResults[client.id].message}>
-                {connectionResults[client.id].success ? "✓ " : "✗ "}
-                {connectionResults[client.id].message}
-              </p>
-            )}
-            {!connectionResults[client.id] && <div className="mb-3" />}
 
-            {/* Actions as text links */}
-            <div className="flex items-center gap-3 pt-3 border-t border-[var(--color-border)]">
-              <button
-                onClick={() => { setEditingKeywords(editingKeywords === client.id ? null : client.id); setEditingClient(null); setKwDraft(client.keywords?.join(", ") || ""); setSeoDraft(client.seoNotes || ""); }}
-                className={`text-xs font-medium transition-colors ${editingKeywords === client.id ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"}`}
-              >
-                Keywords
-              </button>
-              <span className="text-[var(--color-border)]">|</span>
-              <button
-                onClick={() => {
-                  setEditingClient(editingClient === client.id ? null : client.id);
-                  setEditingKeywords(null);
-                  setEditDraft({ wordpressUrl: client.wordpressUrl, wordpressUsername: client.wordpressUsername, wordpressAppPassword: "", csPublisherSecret: "", name: client.name, businessName: client.businessName, industry: client.industry, targetAudience: client.targetAudience, location: client.location, websiteUrl: client.websiteUrl, tone: client.tone, blogCategories: client.blogCategories, postsPerMonth: client.postsPerMonth });
-                }}
-                className={`text-xs font-medium transition-colors ${editingClient === client.id ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"}`}
-              >
-                Edit
-              </button>
-              <span className="text-[var(--color-border)]">|</span>
-              <button onClick={() => onTestConnection(client.id)} className="text-xs font-medium text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors">
-                Test WP
-              </button>
-              <span className="text-[var(--color-border)]">|</span>
-              <button
-                onClick={() => handleDownloadInstaller(client)}
-                disabled={downloadingInstaller === client.id}
-                title="Download a ready-to-upload WordPress plugin zip for this client"
-                className="text-xs font-medium text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] disabled:opacity-40 transition-colors"
-              >
-                {downloadingInstaller === client.id ? "…" : "Get Plugin"}
-              </button>
-              <span className="text-[var(--color-border)]">|</span>
-              <button onClick={() => onResearch(client.id)} disabled={loading} className="text-xs font-medium text-[var(--color-primary)] hover:opacity-70 disabled:opacity-40 transition-colors">
-                Research
-              </button>
-              <button onClick={() => onDeleteClient(client.id)} className="text-xs font-medium text-[var(--color-destructive)] hover:opacity-70 transition-colors ml-auto opacity-0 group-hover:opacity-100">
-                Delete
-              </button>
+            {/* Subtitle */}
+            <p className="text-xs text-[var(--color-muted-foreground)] mb-3">
+              {client.industry} &middot; {client.location} &middot; {client.tone}
+            </p>
+
+            {/* Status badges */}
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {client.hasCsPublisherSecret ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--color-success)]/15 text-[var(--color-success)] border border-[var(--color-success)]/30">
+                  <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
+                  CS Plugin
+                </span>
+              ) : syncStatus?.syncedUsernames?.[client.id] ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--color-primary)]/10 text-[var(--color-primary)] border border-[var(--color-primary)]/20">
+                  BW: {syncStatus.syncedUsernames[client.id]}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--color-warning)]/15 text-[var(--color-warning)] border border-[var(--color-warning)]/30">
+                  Stored creds
+                </span>
+              )}
+
+              {connResult && (
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${connResult.success ? "bg-[var(--color-success)]/15 text-[var(--color-success)] border-[var(--color-success)]/30" : "bg-[var(--color-destructive)]/15 text-[var(--color-destructive)] border-[var(--color-destructive)]/30"}`}>
+                  {connResult.success ? (
+                    <svg className="w-2.5 h-2.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
+                  ) : (
+                    <svg className="w-2.5 h-2.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/></svg>
+                  )}
+                  {connResult.success ? "Connected" : "Failed"}
+                </span>
+              )}
+            </div>
+
+            {/* Full error message — shown only when there's a failure */}
+            {connResult && !connResult.success && (
+              <div className="mb-3 px-3 py-2 rounded-lg bg-[var(--color-destructive)]/8 border border-[var(--color-destructive)]/20">
+                <p className="text-[11px] text-[var(--color-destructive)] leading-relaxed break-words">
+                  {connResult.message}
+                </p>
+              </div>
+            )}
+            {connResult && connResult.success && (
+              <div className="mb-3 px-3 py-2 rounded-lg bg-[var(--color-success)]/8 border border-[var(--color-success)]/20">
+                <p className="text-[11px] text-[var(--color-success)] leading-relaxed break-words">
+                  {connResult.message}
+                </p>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="pt-3 border-t border-[var(--color-border)] space-y-2">
+              {/* Row 1 — settings-style links */}
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={() => { setEditingKeywords(editingKeywords === client.id ? null : client.id); setEditingClient(null); setKwDraft(client.keywords?.join(", ") || ""); setSeoDraft(client.seoNotes || ""); }}
+                  className={`text-xs font-medium transition-colors ${editingKeywords === client.id ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"}`}
+                >
+                  Keywords
+                </button>
+                <span className="text-[var(--color-border)]">|</span>
+                <button
+                  onClick={() => {
+                    setEditingClient(editingClient === client.id ? null : client.id);
+                    setEditingKeywords(null);
+                    setEditDraft({ wordpressUrl: client.wordpressUrl, wordpressUsername: client.wordpressUsername, wordpressAppPassword: "", csPublisherSecret: "", name: client.name, businessName: client.businessName, industry: client.industry, targetAudience: client.targetAudience, location: client.location, websiteUrl: client.websiteUrl, tone: client.tone, blogCategories: client.blogCategories, postsPerMonth: client.postsPerMonth });
+                  }}
+                  className={`text-xs font-medium transition-colors ${editingClient === client.id ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"}`}
+                >
+                  Edit
+                </button>
+                <span className="text-[var(--color-border)]">|</span>
+                <button onClick={() => onTestConnection(client.id)} className="text-xs font-medium text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors">
+                  Test WP
+                </button>
+                <button
+                  onClick={() => onDeleteClient(client.id)}
+                  className="text-xs font-medium text-[var(--color-destructive)] hover:opacity-70 transition-colors ml-auto opacity-0 group-hover:opacity-100"
+                >
+                  Delete
+                </button>
+              </div>
+              {/* Row 2 — action buttons */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleDownloadInstaller(client)}
+                  disabled={downloadingInstaller === client.id}
+                  title="Download a ready-to-upload WordPress plugin zip for this client"
+                  className="flex-1 text-xs font-medium py-1.5 px-3 rounded-lg border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-hover)] disabled:opacity-40 transition-colors text-center"
+                >
+                  {downloadingInstaller === client.id ? "Generating…" : "Get Plugin"}
+                </button>
+                <button
+                  onClick={() => onResearch(client.id)}
+                  disabled={loading}
+                  className="flex-1 text-xs font-medium py-1.5 px-3 rounded-lg bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:opacity-90 disabled:opacity-40 transition-all text-center"
+                >
+                  Research
+                </button>
+              </div>
             </div>
 
             {/* Keywords & SEO editor */}
@@ -511,7 +563,8 @@ export default function ClientsTab({
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {filtered.length === 0 && clients.length > 0 && (
