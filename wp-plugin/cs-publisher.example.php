@@ -9,18 +9,25 @@
  * Author: CS Design Studios
  *
  * ─── Install ────────────────────────────────────────────────────────────────
- * 1. Upload this file to wp-content/mu-plugins/cs-publisher.php
- *    (create the mu-plugins directory if it doesn't exist — MU plugins are
- *    always-on; no activation step, and clients can't disable them in wp-admin).
- * 2. Edit CS_PUBLISHER_SECRET below to a random 32+ character string.
- * 3. Paste the same secret into the client's record in the monthly-blogs
+ * 1. Copy this file to wp-plugin/cs-publisher.php (same directory, remove
+ *    .example from the name). That sibling file is git-ignored so the secret
+ *    you paste into it never gets committed.
+ * 2. Edit CS_PUBLISHER_SECRET in the copied file to a random 32+ character
+ *    string. Generate one with: openssl rand -hex 32
+ * 3. Upload the copied file to wp-content/mu-plugins/cs-publisher.php on the
+ *    client's WP site (create the mu-plugins directory if it doesn't exist).
+ * 4. Paste the same secret into the client's record in the monthly-blogs
  *    dashboard (Clients → Edit → "CS Publisher Secret").
- * 4. In the dashboard, click "Test WP" — it should report the authenticated
+ * 5. In the dashboard, click "Test WP" — it should report the authenticated
  *    WP user. Then publish.
  *
  * The endpoint accepts one JSON POST that creates the post, uploads the
  * featured image, attaches categories/tags, and writes SEO meta in a single
  * round-trip — faster than the 4-5 calls the native WP REST flow needs.
+ *
+ * ─── Per-client secrets ─────────────────────────────────────────────────────
+ * Each client site gets its own secret. Don't reuse one across sites — if a
+ * single site's filesystem leaks, the others stay protected.
  */
 
 if (!defined('ABSPATH')) exit;

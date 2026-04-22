@@ -3,3 +3,9 @@ node_modules/
 .next/
 tsconfig.tsbuildinfo
 data/blog-agent.json
+
+# CS Publisher mu-plugin — contains a per-client secret.
+# The .example.php template is committed; any real copy (cs-publisher.php
+# or cs-publisher-<client>.php) stays local only.
+wp-plugin/cs-publisher.php
+wp-plugin/cs-publisher-*.php
