@@ -24,6 +24,7 @@ export default function ClientsTab({
   onTestConnection,
   onResearch,
   onApplyPostsRule,
+  onInstallerDownloaded,
 }: {
   clients: Client[];
   loading: boolean;
@@ -35,6 +36,7 @@ export default function ClientsTab({
   onTestConnection: (id: string) => void;
   onResearch: (clientId: string) => void;
   onApplyPostsRule: () => void;
+  onInstallerDownloaded: () => void;
 }) {
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
@@ -46,6 +48,34 @@ export default function ClientsTab({
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [showUnmatched, setShowUnmatched] = useState(false);
+  const [downloadingInstaller, setDownloadingInstaller] = useState<string | null>(null);
+
+  const handleDownloadInstaller = async (client: Client) => {
+    setDownloadingInstaller(client.id);
+    try {
+      const res = await fetch(`/api/blog-agent/clients/${client.id}/installer`);
+      if (!res.ok) {
+        const data = await res.json();
+        alert(`Could not generate installer: ${data.error || "Unknown error"}`);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const slug = client.businessName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      a.href = url;
+      a.download = `cs-publisher-${slug}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      onInstallerDownloaded();
+    } catch (err) {
+      alert(`Download failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setDownloadingInstaller(null);
+    }
+  };
 
   const fetchSyncStatus = useCallback(async () => {
     try {
@@ -305,6 +335,15 @@ export default function ClientsTab({
               <span className="text-[var(--color-border)]">|</span>
               <button onClick={() => onTestConnection(client.id)} className="text-xs font-medium text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors">
                 Test WP
+              </button>
+              <span className="text-[var(--color-border)]">|</span>
+              <button
+                onClick={() => handleDownloadInstaller(client)}
+                disabled={downloadingInstaller === client.id}
+                title="Download a ready-to-upload WordPress plugin zip for this client"
+                className="text-xs font-medium text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] disabled:opacity-40 transition-colors"
+              >
+                {downloadingInstaller === client.id ? "…" : "Get Plugin"}
               </button>
               <span className="text-[var(--color-border)]">|</span>
               <button onClick={() => onResearch(client.id)} disabled={loading} className="text-xs font-medium text-[var(--color-primary)] hover:opacity-70 disabled:opacity-40 transition-colors">

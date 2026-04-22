@@ -349,6 +349,7 @@ export default function BlogAgentDashboard() {
               onTestConnection={handleTestConnection}
               onResearch={(id) => handleResearchTopics(id)}
               onApplyPostsRule={handleApplyPostsRule}
+              onInstallerDownloaded={fetchClients}
             />
           )}
 
