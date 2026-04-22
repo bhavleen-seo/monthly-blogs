@@ -49,6 +49,28 @@ export default function ClientsTab({
   const [syncing, setSyncing] = useState(false);
   const [showUnmatched, setShowUnmatched] = useState(false);
   const [downloadingInstaller, setDownloadingInstaller] = useState<string | null>(null);
+  const [checkingAll, setCheckingAll] = useState(false);
+  const [connectionResults, setConnectionResults] = useState<Record<string, { success: boolean; message: string }>>({});
+
+  const handleCheckAll = async () => {
+    setCheckingAll(true);
+    setConnectionResults({});
+    try {
+      const res = await fetch("/api/blog-agent/test-all-connections", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(`Check failed: ${data.error || "Unknown error"}`);
+        return;
+      }
+      const map: Record<string, { success: boolean; message: string }> = {};
+      for (const r of data.results) map[r.id] = { success: r.success, message: r.message };
+      setConnectionResults(map);
+    } catch (err) {
+      alert(`Check failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setCheckingAll(false);
+    }
+  };
 
   const handleDownloadInstaller = async (client: Client) => {
     setDownloadingInstaller(client.id);
@@ -192,6 +214,14 @@ export default function ClientsTab({
               >
                 Sync posts/month rule
               </button>
+              <button
+                onClick={handleCheckAll}
+                disabled={checkingAll}
+                title="Test WordPress connection for all clients at once"
+                className="border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-hover)] px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-40"
+              >
+                {checkingAll ? "Checking…" : "Check All"}
+              </button>
             </>
           )}
           <button
@@ -291,10 +321,24 @@ export default function ClientsTab({
         </form>
       )}
 
+      {/* Check-all results summary */}
+      {Object.keys(connectionResults).length > 0 && (() => {
+        const all = Object.values(connectionResults);
+        const passed = all.filter((r) => r.success).length;
+        const failed = all.length - passed;
+        return (
+          <div className={`px-4 py-3 rounded-xl text-sm font-medium border ${passed === all.length ? "bg-[var(--color-success)]/10 border-[var(--color-success)]/40 text-[var(--color-success)]" : "bg-[var(--color-destructive)]/10 border-[var(--color-destructive)]/40 text-[var(--color-destructive)]"}`}>
+            {passed === all.length
+              ? `All ${passed} sites connected successfully`
+              : `${passed} connected · ${failed} failed — scroll down to see which ones (red cards)`}
+          </div>
+        );
+      })()}
+
       {/* Client grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map((client) => (
-          <div key={client.id} className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl p-5 transition-all duration-200 hover:border-[var(--color-primary)]/30 group">
+          <div key={client.id} className={`bg-[var(--color-card)] border rounded-xl p-5 transition-all duration-200 hover:border-[var(--color-primary)]/30 group ${connectionResults[client.id] ? (connectionResults[client.id].success ? "border-[var(--color-success)]/60" : "border-[var(--color-destructive)]/60") : "border-[var(--color-border)]"}`}>
             <div className="flex items-start justify-between mb-1">
               <h3 className="font-semibold text-[var(--color-foreground)] truncate">{client.businessName}</h3>
               <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-2">
@@ -303,15 +347,23 @@ export default function ClientsTab({
               </label>
             </div>
             <p className="text-xs text-[var(--color-muted-foreground)]">{client.industry} &middot; {client.location} &middot; {client.tone}</p>
-            <p className="text-[10px] text-[var(--color-muted-foreground)] mb-3 mt-1 font-mono truncate">
+            <p className="text-[10px] text-[var(--color-muted-foreground)] mt-1 font-mono truncate">
               {client.hasCsPublisherSecret ? (
-                <span className="text-[var(--color-success)]">Publishes via CS Publisher mu-plugin</span>
+                <span className="text-[var(--color-success)]">Publishes via CS Publisher plugin</span>
               ) : syncStatus?.syncedUsernames?.[client.id] ? (
                 <>Synced as: <span className="text-[var(--color-foreground)]">{syncStatus.syncedUsernames[client.id]}</span></>
               ) : (
                 <span className="text-[var(--color-warning)]">No Bitwarden sync — using stored creds</span>
               )}
             </p>
+            {connectionResults[client.id] && (
+              <p className={`text-[10px] mb-3 mt-1 truncate font-medium ${connectionResults[client.id].success ? "text-[var(--color-success)]" : "text-[var(--color-destructive)]"}`}
+                 title={connectionResults[client.id].message}>
+                {connectionResults[client.id].success ? "✓ " : "✗ "}
+                {connectionResults[client.id].message}
+              </p>
+            )}
+            {!connectionResults[client.id] && <div className="mb-3" />}
 
             {/* Actions as text links */}
             <div className="flex items-center gap-3 pt-3 border-t border-[var(--color-border)]">
