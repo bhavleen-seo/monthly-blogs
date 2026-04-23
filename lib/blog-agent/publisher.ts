@@ -496,6 +496,10 @@ export async function testWordPressConnection(
     });
     const urlsToTry = Array.from(new Set(attempts.map((a) => a.url)));
 
+    // Capture the best-informed response across all attempts so we can
+    // report a meaningful error instead of just "all failed".
+    let bestErrStatus = 0;
+    let bestErrBody = "";
     for (const { url: pingUrl, useHeader } of attemptsToTry) {
       try {
         const pingRes = await fetch(pingUrl, {
@@ -516,8 +520,25 @@ export async function testWordPressConnection(
             message: `Plugin found but secret doesn't match — click Get Plugin to download a fresh installer and re-upload`,
           };
         }
-        // 404 rest_no_route — plugin not loaded on this URL, try next
+        // Keep the best (highest-status, non-404) error body for diagnostics.
+        // Prefer plugin-level errors (500 = unconfigured, etc.) over routing 404s.
+        if (pingRes.status !== 404 && pingRes.status > bestErrStatus) {
+          bestErrStatus = pingRes.status;
+          bestErrBody = (await pingRes.text()).slice(0, 300);
+        } else if (bestErrStatus === 0) {
+          bestErrStatus = pingRes.status;
+          bestErrBody = (await pingRes.text()).slice(0, 300);
+        }
       } catch { /* network error, try next URL */ }
+    }
+
+    // If we got a plugin-level error (non-404), surface it directly — the
+    // plugin responded, it just rejected us. Much clearer than "blocked".
+    if (bestErrStatus && bestErrStatus !== 404) {
+      return {
+        success: false,
+        message: `CS Publisher returned ${bestErrStatus}: ${bestErrBody}`,
+      };
     }
 
     // Neither URL worked — diagnose by fetching:

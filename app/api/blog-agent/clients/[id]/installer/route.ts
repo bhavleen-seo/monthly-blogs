@@ -23,10 +23,19 @@ export async function GET(
     }
 
     // Read the committed template and inject the real secret.
+    // IMPORTANT: only replace the define() line, NOT every occurrence of the
+    // placeholder. The placeholder also appears in the "is the secret still
+    // unconfigured?" safety check; that check must keep the original string so
+    // it can detect a raw-template install.
     const templatePath = join(process.cwd(), "wp-plugin", "cs-publisher-template.php");
-    const pluginPhp = readFileSync(templatePath, "utf-8").replace(
-      /__CS_PUBLISHER_SECRET__/g,
-      secret
+    const template = readFileSync(templatePath, "utf-8");
+    const definePattern = `define('CS_PUBLISHER_SECRET', '__CS_PUBLISHER_SECRET__');`;
+    if (!template.includes(definePattern)) {
+      throw new Error("Plugin template is missing the expected CS_PUBLISHER_SECRET define line");
+    }
+    const pluginPhp = template.replace(
+      definePattern,
+      `define('CS_PUBLISHER_SECRET', '${secret}');`
     );
 
     // Bundle into a zip: cs-publisher/cs-publisher.php
