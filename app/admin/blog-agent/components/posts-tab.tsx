@@ -339,6 +339,9 @@ export default function PostsTab({
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">Featured image</label>
+                    {selectedPost.featuredImageUrl && !editing && (
+                      <span className="text-[10px] text-[var(--color-success)]">auto-found from Freepik</span>
+                    )}
                   </div>
                   {editing || !selectedPost.featuredImageUrl ? (
                     <input
@@ -359,6 +362,25 @@ export default function PostsTab({
                       alt="Featured"
                       className="w-full max-h-64 object-cover rounded-lg border border-[var(--color-border)]"
                     />
+                  )}
+                  {selectedPost.featuredImageAlt && (
+                    <div className="flex items-start justify-between gap-2 px-3 py-2 bg-[var(--color-muted)]/40 border border-[var(--color-border)] rounded-lg">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider mb-0.5">Suggested alt text</p>
+                        <p className="text-xs text-[var(--color-foreground)]">{selectedPost.featuredImageAlt}</p>
+                        <p className="text-[10px] text-[var(--color-muted-foreground)] mt-0.5">Copy this into the WordPress media library after publishing for SEO.</p>
+                      </div>
+                      <button
+                        onClick={() => copyField("alt", selectedPost.featuredImageAlt!)}
+                        className={`text-[10px] font-medium px-2 py-1 rounded transition-all shrink-0 ${
+                          copiedField === "alt"
+                            ? "bg-[var(--color-success)] text-[var(--color-primary-foreground)]"
+                            : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-hover)]"
+                        }`}
+                      >
+                        {copiedField === "alt" ? "Copied!" : "Copy"}
+                      </button>
+                    </div>
                   )}
                 </div>
 

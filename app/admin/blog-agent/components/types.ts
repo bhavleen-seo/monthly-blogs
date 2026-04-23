@@ -57,6 +57,7 @@ export interface Post {
   metaDescription: string;
   featuredImagePrompt?: string;
   featuredImageUrl?: string;
+  featuredImageAlt?: string;
   aiTellsDetected?: string[];
 }
 

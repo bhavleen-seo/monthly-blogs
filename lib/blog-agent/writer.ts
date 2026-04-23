@@ -4,6 +4,7 @@ import { getGlobalSettings } from "./store";
 import { complete } from "./llm";
 import { analyzeKeywords, inferRegion } from "./serper";
 import { fetchPageContents, formatPageForPrompt } from "./youcom";
+import { searchStockImage, buildAltText } from "./freepik";
 
 function generateSlug(title: string): string {
   return title
@@ -321,6 +322,17 @@ Return ONLY the JSON object, no other text.`;
     console.warn(`[writer] AI tells survived in post "${finalTitle}":`, aiTellsDetected);
   }
 
+  // Auto-find a featured image from Freepik. Failures don't block the post —
+  // the user can paste a URL manually in the preview modal if Freepik returns
+  // nothing useful.
+  const stockImage = await searchStockImage(primaryKeyword || topic.title, topic.title);
+  if (stockImage) {
+    console.log(`[writer] Freepik image found for "${finalTitle}" (id: ${stockImage.freepikId})`);
+  }
+  const featuredImageAlt = stockImage
+    ? buildAltText(parsed.featuredImagePrompt, primaryKeyword)
+    : undefined;
+
   return {
     id: uuidv4(),
     clientId: client.id,
@@ -335,6 +347,8 @@ Return ONLY the JSON object, no other text.`;
     categories: client.blogCategories,
     tags: parsed.tags,
     featuredImagePrompt: parsed.featuredImagePrompt,
+    featuredImageUrl: stockImage?.url,
+    featuredImageAlt,
     wordCount,
     status: "ready",
     aiTellsDetected: aiTellsDetected.length > 0 ? aiTellsDetected : undefined,
