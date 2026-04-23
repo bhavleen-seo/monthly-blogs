@@ -57,13 +57,12 @@ export async function searchStockImage(
 
 async function trySearch(query: string, apiKey: string): Promise<FreepikImage | null> {
   try {
-    const params = new URLSearchParams({
-      term: query,
-      "filters[content_type][photo]": "1",
-      "filters[orientation]": "horizontal",
-      limit: "10",
-      order: "relevance",
-    });
+    const params = new URLSearchParams();
+    params.append("term", query);
+    params.append("filters[content_type][photo]", "1");
+    params.append("filters[orientation][]", "horizontal");
+    params.append("limit", "10");
+    params.append("order", "relevance");
 
     const res = await fetch(`${FREEPIK_API}?${params.toString()}`, {
       headers: {

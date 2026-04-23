@@ -22,13 +22,12 @@ export async function GET(req: NextRequest) {
   // Also report the raw first-attempt response so we can debug shape issues.
   let rawSample: unknown = null;
   try {
-    const params = new URLSearchParams({
-      term: q,
-      "filters[content_type][photo]": "1",
-      "filters[orientation]": "horizontal",
-      limit: "3",
-      order: "relevance",
-    });
+    const params = new URLSearchParams();
+    params.append("term", q);
+    params.append("filters[content_type][photo]", "1");
+    params.append("filters[orientation][]", "horizontal");
+    params.append("limit", "3");
+    params.append("order", "relevance");
     const res = await fetch(`https://api.freepik.com/v1/resources?${params.toString()}`, {
       headers: {
         "x-freepik-api-key": process.env.FREEPIK_API_KEY!,
