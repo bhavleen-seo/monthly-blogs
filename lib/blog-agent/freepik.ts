@@ -1,13 +1,29 @@
 /**
- * Freepik stock image search.
+ * Freepik stock image search + download + resize.
  *
  * Used by the writer to attach a featured image URL to every new post.
- * Failures NEVER throw — image lookup must not block content generation. If
- * Freepik returns nothing or errors out, the post is saved without a
- * featuredImageUrl and the user can paste one manually in the preview modal.
+ * Pipeline:
+ *   1. Search Freepik for a horizontal photo matching the post's keyword.
+ *   2. Call Freepik's download endpoint for the top result to get the
+ *      full-resolution original (uses 1 Premium download credit per post).
+ *   3. Wrap that URL with images.weserv.nl to resize to 750×500 at JPEG q85,
+ *      producing a small, fast-loading version (~100-150KB). weserv caches,
+ *      so once fetched it stays available even after Freepik's signed URL
+ *      expires.
+ *   4. Pre-fetch the wrapped URL (HEAD request) to trigger weserv's cache
+ *      before Freepik's signed URL expires.
+ *
+ * If ANY step fails, we degrade gracefully: full-res fails → use preview
+ * URL; weserv fails → use the raw Freepik URL as-is. The post always gets
+ * *something*, or nothing and the user pastes manually.
  */
 
 const FREEPIK_API = "https://api.freepik.com/v1/resources";
+
+// Target output dimensions and quality for the resized featured image.
+const IMG_W = 750;
+const IMG_H = 500;
+const IMG_QUALITY = 85;
 
 export interface FreepikImage {
   /** Direct URL to the image (for upload to WordPress via the publisher) */
@@ -84,26 +100,93 @@ async function trySearch(query: string, apiKey: string): Promise<FreepikImage | 
       return null;
     }
 
-    // Find first item with a usable URL. Different API tiers/versions return
-    // slightly different shapes — read defensively.
+    // Find the first usable result — its preview URL is a safe fallback.
+    let chosen: { id: string | number; previewUrl: string } | null = null;
     for (const item of items) {
       const url = item?.image?.source?.url || item?.preview?.url || item?.url;
       if (typeof url === "string" && url.startsWith("http")) {
-        const id = item?.id ?? "img";
-        return {
-          url,
-          filename: `freepik-${id}.jpg`,
-          freepikId: id,
-        };
+        chosen = { id: item?.id ?? "img", previewUrl: url };
+        break;
       }
     }
+    if (!chosen) {
+      console.warn(`[freepik] No usable image URL in ${items.length} results for "${query}"`);
+      return null;
+    }
 
-    console.warn(`[freepik] No usable image URL in ${items.length} results for "${query}"`);
-    return null;
+    // Try to upgrade to the full-resolution original via the download endpoint.
+    // If that fails (e.g. no credits, not Premium, API hiccup), we fall back to
+    // the 626x417 preview.
+    const fullResUrl = await getDownloadUrl(chosen.id, apiKey);
+    const sourceUrl = fullResUrl || chosen.previewUrl;
+
+    // Wrap with weserv.nl to resize to 750x500 at JPEG q85. This gives us
+    // a small, fast-loading image without needing sharp + Blob locally.
+    const resizedUrl = wrapWithResizer(sourceUrl);
+
+    // Pre-fetch to trigger weserv's cache. If the source is a Freepik signed
+    // URL (which expires), this ensures the image is saved in weserv's cache
+    // before the signed URL dies. Ignore errors — worst case WP fetches later.
+    try {
+      await fetch(resizedUrl, { method: "HEAD" });
+    } catch { /* cache is best-effort */ }
+
+    return {
+      url: resizedUrl,
+      filename: `freepik-${chosen.id}.jpg`,
+      freepikId: chosen.id,
+    };
   } catch (err) {
     console.warn(`[freepik] Network error searching "${query}":`, err instanceof Error ? err.message : err);
     return null;
   }
+}
+
+/**
+ * Call Freepik's download endpoint for a specific resource. Returns a signed
+ * URL to the full-resolution original, or null on any failure.
+ *
+ * Uses 1 Premium download credit per successful call.
+ */
+async function getDownloadUrl(resourceId: string | number, apiKey: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${FREEPIK_API}/${resourceId}/download`, {
+      headers: {
+        "x-freepik-api-key": apiKey,
+        "Accept-Language": "en-US",
+      },
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.warn(`[freepik] Download endpoint failed for ${resourceId}: ${res.status} — ${body.slice(0, 200)}`);
+      return null;
+    }
+
+    const data: { data?: { url?: string; filename?: string } } = await res.json();
+    const url = data?.data?.url;
+    if (typeof url === "string" && url.startsWith("http")) return url;
+
+    console.warn(`[freepik] Download endpoint returned no URL for ${resourceId}`);
+    return null;
+  } catch (err) {
+    console.warn(`[freepik] Download error for ${resourceId}:`, err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+/**
+ * Wrap a source image URL with images.weserv.nl resize parameters.
+ * Produces a 750x500 JPEG at quality 85, cropped to fit.
+ *
+ * weserv strips the protocol from the source URL by convention, so we pass
+ * the host + path form.
+ */
+function wrapWithResizer(sourceUrl: string): string {
+  // weserv expects the url param without the leading scheme for HTTP-style
+  // sources (it re-applies HTTPS). We leave the URL intact and URL-encode.
+  const encoded = encodeURIComponent(sourceUrl.replace(/^https?:\/\//, ""));
+  return `https://images.weserv.nl/?url=${encoded}&w=${IMG_W}&h=${IMG_H}&fit=cover&output=jpg&q=${IMG_QUALITY}`;
 }
 
 /**
