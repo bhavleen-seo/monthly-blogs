@@ -57,6 +57,7 @@ export interface Post {
   metaDescription: string;
   featuredImagePrompt?: string;
   featuredImageUrl?: string;
+  aiTellsDetected?: string[];
 }
 
 export type Tab = "dashboard" | "clients" | "topics" | "posts" | "settings" | "schedule";

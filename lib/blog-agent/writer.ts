@@ -32,6 +32,97 @@ const CORE_SEO_RULES = `
 - Aim for a content depth that covers the topic comprehensively enough that no critical subtopic is left for the reader to search elsewhere.
 `.trim();
 
+// ─── AI-tell sanitization + detection ────────────────────────────────────────
+// We CAN'T trust the model to avoid em dashes, smart quotes, etc. just by being
+// told. So we strip them deterministically after generation. The prompt also
+// bans them, but this layer is the guarantee.
+
+function sanitizeAiArtifacts(text: string): string {
+  return text
+    // Em dash → comma+space (handles any surrounding spacing).
+    .replace(/\s*—\s*/g, ", ")
+    // En dash in numeric ranges → hyphen ("2020–2024" → "2020-2024").
+    .replace(/(\d)\s*–\s*(\d)/g, "$1-$2")
+    // Any other en dash → hyphen.
+    .replace(/–/g, "-")
+    // Smart double quotes → straight.
+    .replace(/[“”]/g, '"')
+    // Smart single quotes / apostrophes → straight.
+    .replace(/[‘’]/g, "'")
+    // Horizontal ellipsis → three dots.
+    .replace(/…/g, "...")
+    // Zero-width / BOM characters that some models leak in.
+    .replace(/[​-‍﻿]/g, "")
+    // Non-breaking space → regular space.
+    .replace(/ /g, " ");
+}
+
+// Patterns that survived sanitization but still scream "AI wrote this".
+// Kept short and high-confidence to minimize false positives in normal prose.
+const AI_TELL_PATTERNS: { pattern: RegExp; name: string }[] = [
+  { pattern: /\bdelve(s|d|ing)?\b/gi,                                                 name: '"delve" / "delving"' },
+  { pattern: /\btapestry\b/gi,                                                        name: '"tapestry"' },
+  { pattern: /\bmyriad\b/gi,                                                          name: '"myriad"' },
+  { pattern: /\bin today's\s+\w+/gi,                                                  name: '"in today\'s [X]"' },
+  { pattern: /\bnavigate\s+the\s+(complex|complicated|tricky|nuanced|intricate|ever-evolving)\s+(world|landscape|realm)/gi, name: '"navigate the [X] world/landscape"' },
+  { pattern: /\bharness\s+the\s+power\b/gi,                                           name: '"harness the power"' },
+  { pattern: /\bthe\s+realm\s+of\b/gi,                                                name: '"the realm of"' },
+  { pattern: /\ba\s+(wealth|plethora|myriad)\s+of\b/gi,                               name: '"a wealth/plethora of"' },
+  { pattern: /\bit's\s+(important\s+to\s+note|worth\s+noting|worth\s+mentioning)\b/gi, name: '"it\'s important to note / worth noting"' },
+  { pattern: /\bin\s+conclusion\b/gi,                                                 name: '"in conclusion"' },
+  { pattern: /\b(furthermore|moreover)\b/gi,                                          name: '"furthermore" / "moreover"' },
+  { pattern: /\bgame[-\s]?changer\b/gi,                                               name: '"game-changer"' },
+  { pattern: /\b(ever-evolving|ever-changing|rapidly\s+evolving)\b/gi,                name: '"ever-evolving" / "rapidly evolving"' },
+  { pattern: /\b(seamless(ly)?|leverage|synergy|holistic|paradigm)\b/gi,              name: 'corporate buzzword (seamless/leverage/synergy/etc.)' },
+  { pattern: /^In\s+today's\b/gim,                                                    name: 'sentence starting with "In today\'s"' },
+  { pattern: /^When\s+it\s+comes\s+to\b/gim,                                          name: 'sentence starting with "When it comes to"' },
+  { pattern: /\blet's\s+(dive\s+into|explore)\b/gi,                                   name: '"let\'s dive into / explore"' },
+];
+
+function detectAiTells(html: string): string[] {
+  // Strip HTML tags so patterns match on prose text only.
+  const text = html.replace(/<[^>]+>/g, " ");
+  const found = new Set<string>();
+  for (const { pattern, name } of AI_TELL_PATTERNS) {
+    if (pattern.test(text)) found.add(name);
+  }
+  return Array.from(found);
+}
+
+const BANNED_AI_TELLS = `
+## BANNED — your output will be rejected if any of these appear
+You will be tested for these. Use plain, specific writing instead.
+
+**Symbols (NEVER use):**
+- Em dashes (—) and en dashes (–) — use commas, periods, parentheses, or simple hyphens
+- Smart/curly quotes ("" '' '') — use straight quotes (" ')
+- Horizontal ellipsis (…) — use three regular dots (...)
+
+**Words/phrases (NEVER use):**
+- "delve", "delves into", "delving"
+- "tapestry", "myriad", "realm", "plethora"
+- "harness the power", "leverage", "synergy", "seamless", "holistic"
+- "navigate the [complex/intricate/ever-evolving] [world/landscape/realm]"
+- "in today's [anything]"
+- "it's important to note", "it's worth noting/mentioning"
+- "in conclusion" — just stop writing or end with the CTA
+- "furthermore", "moreover" — use simpler transitions or none at all
+- "a wealth of", "a plethora of", "a myriad of"
+- "ever-evolving", "rapidly evolving", "game-changer", "cutting-edge"
+
+**Sentence openers (NEVER start a sentence with):**
+- "In today's ..."
+- "When it comes to ..."
+- "Let's dive into" / "Let's explore"
+- "Whether you're ..."
+
+**Style requirements (DO this instead):**
+- Use specific numbers, names, places, dollar amounts — never "many businesses" or "various studies"
+- Vary sentence length — short punchy ones mixed with longer ones
+- Use contractions where natural ("don't", "isn't", "you'll")
+- If you'd normally write an em dash, replace it with a comma or split into two sentences
+`.trim();
+
 const CORE_CONTENT_INSTRUCTIONS = `
 - Write in a conversational but authoritative tone — the reader should feel like they're learning from a trusted expert, not reading a textbook.
 - Open every post with a hook that acknowledges the reader's problem or question directly.
@@ -133,6 +224,8 @@ ${CORE_SEO_RULES}${extraSeoRules}
 # MANDATORY CONTENT INSTRUCTIONS (follow ALL of these)
 ${CORE_CONTENT_INSTRUCTIONS}${extraContentInstructions}
 
+# ${BANNED_AI_TELLS}
+
 # Client Profile
 - **Business:** ${client.businessName}
 - **Industry:** ${client.industry}
@@ -208,10 +301,25 @@ Return ONLY the JSON object, no other text.`;
     throw new Error(`Failed to parse blog post: ${text.slice(0, 200)}`);
   }
 
-  const wordCount = parsed.content.replace(/<[^>]*>/g, "").split(/\s+/).filter(Boolean).length;
-  const finalTitle = parsed.seoTitle || topic.title;
+  // Strip em dashes / smart quotes / ellipsis / etc. from every text field.
+  // Done AFTER parse so we don't risk breaking the JSON, BEFORE detection so
+  // the AI-tells warning only flags things the silent cleanup couldn't catch.
+  const cleanContent  = sanitizeAiArtifacts(parsed.content);
+  const cleanExcerpt  = sanitizeAiArtifacts(parsed.excerpt || "");
+  const cleanMeta     = sanitizeAiArtifacts(parsed.metaDescription || "");
+  const cleanSeoTitle = parsed.seoTitle ? sanitizeAiArtifacts(parsed.seoTitle) : undefined;
+  const cleanH1       = parsed.h1 ? sanitizeAiArtifacts(parsed.h1) : undefined;
+
+  const wordCount = cleanContent.replace(/<[^>]*>/g, "").split(/\s+/).filter(Boolean).length;
+  const finalTitle = cleanSeoTitle || topic.title;
   const finalSlug = parsed.slug || generateSlug(finalTitle);
-  const finalH1 = parsed.h1 && parsed.h1 !== finalTitle ? parsed.h1 : undefined;
+  const finalH1 = cleanH1 && cleanH1 !== finalTitle ? cleanH1 : undefined;
+
+  // Detect surviving AI tells in body + excerpt (titles are too short to flag).
+  const aiTellsDetected = detectAiTells(`${cleanContent} ${cleanExcerpt}`);
+  if (aiTellsDetected.length > 0) {
+    console.warn(`[writer] AI tells survived in post "${finalTitle}":`, aiTellsDetected);
+  }
 
   return {
     id: uuidv4(),
@@ -220,15 +328,16 @@ Return ONLY the JSON object, no other text.`;
     title: finalTitle,
     h1: finalH1,
     slug: finalSlug,
-    content: parsed.content,
-    excerpt: parsed.excerpt,
-    metaDescription: parsed.metaDescription,
+    content: cleanContent,
+    excerpt: cleanExcerpt,
+    metaDescription: cleanMeta,
     targetKeywords: topic.targetKeywords,
     categories: client.blogCategories,
     tags: parsed.tags,
     featuredImagePrompt: parsed.featuredImagePrompt,
     wordCount,
     status: "ready",
+    aiTellsDetected: aiTellsDetected.length > 0 ? aiTellsDetected : undefined,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

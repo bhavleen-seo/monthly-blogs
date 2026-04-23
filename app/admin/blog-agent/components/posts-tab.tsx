@@ -196,6 +196,14 @@ export default function PostsTab({
                         {isGhostPublished && (
                           <span className="text-xs text-[var(--color-warning)]">no live URL — likely never reached WP</span>
                         )}
+                        {post.aiTellsDetected && post.aiTellsDetected.length > 0 && (
+                          <span
+                            className="text-xs text-[var(--color-warning)] cursor-help"
+                            title={`AI-tell phrases detected:\n${post.aiTellsDetected.join("\n")}`}
+                          >
+                            ⚠ {post.aiTellsDetected.length} AI tell{post.aiTellsDetected.length === 1 ? "" : "s"}
+                          </span>
+                        )}
                         {post.publishedUrl && (
                           <a href={post.publishedUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--color-primary)] hover:underline">
                             View live
@@ -310,6 +318,23 @@ export default function PostsTab({
 
               {/* Body */}
               <div className="overflow-y-auto px-6 py-5 space-y-5 flex-1">
+                {/* AI tells warning */}
+                {selectedPost.aiTellsDetected && selectedPost.aiTellsDetected.length > 0 && (
+                  <div className="bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/40 rounded-lg px-4 py-3">
+                    <div className="flex items-start gap-2">
+                      <span className="text-[var(--color-warning)] text-base leading-none mt-0.5">⚠</span>
+                      <div className="flex-1">
+                        <p className="text-xs font-semibold text-[var(--color-warning)] mb-1">AI-tell phrases detected — consider editing or rewriting</p>
+                        <ul className="text-xs text-[var(--color-foreground)] space-y-0.5 list-disc pl-4">
+                          {selectedPost.aiTellsDetected.map((tell) => (
+                            <li key={tell}>{tell}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Featured image — moved to top */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">

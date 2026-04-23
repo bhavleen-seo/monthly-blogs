@@ -81,6 +81,8 @@ export interface BlogPost {
   wordpressPostId?: number;
   publishedUrl?: string;
   publishedAt?: string;
+  /** AI-tell phrases detected in content after sanitization. Empty/absent = clean. */
+  aiTellsDetected?: string[];
   createdAt: string;
   updatedAt: string;
 }
