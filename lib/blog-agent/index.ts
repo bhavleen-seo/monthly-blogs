@@ -12,6 +12,8 @@ export {
   getClient,
   saveClient,
   deleteClient,
+  saveCsPublisherSecret,
+  getCsPublisherSecret,
   getTopics,
   saveTopic,
   deleteTopic,

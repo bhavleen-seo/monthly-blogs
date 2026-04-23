@@ -19,6 +19,12 @@ const KV = {
   OLD_STORE: "blog-agent-store", // legacy single-blob key for migration
 } as const;
 
+// Per-client CS Publisher secret key. Kept in a SEPARATE KV key (one per
+// client id) so concurrent saveClient calls can't clobber each other — the
+// main clients list does a read-all + write-all, which loses concurrent
+// writes. This key is isolated: each client id has its own independent slot.
+const csPublisherSecretKey = (clientId: string) => `ba:cspsecret:${clientId}`;
+
 const DEFAULT_SETTINGS: GlobalSettings = {
   seoRules: "",
   contentInstructions: "",
@@ -228,33 +234,105 @@ export async function saveGlobalSettings(settings: GlobalSettings): Promise<void
 
 // ─── Clients ─────────────────────────────────────────────────────────────────
 
-export async function getClients(): Promise<Client[]> {
+async function rawGetClients(): Promise<Client[]> {
   if (!useKV()) return (await getFileStore()).clients || [];
   await migrateIfNeeded();
   return kvGet<Client[]>(KV.CLIENTS, []);
 }
 
+/**
+ * Read the CS Publisher secret for a client. Always read from the separate
+ * per-client KV slot (ba:cspsecret:<id>) — the main clients array is not the
+ * source of truth for this field, because concurrent saveClient writes can
+ * clobber each other's updates.
+ */
+export async function getCsPublisherSecret(id: string): Promise<string | undefined> {
+  if (!useKV()) {
+    const store = await getFileStore();
+    const c = (store.clients || []).find((x) => x.id === id);
+    return c?.csPublisherSecret || undefined;
+  }
+  const kv = await getKV();
+  const val = await kv.get<string>(csPublisherSecretKey(id));
+  return val || undefined;
+}
+
+/**
+ * Write the CS Publisher secret for a client to its own isolated KV key.
+ * Safe to call concurrently for different clients — no race possible because
+ * each client's secret lives at a unique key.
+ */
+export async function saveCsPublisherSecret(id: string, secret: string): Promise<void> {
+  if (!useKV()) {
+    const store = await getFileStore();
+    const idx = (store.clients || []).findIndex((x) => x.id === id);
+    if (idx >= 0) {
+      store.clients[idx] = { ...store.clients[idx], csPublisherSecret: secret };
+      await saveFileStore(store);
+    }
+    return;
+  }
+  const kv = await getKV();
+  await kv.set(csPublisherSecretKey(id), secret);
+}
+
+async function mergeSecrets(clients: Client[]): Promise<Client[]> {
+  if (!useKV()) return clients; // file store already has secrets inline
+  // Fetch per-client secrets in parallel and merge.
+  const secrets = await Promise.all(
+    clients.map(async (c) => [c.id, await getCsPublisherSecret(c.id)] as const)
+  );
+  const map = new Map(secrets);
+  return clients.map((c) => {
+    const sep = map.get(c.id);
+    if (sep) return { ...c, csPublisherSecret: sep };
+    return c;
+  });
+}
+
+export async function getClients(): Promise<Client[]> {
+  const raw = await rawGetClients();
+  return mergeSecrets(raw);
+}
+
 export async function getClient(id: string): Promise<Client | undefined> {
-  const clients = await getClients();
-  return clients.find((c) => c.id === id);
+  const raw = await rawGetClients();
+  const c = raw.find((x) => x.id === id);
+  if (!c) return undefined;
+  const merged = await mergeSecrets([c]);
+  return merged[0];
 }
 
 export async function saveClient(client: Client): Promise<void> {
-  const clients = await getClients();
+  // Strip csPublisherSecret from the main clients array — it lives in its own
+  // KV slot. If caller provided a secret, write it there atomically so we
+  // don't depend on the racy clients-array write for secret persistence.
+  const { csPublisherSecret, ...rest } = client;
+  const toSave = rest as Client;
+
+  const clients = await rawGetClients();
   const index = clients.findIndex((c) => c.id === client.id);
-  if (index >= 0) { clients[index] = client; } else { clients.push(client); }
+  if (index >= 0) { clients[index] = toSave; } else { clients.push(toSave); }
   if (useKV()) { await kvSet(KV.CLIENTS, clients); }
   else {
     const store = await getFileStore();
     store.clients = clients;
     await saveFileStore(store);
   }
+
+  // If the caller gave us a secret, persist it to the separate slot.
+  if (csPublisherSecret) {
+    await saveCsPublisherSecret(client.id, csPublisherSecret);
+  }
 }
 
 export async function deleteClient(id: string): Promise<void> {
-  const clients = (await getClients()).filter((c) => c.id !== id);
-  if (useKV()) { await kvSet(KV.CLIENTS, clients); }
-  else {
+  const clients = (await rawGetClients()).filter((c) => c.id !== id);
+  if (useKV()) {
+    await kvSet(KV.CLIENTS, clients);
+    const kv = await getKV();
+    await kv.del(csPublisherSecretKey(id));
+  } else {
     const store = await getFileStore();
     store.clients = clients;
     await saveFileStore(store);

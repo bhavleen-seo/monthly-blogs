@@ -3,7 +3,7 @@ import { randomBytes } from "crypto";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { zipSync, strToU8 } from "fflate";
-import { getClient, saveClient } from "@/lib/blog-agent";
+import { getClient, saveCsPublisherSecret } from "@/lib/blog-agent";
 
 export async function GET(
   _req: NextRequest,
@@ -16,10 +16,12 @@ export async function GET(
     }
 
     // Generate a new secret if the client doesn't have one yet.
+    // Save via saveCsPublisherSecret (per-client KV key) so concurrent
+    // "Get Plugin" clicks on different clients can't clobber each other.
     let secret = client.csPublisherSecret;
     if (!secret) {
       secret = randomBytes(32).toString("hex");
-      await saveClient({ ...client, csPublisherSecret: secret });
+      await saveCsPublisherSecret(client.id, secret);
     }
 
     // Read the committed template and inject the real secret.
