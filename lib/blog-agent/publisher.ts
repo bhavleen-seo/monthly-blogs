@@ -364,7 +364,9 @@ async function publishViaCsPublisher(
     excerpt: post.excerpt,
     status: publishAsDraft ? "draft" : "publish",
     categories: post.categories,
-    tags: post.tags,
+    // Tags intentionally omitted — themes render them at the bottom of posts
+    // as a "related tags" strip which looks cluttered and amateurish.
+    tags: [],
     featured_image: post.featuredImageUrl
       ? { url: post.featuredImageUrl, filename: `${post.slug || "featured"}.jpg` }
       : undefined,

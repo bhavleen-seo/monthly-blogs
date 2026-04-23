@@ -275,7 +275,6 @@ Return ONLY a JSON object with these fields:
   "content": "<h2>...</h2><p>...</p>... (the full blog post HTML)",
   "excerpt": "150-160 character summary for search results",
   "metaDescription": "140-155 characters, includes primary keyword, clear value prop",
-  "tags": ["tag1", "tag2", "..."],
   "featuredImagePrompt": "A detailed description for generating a featured image"
 }
 
@@ -290,7 +289,6 @@ Return ONLY the JSON object, no other text.`;
     content: string;
     excerpt: string;
     metaDescription: string;
-    tags: string[];
     featuredImagePrompt: string;
   };
 
@@ -345,7 +343,7 @@ Return ONLY the JSON object, no other text.`;
     metaDescription: cleanMeta,
     targetKeywords: topic.targetKeywords,
     categories: client.blogCategories,
-    tags: parsed.tags,
+    tags: [],
     featuredImagePrompt: parsed.featuredImagePrompt,
     featuredImageUrl: stockImage?.url,
     featuredImageAlt,
