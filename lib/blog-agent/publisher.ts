@@ -252,24 +252,45 @@ async function publishViaCsPublisher(
   post: BlogPost,
   publishAsDraft: boolean
 ): Promise<{ wordpressPostId: number; publishedUrl: string }> {
-  // Prefer the redirect-resolved origin; fall back to the configured URL.
+  // Build the set of origins to try (same strategy as testWordPressConnection):
+  //   1. redirect-resolved canonical origin
+  //   2. raw configured URL
+  //   3. www-toggled variants (handles WP Engine per-hostname cache mismatches)
   const configured = client.wordpressUrl.replace(/\/+$/, "");
-  let origin = configured;
+  let resolvedOrigin = configured;
   try {
     const canonical = await resolveCanonicalApiBase(client);
-    origin = new URL(canonical).origin;
+    resolvedOrigin = new URL(canonical).origin;
   } catch { /* fall back to configured */ }
 
-  // Try 4 variants: pretty URL × (header vs query-param auth), then rest_route × same.
-  // Header is preferred; query-param is the fallback for sites where Wordfence
-  // or similar drops requests with custom auth headers.
+  const toggleWww = (u: string): string => {
+    try {
+      const url = new URL(u);
+      url.hostname = url.hostname.startsWith("www.")
+        ? url.hostname.slice(4)
+        : `www.${url.hostname}`;
+      return url.origin;
+    } catch { return u; }
+  };
+
+  const origins = Array.from(new Set([
+    resolvedOrigin,
+    configured,
+    toggleWww(configured),
+    toggleWww(resolvedOrigin),
+  ]));
+
+  // For each origin, try pretty URL × (header vs query-param auth), then rest_route × same.
   const encodedSecret = encodeURIComponent(client.csPublisherSecret!);
-  const attempts: { url: string; useHeader: boolean }[] = [
-    { url: `${origin}/wp-json/cs-publisher/v1/publish`, useHeader: true },
-    { url: `${origin}/wp-json/cs-publisher/v1/publish?cs_secret=${encodedSecret}`, useHeader: false },
-    { url: `${origin}/?rest_route=/cs-publisher/v1/publish`, useHeader: true },
-    { url: `${origin}/?rest_route=/cs-publisher/v1/publish&cs_secret=${encodedSecret}`, useHeader: false },
-  ];
+  const attempts: { url: string; useHeader: boolean }[] = [];
+  for (const origin of origins) {
+    attempts.push(
+      { url: `${origin}/wp-json/cs-publisher/v1/publish`, useHeader: true },
+      { url: `${origin}/wp-json/cs-publisher/v1/publish?cs_secret=${encodedSecret}`, useHeader: false },
+      { url: `${origin}/?rest_route=/cs-publisher/v1/publish`, useHeader: true },
+      { url: `${origin}/?rest_route=/cs-publisher/v1/publish&cs_secret=${encodedSecret}`, useHeader: false },
+    );
+  }
 
   const onPageH1 = post.h1 || post.title;
   const focusKeyword = post.targetKeywords?.[0] || "";
@@ -458,10 +479,14 @@ export async function testWordPressConnection(
   // the plugin posts as, and get a clear error if the plugin is missing or
   // the secret is wrong.
   if (client.csPublisherSecret) {
-    // Try two URLs: (1) the redirect-resolved canonical origin, (2) the raw
-    // configured URL. This catches cases where the redirect resolver lands on
-    // the wrong host (CDN, staging, etc.) while the plugin lives on the
-    // configured URL.
+    // Build the set of origins to try:
+    //   1. redirect-resolved canonical origin (follow redirects)
+    //   2. raw configured URL (if no redirect)
+    //   3. www-toggled variant of configured (flip www. on/off)
+    // Why #3: WP Engine caches WordPress's REST route list separately per
+    // hostname. When a new plugin is installed, one hostname's cache refreshes
+    // while the other stays stale for minutes. Testing both variants means we
+    // find whichever version already sees the plugin.
     const configured = client.wordpressUrl.replace(/\/+$/, "");
     let resolvedOrigin = configured;
     try {
@@ -469,24 +494,36 @@ export async function testWordPressConnection(
       resolvedOrigin = new URL(canonical).origin;
     } catch { /* fall back to configured */ }
 
-    // Try 4 URL formats × 2 auth styles (header + query param) in order:
-    //   - Pretty permalink with X-CS-Secret header
-    //   - Pretty permalink with ?cs_secret= query param (WAF fallback)
-    //   - Query-string rest_route with header
-    //   - Query-string rest_route with cs_secret in URL
+    const toggleWww = (u: string): string => {
+      try {
+        const url = new URL(u);
+        url.hostname = url.hostname.startsWith("www.")
+          ? url.hostname.slice(4)
+          : `www.${url.hostname}`;
+        return url.origin;
+      } catch { return u; }
+    };
+
+    const origins = Array.from(new Set([
+      resolvedOrigin,
+      configured,
+      toggleWww(configured),
+      toggleWww(resolvedOrigin),
+    ]));
+
+    // For each origin, try 4 URL formats × 2 auth styles (header + query param).
     // Header is preferred (doesn't leak the secret in server logs). Query-param
     // is the fallback for Wordfence-hardened sites that drop custom headers.
     const encodedSecret = encodeURIComponent(client.csPublisherSecret);
-    const attempts: { url: string; useHeader: boolean }[] = [
-      { url: `${resolvedOrigin}/wp-json/cs-publisher/v1/ping`, useHeader: true },
-      { url: `${resolvedOrigin}/wp-json/cs-publisher/v1/ping?cs_secret=${encodedSecret}`, useHeader: false },
-      { url: `${configured}/wp-json/cs-publisher/v1/ping`, useHeader: true },
-      { url: `${configured}/wp-json/cs-publisher/v1/ping?cs_secret=${encodedSecret}`, useHeader: false },
-      { url: `${resolvedOrigin}/?rest_route=/cs-publisher/v1/ping`, useHeader: true },
-      { url: `${resolvedOrigin}/?rest_route=/cs-publisher/v1/ping&cs_secret=${encodedSecret}`, useHeader: false },
-      { url: `${configured}/?rest_route=/cs-publisher/v1/ping`, useHeader: true },
-      { url: `${configured}/?rest_route=/cs-publisher/v1/ping&cs_secret=${encodedSecret}`, useHeader: false },
-    ];
+    const attempts: { url: string; useHeader: boolean }[] = [];
+    for (const origin of origins) {
+      attempts.push(
+        { url: `${origin}/wp-json/cs-publisher/v1/ping`, useHeader: true },
+        { url: `${origin}/wp-json/cs-publisher/v1/ping?cs_secret=${encodedSecret}`, useHeader: false },
+        { url: `${origin}/?rest_route=/cs-publisher/v1/ping`, useHeader: true },
+        { url: `${origin}/?rest_route=/cs-publisher/v1/ping&cs_secret=${encodedSecret}`, useHeader: false },
+      );
+    }
     const seenKeys = new Set<string>();
     const attemptsToTry = attempts.filter((a) => {
       const key = `${a.url}|${a.useHeader}`;
