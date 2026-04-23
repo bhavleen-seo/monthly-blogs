@@ -1,11 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { Client, Topic, Post } from "./types";
 
 function generateSlugPreview(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
+
+const POST_SECTIONS: { status: string; label: string }[] = [
+  { status: "ready",     label: "Ready to Publish" },
+  { status: "draft",     label: "Drafts" },
+  { status: "published", label: "Published" },
+  { status: "failed",    label: "Failed" },
+];
 
 export default function PostsTab({
   clients,
@@ -30,7 +37,7 @@ export default function PostsTab({
   onDeletePost: (id: string) => void;
   onRewritePost: (postId: string) => void;
 }) {
-  const [clientFilter, setClientFilter] = useState("");
+  const [clientId, setClientId] = useState("");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -38,9 +45,24 @@ export default function PostsTab({
   const [saving, setSaving] = useState(false);
   const [contentView, setContentView] = useState<"preview" | "html">("preview");
 
-  const approvedTopics = topics.filter((t) => t.status === "approved");
-  const filtered = clientFilter ? posts.filter((p) => p.clientId === clientFilter) : posts;
-  const readyPosts = filtered.filter((p) => p.status === "ready");
+  const client = clients.find((c) => c.id === clientId);
+
+  const clientPosts = useMemo(
+    () => (clientId ? posts.filter((p) => p.clientId === clientId) : []),
+    [posts, clientId]
+  );
+  const clientApprovedTopics = useMemo(
+    () => (clientId ? topics.filter((t) => t.clientId === clientId && t.status === "approved") : []),
+    [topics, clientId]
+  );
+
+  const counts = {
+    approvedTopics: clientApprovedTopics.length,
+    ready:     clientPosts.filter((p) => p.status === "ready").length,
+    drafts:    clientPosts.filter((p) => p.status === "draft").length,
+    published: clientPosts.filter((p) => p.status === "published").length,
+    failed:    clientPosts.filter((p) => p.status === "failed").length,
+  };
 
   // Reset edit state when post changes
   useEffect(() => {
@@ -84,125 +106,138 @@ export default function PostsTab({
     }
   };
 
-  const sections: { status: string; label: string }[] = [
-    { status: "ready", label: "Ready to Publish" },
-    { status: "draft", label: "Drafts" },
-    { status: "published", label: "Published" },
-    { status: "failed", label: "Failed" },
-  ];
-
   return (
     <div className="space-y-5 animate-fade-in">
-      {/* Header */}
+      {/* Client picker */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <select
-          value={clientFilter}
-          onChange={(e) => setClientFilter(e.target.value)}
-          className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] min-w-[200px]"
+          value={clientId}
+          onChange={(e) => setClientId(e.target.value)}
+          className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] min-w-[260px]"
         >
-          <option value="">All clients</option>
+          <option value="">Select a client…</option>
           {clients.map((c) => (
             <option key={c.id} value={c.id}>{c.businessName}</option>
           ))}
         </select>
-        <div className="flex gap-2">
-          {approvedTopics.length > 0 && (
-            <button onClick={onWritePosts} disabled={loading} className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40">
-              Write Posts ({approvedTopics.length} topics)
-            </button>
-          )}
-          {readyPosts.length > 0 && (
-            <button onClick={onPublishPosts} disabled={loading} className="bg-[var(--color-success)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40">
-              Publish ({readyPosts.length})
-            </button>
-          )}
-        </div>
+        {clientId && (
+          <div className="flex gap-2">
+            {counts.approvedTopics > 0 && (
+              <button
+                onClick={onWritePosts}
+                disabled={loading}
+                className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40"
+              >
+                Write Posts ({counts.approvedTopics})
+              </button>
+            )}
+            {counts.ready > 0 && (
+              <button
+                onClick={onPublishPosts}
+                disabled={loading}
+                className="bg-[var(--color-success)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40"
+              >
+                Publish ({counts.ready})
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
+      {/* Empty state */}
+      {!clientId && (
+        <div className="text-center py-20">
+          <p className="text-[var(--color-muted-foreground)] text-sm">Select a client above to view their posts.</p>
+        </div>
+      )}
+
+      {/* Client summary + pipeline stats */}
+      {clientId && client && (
+        <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl px-5 py-4">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="text-base font-semibold text-[var(--color-foreground)]">{client.businessName}</h2>
+              <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
+                {client.industry} · {client.location} · {client.postsPerMonth} {client.postsPerMonth === 1 ? "post" : "posts"}/month
+              </p>
+            </div>
+            <div className="flex gap-4 text-xs">
+              <Stat label="approved topics" value={counts.approvedTopics} />
+              <Stat label="ready" value={counts.ready} />
+              <Stat label="drafts" value={counts.drafts} />
+              <Stat label="published" value={counts.published} />
+              {counts.failed > 0 && <Stat label="failed" value={counts.failed} tone="destructive" />}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Post sections */}
-      {sections.map(({ status, label }) => {
-        const items = filtered.filter((p) => p.status === status);
+      {clientId && POST_SECTIONS.map(({ status, label }) => {
+        const items = clientPosts.filter((p) => p.status === status);
         if (items.length === 0) return null;
         return (
-          <div key={status} className="space-y-3">
-            <h3 className="text-xs font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">{label} ({items.length})</h3>
+          <div key={status} className="space-y-2">
+            <h3 className="text-xs font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">
+              {label} ({items.length})
+            </h3>
             <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl overflow-hidden divide-y divide-[var(--color-border)]">
               {items.map((post) => {
                 const isGhostPublished = post.status === "published" && !post.publishedUrl;
-                const canPublish =
-                  post.status === "ready" ||
-                  post.status === "draft" ||
-                  post.status === "failed" ||
-                  isGhostPublished;
-                const publishLabel =
-                  post.status === "failed" || isGhostPublished ? "Retry Publish" : "Publish";
+                const canPublish = post.status === "ready" || post.status === "draft" || post.status === "failed" || isGhostPublished;
+                const publishLabel = post.status === "failed" || isGhostPublished ? "Retry Publish" : "Publish";
+
                 return (
-                <div key={post.id} className="group flex items-center justify-between px-5 py-4 hover:bg-[var(--color-hover)] transition-colors">
-                  <div className="flex-1 min-w-0 mr-4">
-                    <p className="text-sm font-medium text-[var(--color-foreground)] truncate">{post.title}</p>
-                    <div className="flex items-center gap-3 mt-1 flex-wrap">
-                      <span className="text-xs text-[var(--color-muted-foreground)]">{post.clientName}</span>
-                      <span className="text-xs text-[var(--color-muted-foreground)]">{post.wordCount} words</span>
-                      <span className={`inline-flex items-center gap-1 text-xs ${
-                        status === "published" ? "text-[var(--color-success)]" :
-                        status === "ready" ? "text-[var(--color-primary)]" :
-                        status === "failed" ? "text-[var(--color-destructive)]" :
-                        "text-[var(--color-muted-foreground)]"
-                      }`}>
-                        <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                        {status}
-                      </span>
-                      {isGhostPublished && (
-                        <span className="text-xs text-[var(--color-warning)]">no live URL — likely never reached WP</span>
+                  <div key={post.id} className="flex items-center justify-between px-5 py-3 hover:bg-[var(--color-hover)] transition-colors">
+                    <div className="flex-1 min-w-0 mr-4">
+                      <p className="text-sm font-medium text-[var(--color-foreground)] truncate">{post.title}</p>
+                      <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                        <span className="text-xs text-[var(--color-muted-foreground)]">{post.wordCount} words</span>
+                        {isGhostPublished && (
+                          <span className="text-xs text-[var(--color-warning)]">no live URL — likely never reached WP</span>
+                        )}
+                        {post.publishedUrl && (
+                          <a href={post.publishedUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--color-primary)] hover:underline">
+                            View live
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        onClick={() => { setSelectedPost(post); setCopiedField(null); }}
+                        className="text-xs font-medium px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:bg-[var(--color-hover)] hover:text-[var(--color-foreground)] transition-all"
+                      >
+                        Preview
+                      </button>
+                      {canPublish && (
+                        <button
+                          onClick={() => onPublishPost(post.id)}
+                          disabled={loading}
+                          className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-success)] text-[var(--color-primary-foreground)] hover:opacity-90 transition-all disabled:opacity-40"
+                        >
+                          {publishLabel}
+                        </button>
                       )}
-                      {post.featuredImageUrl && (
-                        <span className="inline-flex items-center gap-1 text-xs text-[var(--color-muted-foreground)]">
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                          image
-                        </span>
-                      )}
-                      {post.publishedUrl && (
-                        <a href={post.publishedUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--color-primary)] hover:underline">
-                          View Live
-                        </a>
+                      {post.status !== "published" && (
+                        <>
+                          <button
+                            onClick={() => onRewritePost(post.id)}
+                            disabled={loading}
+                            className="text-xs font-medium px-3 py-1.5 rounded-lg text-[var(--color-warning)] hover:bg-[var(--color-warning)]/10 transition-all disabled:opacity-40"
+                          >
+                            Rewrite
+                          </button>
+                          <button
+                            onClick={() => onDeletePost(post.id)}
+                            className="text-xs font-medium px-2 py-1.5 rounded-lg text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)] transition-all"
+                          >
+                            Remove
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
-                  <div className="flex gap-2 shrink-0">
-                    <button
-                      onClick={() => { setSelectedPost(post); setCopiedField(null); }}
-                      className="text-xs font-medium px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:bg-[var(--color-hover)] hover:text-[var(--color-foreground)] transition-all"
-                    >
-                      Preview
-                    </button>
-                    {canPublish && (
-                      <button
-                        onClick={() => onPublishPost(post.id)}
-                        disabled={loading}
-                        className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-success)] text-[var(--color-primary-foreground)] hover:opacity-90 transition-all disabled:opacity-40"
-                      >
-                        {publishLabel}
-                      </button>
-                    )}
-                    {post.status !== "published" && (
-                      <>
-                        <button
-                          onClick={() => onRewritePost(post.id)}
-                          disabled={loading}
-                          className="text-xs font-medium px-3 py-1.5 rounded-lg text-[var(--color-warning)] hover:bg-[var(--color-warning)]/10 transition-all opacity-0 group-hover:opacity-100 disabled:opacity-40"
-                        >
-                          Rewrite
-                        </button>
-                        <button
-                          onClick={() => onDeletePost(post.id)}
-                          className="text-xs font-medium px-2 py-1.5 rounded-lg text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)] transition-all opacity-0 group-hover:opacity-100"
-                        >
-                          Remove
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
                 );
               })}
             </div>
@@ -210,286 +245,289 @@ export default function PostsTab({
         );
       })}
 
-      {posts.length === 0 && (
+      {/* Empty state for selected client with no posts */}
+      {clientId && clientPosts.length === 0 && (
         <div className="text-center py-16">
-          <p className="text-[var(--color-muted-foreground)] text-sm">No posts yet. Approve topics first, then write posts.</p>
+          <p className="text-[var(--color-muted-foreground)] text-sm">
+            {counts.approvedTopics > 0
+              ? <>No posts yet. Click <span className="text-[var(--color-foreground)] font-medium">&quot;Write Posts&quot;</span> above to generate {counts.approvedTopics === 1 ? "a post" : `${counts.approvedTopics} posts`} from approved topics.</>
+              : <>No posts yet. Approve some topics in the Topics tab first, then come back here to write them.</>}
+          </p>
         </div>
       )}
 
-      {/* Preview modal */}
+      {/* Preview / edit modal */}
       {selectedPost && (() => {
-        const displaySlug = (editing ? draft.slug : selectedPost.slug) || generateSlugPreview(selectedPost.title);
-        const displayH1 = (editing ? draft.h1 : selectedPost.h1) || "";
+        const displaySlug  = (editing ? draft.slug  : selectedPost.slug)  || generateSlugPreview(selectedPost.title);
+        const displayH1    = (editing ? draft.h1    : selectedPost.h1)    || "";
         const displayTitle = editing ? (draft.title || "") : selectedPost.title;
-        const displayMeta = editing ? (draft.metaDescription || "") : selectedPost.metaDescription;
-        const h1SameAsTitle = displayH1.trim().length > 0 && displayH1.trim().toLowerCase() === displayTitle.trim().toLowerCase();
+        const displayMeta  = editing ? (draft.metaDescription || "") : selectedPost.metaDescription;
         const titleLen = displayTitle.length;
-        const metaLen = displayMeta.length;
-        const h1Len = displayH1.length;
+        const metaLen  = displayMeta.length;
 
         return (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setSelectedPost(null)}>
-          <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl max-w-3xl w-full max-h-[90vh] flex flex-col animate-slide-up" onClick={(e) => e.stopPropagation()}>
-            {/* Modal header — compact post meta only */}
-            <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--color-border)]">
-              <div className="flex items-center gap-3 min-w-0">
-                <p className="text-sm font-semibold text-[var(--color-foreground)] truncate">{selectedPost.clientName}</p>
-                <span className="text-[10px] text-[var(--color-muted-foreground)]">&middot;</span>
-                <span className="text-[10px] text-[var(--color-muted-foreground)]">{selectedPost.wordCount} words</span>
-                <span className={`text-[10px] inline-flex items-center gap-1 ${
-                  selectedPost.status === "published" ? "text-[var(--color-success)]" :
-                  selectedPost.status === "ready" ? "text-[var(--color-primary)]" :
-                  selectedPost.status === "failed" ? "text-[var(--color-destructive)]" :
-                  "text-[var(--color-muted-foreground)]"
-                }`}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-current" />{selectedPost.status}
-                </span>
-              </div>
-              <div className="flex gap-2 shrink-0">
-                {!editing && selectedPost.status !== "published" && (
-                  <button
-                    onClick={() => setEditing(true)}
-                    className="text-xs font-medium px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-all"
-                  >
-                    Edit
-                  </button>
-                )}
-                {!editing && (
-                  <button
-                    onClick={() => copyField("content", selectedPost.content)}
-                    className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-all ${
-                      copiedField === "content"
-                        ? "border-[var(--color-success)] text-[var(--color-success)]"
-                        : "border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
-                    }`}
-                  >
-                    {copiedField === "content" ? "Copied!" : "Copy HTML"}
-                  </button>
-                )}
-                <button onClick={() => setSelectedPost(null)} className="text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors text-xl leading-none">&times;</button>
-              </div>
-            </div>
-
-            {/* Modal body */}
-            <div className="overflow-y-auto px-6 py-5 space-y-5 flex-1">
-              {/* H1 Heading — what readers see on the page */}
-              <div className="bg-[var(--color-background)] border-2 border-[var(--color-primary)]/40 rounded-lg px-4 py-3 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-[var(--color-primary)] uppercase tracking-wider">H1 Heading</span>
-                    <span className="text-[10px] text-[var(--color-muted-foreground)]">visible to readers at top of post</span>
-                  </div>
-                  <button
-                    onClick={() => copyField("h1", displayH1 || displayTitle)}
-                    className={`text-[10px] font-medium px-2 py-1 rounded transition-all ${
-                      copiedField === "h1"
-                        ? "bg-[var(--color-success)] text-[var(--color-primary-foreground)]"
-                        : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-hover)]"
-                    }`}
-                  >
-                    {copiedField === "h1" ? "Copied!" : "Copy"}
-                  </button>
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setSelectedPost(null)}>
+            <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl max-w-3xl w-full max-h-[90vh] flex flex-col animate-slide-up" onClick={(e) => e.stopPropagation()}>
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--color-border)]">
+                <div className="flex items-center gap-3 min-w-0">
+                  <p className="text-sm font-semibold text-[var(--color-foreground)] truncate">{selectedPost.clientName}</p>
+                  <span className="text-[10px] text-[var(--color-muted-foreground)]">·</span>
+                  <span className="text-[10px] text-[var(--color-muted-foreground)]">{selectedPost.wordCount} words</span>
+                  <span className={`text-[10px] inline-flex items-center gap-1 ${
+                    selectedPost.status === "published" ? "text-[var(--color-success)]" :
+                    selectedPost.status === "ready"     ? "text-[var(--color-primary)]" :
+                    selectedPost.status === "failed"    ? "text-[var(--color-destructive)]" :
+                                                          "text-[var(--color-muted-foreground)]"
+                  }`}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-current" />{selectedPost.status}
+                  </span>
                 </div>
-                {editing ? (
-                  <input
-                    type="text"
-                    value={draft.h1 || ""}
-                    onChange={(e) => setDraft({ ...draft, h1: e.target.value })}
-                    placeholder="e.g. How Much Do You Need to Earn to Afford a $200,000 Home?"
-                    className="w-full text-base font-bold text-[var(--color-foreground)] bg-transparent border-b border-[var(--color-border)] focus:border-[var(--color-primary)] outline-none pb-1"
-                  />
-                ) : (
-                  <h2 className="text-base font-bold text-[var(--color-foreground)]">{displayH1 || <span className="italic font-normal text-[var(--color-muted-foreground)]">(falls back to page title — edit to set a distinct H1)</span>}</h2>
-                )}
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span className="text-[10px] text-[var(--color-muted-foreground)]">{h1Len} chars</span>
-                  {h1SameAsTitle && (
-                    <span className="text-[10px] text-[var(--color-destructive)] font-medium">&#9888; H1 matches page title — should be different for SEO</span>
-                  )}
-                </div>
-              </div>
-
-              {/* SEO Metadata — copy-friendly */}
-              <div className="bg-[var(--color-muted)] rounded-lg px-4 py-3 space-y-4">
-                <p className="text-[10px] font-bold text-[var(--color-muted-foreground)] uppercase tracking-wider">SEO Metadata</p>
-
-                {/* Page Title */}
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">Page Title <span className="normal-case font-normal">(&lt;title&gt; tag / SERP)</span></label>
+                <div className="flex gap-2 shrink-0">
+                  {!editing && selectedPost.status !== "published" && (
                     <button
-                      onClick={() => copyField("title", displayTitle)}
-                      className={`text-[10px] font-medium px-2 py-1 rounded transition-all ${
-                        copiedField === "title"
-                          ? "bg-[var(--color-success)] text-[var(--color-primary-foreground)]"
-                          : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-hover)]"
+                      onClick={() => setEditing(true)}
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-all"
+                    >
+                      Edit
+                    </button>
+                  )}
+                  {!editing && (
+                    <button
+                      onClick={() => copyField("content", selectedPost.content)}
+                      className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-all ${
+                        copiedField === "content"
+                          ? "border-[var(--color-success)] text-[var(--color-success)]"
+                          : "border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
                       }`}
                     >
-                      {copiedField === "title" ? "Copied!" : "Copy"}
+                      {copiedField === "content" ? "Copied!" : "Copy HTML"}
                     </button>
+                  )}
+                  <button onClick={() => setSelectedPost(null)} className="text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors text-xl leading-none">×</button>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="overflow-y-auto px-6 py-5 space-y-5 flex-1">
+                {/* Featured image — moved to top */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">Featured image</label>
                   </div>
-                  {editing ? (
+                  {editing || !selectedPost.featuredImageUrl ? (
                     <input
-                      type="text"
-                      value={draft.title || ""}
-                      onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                      className="w-full bg-[var(--color-card)] border border-[var(--color-border)] rounded px-2 py-1.5 text-sm text-[var(--color-foreground)]"
+                      type="url"
+                      value={draft.featuredImageUrl || ""}
+                      onChange={(e) => setDraft({ ...draft, featuredImageUrl: e.target.value })}
+                      placeholder={selectedPost.featuredImagePrompt
+                        ? `Suggested: "${selectedPost.featuredImagePrompt}" — paste a Freepik URL`
+                        : "https://img.freepik.com/..."}
+                      disabled={!editing}
+                      className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted-foreground)] disabled:opacity-50"
                     />
-                  ) : (
-                    <p className="text-sm font-medium text-[var(--color-foreground)]">{displayTitle}</p>
-                  )}
-                  <span className={`text-[10px] ${titleLen <= 60 ? "text-[var(--color-success)]" : "text-[var(--color-destructive)]"}`}>{titleLen}/60 chars</span>
-                </div>
-
-                {/* URL Slug */}
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">URL Slug</label>
-                    <button
-                      onClick={() => copyField("slug", displaySlug)}
-                      className={`text-[10px] font-medium px-2 py-1 rounded transition-all ${
-                        copiedField === "slug"
-                          ? "bg-[var(--color-success)] text-[var(--color-primary-foreground)]"
-                          : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-hover)]"
-                      }`}
-                    >
-                      {copiedField === "slug" ? "Copied!" : "Copy"}
-                    </button>
-                  </div>
-                  {editing ? (
-                    <input
-                      type="text"
-                      value={draft.slug || ""}
-                      onChange={(e) => setDraft({ ...draft, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-") })}
-                      className="w-full bg-[var(--color-card)] border border-[var(--color-border)] rounded px-2 py-1.5 text-sm font-mono text-[var(--color-foreground)]"
+                  ) : null}
+                  {(editing ? draft.featuredImageUrl : selectedPost.featuredImageUrl) && (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={editing ? draft.featuredImageUrl : selectedPost.featuredImageUrl}
+                      alt="Featured"
+                      className="w-full max-h-64 object-cover rounded-lg border border-[var(--color-border)]"
                     />
-                  ) : (
-                    <p className="text-sm font-mono text-[var(--color-foreground)]">/{displaySlug}</p>
                   )}
                 </div>
 
-                {/* Meta Description */}
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">Meta Description</label>
-                    <button
-                      onClick={() => copyField("meta", displayMeta)}
-                      className={`text-[10px] font-medium px-2 py-1 rounded transition-all ${
-                        copiedField === "meta"
-                          ? "bg-[var(--color-success)] text-[var(--color-primary-foreground)]"
-                          : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-hover)]"
-                      }`}
-                    >
-                      {copiedField === "meta" ? "Copied!" : "Copy"}
-                    </button>
-                  </div>
-                  {editing ? (
-                    <textarea
-                      value={draft.metaDescription || ""}
-                      onChange={(e) => setDraft({ ...draft, metaDescription: e.target.value })}
-                      rows={2}
-                      className="w-full bg-[var(--color-card)] border border-[var(--color-border)] rounded px-2 py-1.5 text-xs text-[var(--color-foreground)]"
-                    />
-                  ) : (
-                    <p className="text-xs text-[var(--color-foreground)]">{displayMeta}</p>
-                  )}
-                  <span className={`text-[10px] ${metaLen >= 140 && metaLen <= 160 ? "text-[var(--color-success)]" : "text-[var(--color-muted-foreground)]"}`}>{metaLen}/160 chars</span>
-                </div>
-              </div>
-
-              {/* Featured image */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">Featured Image URL</label>
-                {selectedPost.featuredImagePrompt && (
-                  <p className="text-[10px] text-[var(--color-muted-foreground)] italic">
-                    AI suggested prompt: &ldquo;{selectedPost.featuredImagePrompt}&rdquo; — paste a Freepik URL below
-                  </p>
-                )}
-                {editing || !selectedPost.featuredImageUrl ? (
-                  <input
-                    type="url"
-                    value={draft.featuredImageUrl || ""}
-                    onChange={(e) => setDraft({ ...draft, featuredImageUrl: e.target.value })}
-                    placeholder="https://img.freepik.com/..."
-                    disabled={!editing}
-                    className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted-foreground)] disabled:opacity-50"
+                {/* SEO metadata — single clean labelled list */}
+                <div className="bg-[var(--color-muted)]/40 rounded-lg divide-y divide-[var(--color-border)]">
+                  <MetaRow
+                    label="H1 heading"
+                    value={displayH1}
+                    placeholder={displayTitle}
+                    editing={editing}
+                    onChange={(v) => setDraft({ ...draft, h1: v })}
+                    copyKey="h1"
+                    copiedField={copiedField}
+                    onCopy={() => copyField("h1", displayH1 || displayTitle)}
                   />
-                ) : null}
-                {(editing ? draft.featuredImageUrl : selectedPost.featuredImageUrl) && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={editing ? draft.featuredImageUrl : selectedPost.featuredImageUrl}
-                    alt="Featured"
-                    className="w-full max-h-64 object-cover rounded-lg border border-[var(--color-border)]"
+                  <MetaRow
+                    label="Page title"
+                    value={displayTitle}
+                    editing={editing}
+                    onChange={(v) => setDraft({ ...draft, title: v })}
+                    copyKey="title"
+                    copiedField={copiedField}
+                    onCopy={() => copyField("title", displayTitle)}
+                    counter={`${titleLen}/60`}
+                    counterTone={titleLen <= 60 ? "ok" : "bad"}
                   />
-                )}
-              </div>
+                  <MetaRow
+                    label="URL slug"
+                    value={displaySlug}
+                    mono
+                    editing={editing}
+                    onChange={(v) => setDraft({ ...draft, slug: v.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-") })}
+                    copyKey="slug"
+                    copiedField={copiedField}
+                    onCopy={() => copyField("slug", displaySlug)}
+                    prefix="/"
+                  />
+                  <MetaRow
+                    label="Meta description"
+                    value={displayMeta}
+                    editing={editing}
+                    onChange={(v) => setDraft({ ...draft, metaDescription: v })}
+                    copyKey="meta"
+                    copiedField={copiedField}
+                    onCopy={() => copyField("meta", displayMeta)}
+                    counter={`${metaLen}/160`}
+                    counterTone={metaLen >= 140 && metaLen <= 160 ? "ok" : "muted"}
+                    multiline
+                  />
+                </div>
 
-              {/* Content — tabbed Preview / HTML */}
-              <div>
-                <div className="flex items-center gap-1 mb-2">
-                  <button
-                    onClick={() => setContentView("preview")}
-                    className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
-                      contentView === "preview"
-                        ? "bg-[var(--color-primary)] text-[var(--color-primary-foreground)]"
-                        : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-hover)]"
-                    }`}
-                  >
-                    Preview
-                  </button>
-                  {editing && (
+                {/* Content */}
+                <div>
+                  <div className="flex items-center gap-1 mb-2">
                     <button
-                      onClick={() => setContentView("html")}
+                      onClick={() => setContentView("preview")}
                       className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
-                        contentView === "html"
+                        contentView === "preview"
                           ? "bg-[var(--color-primary)] text-[var(--color-primary-foreground)]"
                           : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-hover)]"
                       }`}
                     >
-                      Edit HTML
+                      Preview
                     </button>
+                    {editing && (
+                      <button
+                        onClick={() => setContentView("html")}
+                        className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
+                          contentView === "html"
+                            ? "bg-[var(--color-primary)] text-[var(--color-primary-foreground)]"
+                            : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-hover)]"
+                        }`}
+                      >
+                        Edit HTML
+                      </button>
+                    )}
+                  </div>
+
+                  {contentView === "html" && editing ? (
+                    <textarea
+                      value={draft.content || ""}
+                      onChange={(e) => setDraft({ ...draft, content: e.target.value })}
+                      rows={28}
+                      className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-4 py-3 text-xs font-mono text-[var(--color-foreground)] resize-y leading-relaxed"
+                    />
+                  ) : (
+                    <div
+                      className="prose prose-sm max-w-none text-[var(--color-foreground)] bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg px-5 py-4 [&_h2]:text-[var(--color-foreground)] [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-8 [&_h2]:mb-3 [&_h3]:text-[var(--color-foreground)] [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-6 [&_h3]:mb-2 [&_p]:text-[var(--color-foreground)] [&_p]:leading-relaxed [&_p]:mb-4 [&_a]:text-[var(--color-primary)] [&_a]:underline [&_li]:text-[var(--color-foreground)] [&_li]:leading-relaxed [&_ul]:mb-4 [&_ol]:mb-4 [&_strong]:font-semibold [&_em]:italic [&_blockquote]:border-l-4 [&_blockquote]:border-[var(--color-primary)] [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-[var(--color-muted-foreground)]"
+                      dangerouslySetInnerHTML={{ __html: editing ? (draft.content || "") : selectedPost.content }}
+                    />
                   )}
                 </div>
-
-                {contentView === "html" && editing ? (
-                  <textarea
-                    value={draft.content || ""}
-                    onChange={(e) => setDraft({ ...draft, content: e.target.value })}
-                    rows={25}
-                    className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-4 py-3 text-xs font-mono text-[var(--color-foreground)] resize-y leading-relaxed"
-                  />
-                ) : (
-                  <div
-                    className="prose prose-sm max-w-none text-[var(--color-foreground)] bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg px-6 py-5 [&_h2]:text-[var(--color-foreground)] [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-8 [&_h2]:mb-3 [&_h3]:text-[var(--color-foreground)] [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-6 [&_h3]:mb-2 [&_p]:text-[var(--color-foreground)] [&_p]:leading-relaxed [&_p]:mb-4 [&_a]:text-[var(--color-primary)] [&_a]:underline [&_li]:text-[var(--color-foreground)] [&_li]:leading-relaxed [&_ul]:mb-4 [&_ol]:mb-4 [&_strong]:font-semibold [&_em]:italic [&_blockquote]:border-l-4 [&_blockquote]:border-[var(--color-primary)] [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-[var(--color-muted-foreground)]"
-                    dangerouslySetInnerHTML={{ __html: editing ? (draft.content || "") : selectedPost.content }}
-                  />
-                )}
               </div>
+
+              {/* Edit footer */}
+              {editing && (
+                <div className="flex justify-end gap-2 px-6 py-3 border-t border-[var(--color-border)]">
+                  <button
+                    onClick={() => { setEditing(false); setDraft({ title: selectedPost.title, h1: selectedPost.h1 || "", slug: selectedPost.slug || generateSlugPreview(selectedPost.title), content: selectedPost.content, metaDescription: selectedPost.metaDescription, featuredImageUrl: selectedPost.featuredImageUrl || "" }); }}
+                    className="text-xs font-medium px-4 py-2 rounded-lg border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveEdits}
+                    disabled={saving}
+                    className="text-xs font-medium px-4 py-2 rounded-lg bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:opacity-90 disabled:opacity-40"
+                  >
+                    {saving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              )}
             </div>
-
-            {/* Edit footer */}
-            {editing && (
-              <div className="flex justify-end gap-2 px-6 py-3 border-t border-[var(--color-border)]">
-                <button
-                  onClick={() => { setEditing(false); setDraft({ title: selectedPost.title, h1: selectedPost.h1 || "", slug: selectedPost.slug || generateSlugPreview(selectedPost.title), content: selectedPost.content, metaDescription: selectedPost.metaDescription, featuredImageUrl: selectedPost.featuredImageUrl || "" }); }}
-                  className="text-xs font-medium px-4 py-2 rounded-lg border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={saveEdits}
-                  disabled={saving}
-                  className="text-xs font-medium px-4 py-2 rounded-lg bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:opacity-90 disabled:opacity-40"
-                >
-                  {saving ? "Saving..." : "Save Changes"}
-                </button>
-              </div>
-            )}
           </div>
-        </div>
         );
       })()}
+    </div>
+  );
+}
+
+function Stat({ label, value, tone }: { label: string; value: number; tone?: "destructive" }) {
+  return (
+    <div>
+      <span className={`font-semibold ${tone === "destructive" ? "text-[var(--color-destructive)]" : "text-[var(--color-foreground)]"}`}>{value}</span>{" "}
+      <span className="text-[var(--color-muted-foreground)]">{label}</span>
+    </div>
+  );
+}
+
+function MetaRow({
+  label, value, placeholder, editing, onChange, copyKey, copiedField, onCopy,
+  counter, counterTone, multiline, mono, prefix,
+}: {
+  label: string;
+  value: string;
+  placeholder?: string;
+  editing: boolean;
+  onChange: (v: string) => void;
+  copyKey: string;
+  copiedField: string | null;
+  onCopy: () => void;
+  counter?: string;
+  counterTone?: "ok" | "bad" | "muted";
+  multiline?: boolean;
+  mono?: boolean;
+  prefix?: string;
+}) {
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-center justify-between mb-1">
+        <label className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">{label}</label>
+        <div className="flex items-center gap-2">
+          {counter && (
+            <span className={`text-[10px] ${
+              counterTone === "ok"  ? "text-[var(--color-success)]" :
+              counterTone === "bad" ? "text-[var(--color-destructive)]" :
+                                      "text-[var(--color-muted-foreground)]"
+            }`}>{counter}</span>
+          )}
+          <button
+            onClick={onCopy}
+            className={`text-[10px] font-medium px-2 py-1 rounded transition-all ${
+              copiedField === copyKey
+                ? "bg-[var(--color-success)] text-[var(--color-primary-foreground)]"
+                : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-hover)]"
+            }`}
+          >
+            {copiedField === copyKey ? "Copied!" : "Copy"}
+          </button>
+        </div>
+      </div>
+      {editing ? (
+        multiline ? (
+          <textarea
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            rows={2}
+            className="w-full bg-[var(--color-card)] border border-[var(--color-border)] rounded px-2 py-1.5 text-xs text-[var(--color-foreground)]"
+          />
+        ) : (
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className={`w-full bg-[var(--color-card)] border border-[var(--color-border)] rounded px-2 py-1.5 text-sm text-[var(--color-foreground)] ${mono ? "font-mono" : ""}`}
+          />
+        )
+      ) : value ? (
+        <p className={`text-sm text-[var(--color-foreground)] ${mono ? "font-mono" : ""}`}>{prefix}{value}</p>
+      ) : (
+        <p className="text-sm italic text-[var(--color-muted-foreground)]">
+          {placeholder ? `(falls back to: ${placeholder})` : "(empty)"}
+        </p>
+      )}
     </div>
   );
 }
