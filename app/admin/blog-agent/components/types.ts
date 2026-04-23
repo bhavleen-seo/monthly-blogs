@@ -52,6 +52,7 @@ export interface Post {
   wordCount: number;
   status: string;
   publishedUrl?: string;
+  wordpressPostId?: number;
   content: string;
   excerpt: string;
   metaDescription: string;

@@ -144,12 +144,76 @@ export default function PostsTab({
         )}
       </div>
 
-      {/* Empty state */}
-      {!clientId && (
-        <div className="text-center py-20">
-          <p className="text-[var(--color-muted-foreground)] text-sm">Select a client above to view their posts.</p>
-        </div>
-      )}
+      {/* Empty state — show clients that have posts so user can jump in */}
+      {!clientId && (() => {
+        const byClient = new Map<string, { clientId: string; clientName: string; ready: number; drafts: number; published: number; failed: number }>();
+        for (const p of posts) {
+          if (!byClient.has(p.clientId)) {
+            byClient.set(p.clientId, { clientId: p.clientId, clientName: p.clientName, ready: 0, drafts: 0, published: 0, failed: 0 });
+          }
+          const entry = byClient.get(p.clientId)!;
+          if (p.status === "ready") entry.ready++;
+          else if (p.status === "draft") entry.drafts++;
+          else if (p.status === "published") entry.published++;
+          else if (p.status === "failed") entry.failed++;
+        }
+        const rows = Array.from(byClient.values())
+          .sort((a, b) => (b.failed + b.ready) - (a.failed + a.ready) || b.published - a.published);
+
+        if (rows.length === 0) {
+          return (
+            <div className="text-center py-20">
+              <p className="text-[var(--color-muted-foreground)] text-sm">Select a client above — or go to the Topics tab to approve topics, then write posts for them.</p>
+            </div>
+          );
+        }
+        return (
+          <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl overflow-hidden">
+            <div className="px-5 py-3 bg-[var(--color-muted)]/40 border-b border-[var(--color-border)]">
+              <h3 className="text-xs font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">
+                Clients with posts ({rows.length})
+              </h3>
+              <p className="text-[11px] text-[var(--color-muted-foreground)] mt-0.5">Click a client to view their posts.</p>
+            </div>
+            <div className="divide-y divide-[var(--color-border)]">
+              {rows.map((row) => (
+                <button
+                  key={row.clientId}
+                  onClick={() => setClientId(row.clientId)}
+                  className="w-full flex items-center justify-between px-5 py-3 hover:bg-[var(--color-hover)] transition-colors text-left"
+                >
+                  <span className="text-sm font-medium text-[var(--color-foreground)] truncate">{row.clientName}</span>
+                  <div className="flex items-center gap-3 text-xs shrink-0">
+                    {row.failed > 0 && (
+                      <span className="text-[var(--color-destructive)]">
+                        <span className="font-semibold">{row.failed}</span> failed
+                      </span>
+                    )}
+                    {row.ready > 0 && (
+                      <span className="text-[var(--color-primary)]">
+                        <span className="font-semibold">{row.ready}</span> ready
+                      </span>
+                    )}
+                    {row.drafts > 0 && (
+                      <span className="text-[var(--color-muted-foreground)]">
+                        <span className="font-semibold">{row.drafts}</span> drafts
+                      </span>
+                    )}
+                    {row.published > 0 && (
+                      <span className="text-[var(--color-success)]">
+                        <span className="font-semibold">{row.published}</span> published
+                      </span>
+                    )}
+                    <svg className="w-3.5 h-3.5 text-[var(--color-muted-foreground)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Client summary + pipeline stats */}
       {clientId && client && (
@@ -228,22 +292,21 @@ export default function PostsTab({
                         </button>
                       )}
                       {post.status !== "published" && (
-                        <>
-                          <button
-                            onClick={() => onRewritePost(post.id)}
-                            disabled={loading}
-                            className="text-xs font-medium px-3 py-1.5 rounded-lg text-[var(--color-warning)] hover:bg-[var(--color-warning)]/10 transition-all disabled:opacity-40"
-                          >
-                            Rewrite
-                          </button>
-                          <button
-                            onClick={() => onDeletePost(post.id)}
-                            className="text-xs font-medium px-2 py-1.5 rounded-lg text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)] transition-all"
-                          >
-                            Remove
-                          </button>
-                        </>
+                        <button
+                          onClick={() => onRewritePost(post.id)}
+                          disabled={loading}
+                          className="text-xs font-medium px-3 py-1.5 rounded-lg text-[var(--color-warning)] hover:bg-[var(--color-warning)]/10 transition-all disabled:opacity-40"
+                        >
+                          Rewrite
+                        </button>
                       )}
+                      <button
+                        onClick={() => onDeletePost(post.id)}
+                        className="text-xs font-medium px-2 py-1.5 rounded-lg text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)] transition-all"
+                        title={post.status === "published" ? "Delete from dashboard and optionally WordPress" : "Remove from dashboard"}
+                      >
+                        {post.status === "published" ? "Delete" : "Remove"}
+                      </button>
                     </div>
                   </div>
                 );

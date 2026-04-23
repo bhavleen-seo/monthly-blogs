@@ -71,6 +71,68 @@ async function resolveCanonicalApiBase(client: Client): Promise<string> {
  * Returns up to ~500 most recent posts. Failures return an empty array so research
  * can still proceed (the downside is we might suggest a duplicate).
  */
+/**
+ * Delete a post from WordPress via the standard REST API (DELETE /wp/v2/posts/{id}).
+ * Returns { success, message } — never throws, so the caller can choose to
+ * continue with local deletion regardless.
+ *
+ * Uses the stored WP Application Password (same creds as native publish path).
+ * If the site has Wordfence or similar blocking these writes, the call will
+ * fail — in that case the UI should surface a link to the WP admin for manual
+ * trash/delete.
+ */
+export async function deleteFromWordPress(
+  client: Client,
+  wordpressPostId: number
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const configured = client.wordpressUrl.replace(/\/+$/, "");
+    let origin = configured;
+    try {
+      const canonical = await resolveCanonicalApiBase(client);
+      origin = new URL(canonical).origin;
+    } catch { /* fall back to configured */ }
+
+    const authHeader = await getAuthHeader(client);
+    // force=true → skip trash, delete permanently
+    const urls = [
+      `${origin}/wp-json/wp/v2/posts/${wordpressPostId}?force=true`,
+      `${configured}/wp-json/wp/v2/posts/${wordpressPostId}?force=true`,
+      `${origin}/?rest_route=/wp/v2/posts/${wordpressPostId}&force=true`,
+    ];
+    const unique = Array.from(new Set(urls));
+
+    let lastStatus = 0;
+    let lastBody = "";
+    for (const url of unique) {
+      const res = await fetch(url, {
+        method: "DELETE",
+        headers: { Authorization: authHeader },
+        redirect: "manual",
+      });
+      if (res.ok) {
+        return { success: true, message: `Deleted post ${wordpressPostId} from WordPress` };
+      }
+      if (res.status === 404) continue; // try next URL variant
+      lastStatus = res.status;
+      lastBody = (await res.text().catch(() => "")).slice(0, 200);
+      break;
+    }
+
+    return {
+      success: false,
+      message: lastStatus
+        ? `WordPress refused delete (${lastStatus}): ${lastBody}. Your WP credentials may not have delete permission, or Wordfence is blocking the request.`
+        : `Could not reach WordPress delete endpoint.`,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      message: `WordPress delete error: ${err instanceof Error ? err.message : "Unknown error"}`,
+    };
+  }
+}
+
 export async function getPublishedPostTitles(client: Client): Promise<string[]> {
   try {
     const apiBase = getApiBase(client);

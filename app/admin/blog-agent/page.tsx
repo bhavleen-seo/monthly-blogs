@@ -10,6 +10,13 @@ import PostsTab from "./components/posts-tab";
 import SettingsTab from "./components/settings-tab";
 import ScheduleTab from "./components/schedule-tab";
 
+type ActiveOp = {
+  kind: "research" | "write" | "rewrite" | "publish";
+  label: string;            // what to show in the banner
+  expected: string;         // rough duration hint
+  startedAt: number;
+} | null;
+
 export default function BlogAgentDashboard() {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
   const [clients, setClients] = useState<Client[]>([]);
@@ -18,6 +25,15 @@ export default function BlogAgentDashboard() {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" | "info" } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeOp, setActiveOp] = useState<ActiveOp>(null);
+  const [elapsedTick, setElapsedTick] = useState(0); // forces a re-render every second
+
+  // Update the elapsed-time counter every second while an op is running.
+  useEffect(() => {
+    if (!activeOp) return;
+    const id = setInterval(() => setElapsedTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [activeOp]);
 
   const showToast = (msg: string, type: "success" | "error" | "info" = "info") => {
     setToast({ msg, type });
@@ -137,7 +153,11 @@ export default function BlogAgentDashboard() {
 
   const handleResearchTopics = async (clientId?: string, regenerate = false) => {
     setLoading(true);
-    showToast(regenerate ? "Regenerating topics..." : "Researching topics...", "info");
+    const clientName = clientId ? clients.find((c) => c.id === clientId)?.businessName : undefined;
+    const label = clientName
+      ? `${regenerate ? "Regenerating" : "Researching"} topics for ${clientName}`
+      : `${regenerate ? "Regenerating" : "Researching"} topics for all active clients`;
+    setActiveOp({ kind: "research", label, expected: "usually 30-90 seconds per client", startedAt: Date.now() });
     try {
       const res = await fetch("/api/blog-agent/topics", {
         method: "POST",
@@ -148,6 +168,7 @@ export default function BlogAgentDashboard() {
       res.ok ? showToast(`Generated ${data.totalTopics} topics!`, "success") : showToast(`Error: ${data.error}`, "error");
       fetchTopics();
     } catch { showToast("Failed to research topics", "error"); }
+    setActiveOp(null);
     setLoading(false);
   };
 
@@ -174,12 +195,12 @@ export default function BlogAgentDashboard() {
 
   const handleWritePosts = async (clientId?: string, topicIds?: string[]) => {
     setLoading(true);
-    showToast(
-      topicIds?.length
-        ? `Writing ${topicIds.length} selected post(s)...`
-        : "Writing blog posts...",
-      "info"
-    );
+    const count = topicIds?.length || 0;
+    const clientName = clientId ? clients.find((c) => c.id === clientId)?.businessName : undefined;
+    const label = count > 0
+      ? `Writing ${count} selected post${count === 1 ? "" : "s"}${clientName ? ` for ${clientName}` : ""}`
+      : `Writing posts${clientName ? ` for ${clientName}` : " from all approved topics"}`;
+    setActiveOp({ kind: "write", label, expected: "usually 1-3 minutes per post", startedAt: Date.now() });
     try {
       const res = await fetch("/api/blog-agent/posts", {
         method: "POST",
@@ -191,6 +212,7 @@ export default function BlogAgentDashboard() {
       fetchPosts();
       fetchTopics();
     } catch { showToast("Failed to write posts", "error"); }
+    setActiveOp(null);
     setLoading(false);
   };
 
@@ -199,7 +221,7 @@ export default function BlogAgentDashboard() {
     if (!post) return;
     if (!confirm(`Rewrite "${post.title}"? The current version will be replaced.`)) return;
     setLoading(true);
-    showToast("Rewriting post...", "info");
+    setActiveOp({ kind: "rewrite", label: `Rewriting "${post.title.slice(0, 60)}${post.title.length > 60 ? "…" : ""}"`, expected: "usually 1-3 minutes", startedAt: Date.now() });
     try {
       // Delete old version
       await fetch(`/api/blog-agent/posts?id=${postId}`, { method: "DELETE" });
@@ -213,14 +235,46 @@ export default function BlogAgentDashboard() {
       res.ok ? showToast(`Rewritten! ${data.postsWritten} post(s)`, "success") : showToast(`Error: ${data.error}`, "error");
       fetchPosts();
     } catch { showToast("Failed to rewrite post", "error"); }
+    setActiveOp(null);
     setLoading(false);
   };
 
   const handleDeletePost = async (id: string) => {
-    if (!confirm("Remove this post?")) return;
-    const res = await fetch(`/api/blog-agent/posts?id=${id}`, { method: "DELETE" });
+    const post = posts.find((p) => p.id === id);
+    const isPublished = post?.status === "published" && post?.wordpressPostId;
+    let deleteFromWp = false;
+
+    if (isPublished) {
+      const choice = confirm(
+        `"${post.title}" is already published on WordPress.\n\n` +
+        `Click OK to delete it from BOTH the dashboard AND the live WordPress site.\n` +
+        `Click Cancel to only remove the record from the dashboard (the live post stays up).`
+      );
+      deleteFromWp = choice;
+    } else {
+      if (!confirm("Remove this post?")) return;
+    }
+
+    const url = `/api/blog-agent/posts?id=${id}${deleteFromWp ? "&deleteFromWp=true" : ""}`;
+    const res = await fetch(url, { method: "DELETE" });
     if (res.ok) {
-      showToast("Post removed", "info");
+      const data = await res.json();
+      if (deleteFromWp && data.wpResult) {
+        if (data.wpResult.success) {
+          showToast("Deleted from dashboard and WordPress", "success");
+        } else {
+          // WP delete failed — tell user + give them a manual-delete link if we have one
+          const adminUrl = post?.wordpressPostId && post?.publishedUrl
+            ? `${new URL(post.publishedUrl).origin}/wp-admin/post.php?post=${post.wordpressPostId}&action=edit`
+            : null;
+          showToast(
+            `Deleted from dashboard. WordPress delete failed — ${data.wpResult.message}${adminUrl ? ` Open: ${adminUrl}` : ""}`,
+            "error"
+          );
+        }
+      } else {
+        showToast("Post removed from dashboard", "info");
+      }
       fetchPosts();
     } else {
       showToast("Failed to remove post", "error");
@@ -229,7 +283,8 @@ export default function BlogAgentDashboard() {
 
   const handlePublishPosts = async (clientId?: string) => {
     setLoading(true);
-    showToast("Publishing to WordPress...", "info");
+    const clientName = clientId ? clients.find((c) => c.id === clientId)?.businessName : undefined;
+    setActiveOp({ kind: "publish", label: `Publishing to WordPress${clientName ? ` — ${clientName}` : ""}`, expected: "usually 15-45 seconds per post", startedAt: Date.now() });
     try {
       const res = await fetch("/api/blog-agent/posts/publish", {
         method: "POST",
@@ -240,12 +295,14 @@ export default function BlogAgentDashboard() {
       res.ok ? showToast(`Published ${data.summary.success}/${data.summary.total} posts!`, "success") : showToast(`Error: ${data.error}`, "error");
       fetchPosts();
     } catch { showToast("Failed to publish posts", "error"); }
+    setActiveOp(null);
     setLoading(false);
   };
 
   const handlePublishSinglePost = async (postId: string) => {
     setLoading(true);
-    showToast("Publishing to WordPress...", "info");
+    const post = posts.find((p) => p.id === postId);
+    setActiveOp({ kind: "publish", label: `Publishing "${(post?.title || "post").slice(0, 60)}${(post?.title.length || 0) > 60 ? "…" : ""}"`, expected: "usually 15-45 seconds", startedAt: Date.now() });
     try {
       const res = await fetch("/api/blog-agent/posts/publish", {
         method: "POST",
@@ -263,6 +320,7 @@ export default function BlogAgentDashboard() {
       }
       fetchPosts();
     } catch { showToast("Failed to publish post", "error"); }
+    setActiveOp(null);
     setLoading(false);
   };
 
@@ -309,8 +367,29 @@ export default function BlogAgentDashboard() {
         </div>
       )}
 
+      {/* Active operation banner — sticky while anything is running */}
+      {activeOp && (() => {
+        const elapsedSec = Math.floor((Date.now() - activeOp.startedAt) / 1000);
+        // Force linter to see elapsedTick is used so the re-render fires every second
+        void elapsedTick;
+        const elapsed = elapsedSec < 60
+          ? `${elapsedSec}s`
+          : `${Math.floor(elapsedSec / 60)}m ${elapsedSec % 60}s`;
+        return (
+          <div className="fixed top-0 md:left-60 left-0 right-0 z-40 bg-[var(--color-primary)] text-[var(--color-primary-foreground)] px-4 md:px-8 py-2.5 shadow-md flex items-center gap-3 text-sm">
+            <svg className="animate-spin w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+            <span className="font-medium truncate">{activeOp.label}…</span>
+            <span className="opacity-80 shrink-0">{elapsed}</span>
+            <span className="opacity-70 hidden md:inline shrink-0">·  {activeOp.expected}</span>
+          </div>
+        );
+      })()}
+
       {/* Main content */}
-      <main className="pt-14 md:pt-0 md:pl-60 min-h-screen">
+      <main className={`${activeOp ? "pt-24 md:pt-10" : "pt-14 md:pt-0"} md:pl-60 min-h-screen`}>
         <div className="max-w-6xl mx-auto px-4 py-6 md:px-8 md:py-8">
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-[var(--color-foreground)]">

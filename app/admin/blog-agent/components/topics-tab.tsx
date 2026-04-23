@@ -104,12 +104,66 @@ export default function TopicsTab({
         )}
       </div>
 
-      {/* Empty state */}
-      {!clientId && (
-        <div className="text-center py-20">
-          <p className="text-[var(--color-muted-foreground)] text-sm">Select a client above to view their topics.</p>
-        </div>
-      )}
+      {/* Empty state — show clients that have topics so user can jump in */}
+      {!clientId && (() => {
+        // Build a mini-summary grouped by client, sorted by pending count desc.
+        const byClient = new Map<string, { clientId: string; clientName: string; pending: number; approved: number }>();
+        for (const t of topics) {
+          if (!byClient.has(t.clientId)) {
+            byClient.set(t.clientId, { clientId: t.clientId, clientName: t.clientName, pending: 0, approved: 0 });
+          }
+          const entry = byClient.get(t.clientId)!;
+          if (t.status === "pending") entry.pending++;
+          else if (t.status === "approved") entry.approved++;
+        }
+        const rows = Array.from(byClient.values())
+          .filter((r) => r.pending > 0 || r.approved > 0)
+          .sort((a, b) => b.pending - a.pending || b.approved - a.approved);
+
+        if (rows.length === 0) {
+          return (
+            <div className="text-center py-20">
+              <p className="text-[var(--color-muted-foreground)] text-sm">Select a client above — or go to the Clients tab and click &quot;Research&quot; on a client to generate topic suggestions.</p>
+            </div>
+          );
+        }
+        return (
+          <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl overflow-hidden">
+            <div className="px-5 py-3 bg-[var(--color-muted)]/40 border-b border-[var(--color-border)]">
+              <h3 className="text-xs font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">
+                Clients with topics ({rows.length})
+              </h3>
+              <p className="text-[11px] text-[var(--color-muted-foreground)] mt-0.5">Click a client to view their pending/approved topics.</p>
+            </div>
+            <div className="divide-y divide-[var(--color-border)]">
+              {rows.map((row) => (
+                <button
+                  key={row.clientId}
+                  onClick={() => { setClientId(row.clientId); clearSelection(); setExpandedRationales(new Set()); }}
+                  className="w-full flex items-center justify-between px-5 py-3 hover:bg-[var(--color-hover)] transition-colors text-left"
+                >
+                  <span className="text-sm font-medium text-[var(--color-foreground)] truncate">{row.clientName}</span>
+                  <div className="flex items-center gap-3 text-xs shrink-0">
+                    {row.pending > 0 && (
+                      <span className="text-[var(--color-warning)]">
+                        <span className="font-semibold">{row.pending}</span> pending
+                      </span>
+                    )}
+                    {row.approved > 0 && (
+                      <span className="text-[var(--color-muted-foreground)]">
+                        <span className="font-semibold">{row.approved}</span> approved
+                      </span>
+                    )}
+                    <svg className="w-3.5 h-3.5 text-[var(--color-muted-foreground)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Client summary + counts */}
       {clientId && client && (
