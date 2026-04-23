@@ -506,20 +506,40 @@ export async function testWordPressConnection(
       } catch { /* network error, try next URL */ }
     }
 
-    // Neither URL worked — fetch /wp-json/ to see what namespaces ARE registered,
-    // so we can tell if the plugin loaded at all vs wrong URL.
+    // Neither URL worked — diagnose by fetching:
+    //   1. /wp-json/              → list of all registered namespaces
+    //   2. /wp-json/cs-publisher/v1 → list of routes under our namespace
+    // This tells us whether the plugin is loaded at all, and if so, which
+    // routes it actually registered (vs the ones we're calling).
     let namespaceInfo = "";
+    let hasNamespace = false;
     try {
       const nsRes = await fetch(`${configured}/wp-json/`, { redirect: "follow" });
       if (nsRes.ok) {
         const nsData: { namespaces?: string[] } = await nsRes.json();
         const ns = nsData.namespaces || [];
-        const hasPlugin = ns.includes("cs-publisher/v1");
-        namespaceInfo = hasPlugin
-          ? " (namespace IS registered — secret mismatch?)"
-          : ` (namespace missing from WP — registered: ${ns.slice(0, 8).join(", ")})`;
+        hasNamespace = ns.includes("cs-publisher/v1");
+        if (!hasNamespace) {
+          namespaceInfo = ` — plugin NOT loaded (WP has: ${ns.slice(0, 10).join(", ")})`;
+        }
       }
     } catch { /* ignore */ }
+
+    if (hasNamespace) {
+      // Namespace exists but /ping route is 404 — check what routes ARE there.
+      try {
+        const routesRes = await fetch(`${configured}/wp-json/cs-publisher/v1`, { redirect: "follow" });
+        if (routesRes.ok) {
+          const routesData: { routes?: Record<string, unknown> } = await routesRes.json();
+          const routes = Object.keys(routesData.routes || {});
+          namespaceInfo = routes.length
+            ? ` — namespace exists but /ping blocked (routes found: ${routes.join(", ")}). Wordfence or similar is blocking the specific path.`
+            : ` — namespace registered but NO routes under it. Plugin file has a PHP error; check WP error log.`;
+        } else {
+          namespaceInfo = ` — namespace exists but /cs-publisher/v1/ returned ${routesRes.status}. Wordfence or firewall is blocking the path.`;
+        }
+      } catch { /* ignore */ }
+    }
 
     return {
       success: false,
