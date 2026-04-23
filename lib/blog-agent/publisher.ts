@@ -252,15 +252,21 @@ async function publishViaCsPublisher(
   post: BlogPost,
   publishAsDraft: boolean
 ): Promise<{ wordpressPostId: number; publishedUrl: string }> {
-  // Prefer the redirect-resolved origin; fall back to the configured URL so
-  // the plugin works even when the resolver lands on the wrong host.
+  // Prefer the redirect-resolved origin; fall back to the configured URL.
   const configured = client.wordpressUrl.replace(/\/+$/, "");
   let origin = configured;
   try {
     const canonical = await resolveCanonicalApiBase(client);
     origin = new URL(canonical).origin;
   } catch { /* fall back to configured */ }
-  const url = `${origin}/wp-json/cs-publisher/v1/publish`;
+
+  // Try pretty URL first, then query-string fallback (works when pretty
+  // permalinks / URL rewriting is broken or when a cache layer serves stale
+  // 404s for the pretty path).
+  const urlCandidates = [
+    `${origin}/wp-json/cs-publisher/v1/publish`,
+    `${origin}/?rest_route=/cs-publisher/v1/publish`,
+  ];
 
   const onPageH1 = post.h1 || post.title;
   const focusKeyword = post.targetKeywords?.[0] || "";
@@ -286,22 +292,35 @@ async function publishViaCsPublisher(
     },
   };
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-CS-Secret": client.csPublisherSecret!,
-    },
-    body: JSON.stringify(body),
-    redirect: "manual",
-  });
+  let res!: Response;
+  let lastErrText = "";
+  for (const url of urlCandidates) {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CS-Secret": client.csPublisherSecret!,
+      },
+      body: JSON.stringify(body),
+      redirect: "manual",
+    });
 
-  if (res.status >= 300 && res.status < 400) {
-    const location = res.headers.get("location") || "(no Location)";
-    throw new Error(`CS Publisher redirected to ${location} — update wordpressUrl to canonical origin.`);
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get("location") || "(no Location)";
+      throw new Error(`CS Publisher redirected to ${location} — update wordpressUrl to canonical origin.`);
+    }
+
+    // 404 rest_no_route — try next URL format
+    if (res.status === 404) {
+      lastErrText = await res.text();
+      continue;
+    }
+    // Any other status — use this response (ok or error)
+    break;
   }
+
   if (!res.ok) {
-    const errText = await res.text();
+    const errText = res.status === 404 ? lastErrText : await res.text();
     throw new Error(
       `CS Publisher failed: ${res.status} ${res.statusText} — ${errText.slice(0, 500)}`
     );
@@ -447,9 +466,19 @@ export async function testWordPressConnection(
       resolvedOrigin = new URL(canonical).origin;
     } catch { /* fall back to configured */ }
 
+    // Four URL formats to try, in order of preference:
+    //   1. Pretty permalink on resolved (canonical) origin
+    //   2. Pretty permalink on configured URL
+    //   3. Query-string fallback on resolved origin (bypasses URL rewriting/cache)
+    //   4. Query-string fallback on configured URL
+    // The query-string format always works even when pretty permalinks are
+    // broken by a bad .htaccess, a caching layer serving stale 404s for that
+    // exact URL, or a WAF rule that only matches the pretty path.
     const rawUrls = [
       `${resolvedOrigin}/wp-json/cs-publisher/v1/ping`,
       `${configured}/wp-json/cs-publisher/v1/ping`,
+      `${resolvedOrigin}/?rest_route=/cs-publisher/v1/ping`,
+      `${configured}/?rest_route=/cs-publisher/v1/ping`,
     ];
     const urlsToTry = rawUrls.filter((u, i) => rawUrls.indexOf(u) === i);
 
