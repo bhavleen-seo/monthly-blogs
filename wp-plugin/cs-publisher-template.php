@@ -96,9 +96,15 @@ function cs_publisher_check_secret(WP_REST_Request $req) {
     if (!$secret || $secret === '__CS_PUBLISHER_SECRET__') {
         return new WP_Error('cs_publisher_unconfigured', 'CS_PUBLISHER_SECRET not configured — re-download installer from the dashboard', ['status' => 500]);
     }
+    // Accept secret from the X-CS-Secret header (preferred) OR the cs_secret
+    // query/body parameter (fallback for sites where Wordfence or similar WAFs
+    // drop requests with custom auth headers).
     $provided = (string)$req->get_header('x-cs-secret');
+    if ($provided === '') {
+        $provided = (string)$req->get_param('cs_secret');
+    }
     if (!$provided || !hash_equals((string)$secret, $provided)) {
-        return new WP_Error('cs_publisher_unauthorized', 'Invalid or missing X-CS-Secret header', ['status' => 401]);
+        return new WP_Error('cs_publisher_unauthorized', 'Invalid or missing secret', ['status' => 401]);
     }
 
     $user_id = (int)CS_PUBLISHER_USER_ID;

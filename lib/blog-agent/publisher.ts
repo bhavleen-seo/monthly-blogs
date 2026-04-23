@@ -260,12 +260,15 @@ async function publishViaCsPublisher(
     origin = new URL(canonical).origin;
   } catch { /* fall back to configured */ }
 
-  // Try pretty URL first, then query-string fallback (works when pretty
-  // permalinks / URL rewriting is broken or when a cache layer serves stale
-  // 404s for the pretty path).
-  const urlCandidates = [
-    `${origin}/wp-json/cs-publisher/v1/publish`,
-    `${origin}/?rest_route=/cs-publisher/v1/publish`,
+  // Try 4 variants: pretty URL × (header vs query-param auth), then rest_route × same.
+  // Header is preferred; query-param is the fallback for sites where Wordfence
+  // or similar drops requests with custom auth headers.
+  const encodedSecret = encodeURIComponent(client.csPublisherSecret!);
+  const attempts: { url: string; useHeader: boolean }[] = [
+    { url: `${origin}/wp-json/cs-publisher/v1/publish`, useHeader: true },
+    { url: `${origin}/wp-json/cs-publisher/v1/publish?cs_secret=${encodedSecret}`, useHeader: false },
+    { url: `${origin}/?rest_route=/cs-publisher/v1/publish`, useHeader: true },
+    { url: `${origin}/?rest_route=/cs-publisher/v1/publish&cs_secret=${encodedSecret}`, useHeader: false },
   ];
 
   const onPageH1 = post.h1 || post.title;
@@ -294,13 +297,13 @@ async function publishViaCsPublisher(
 
   let res!: Response;
   let lastErrText = "";
-  for (const url of urlCandidates) {
+  for (const { url, useHeader } of attempts) {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (useHeader) headers["X-CS-Secret"] = client.csPublisherSecret!;
+
     res = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CS-Secret": client.csPublisherSecret!,
-      },
+      headers,
       body: JSON.stringify(body),
       redirect: "manual",
     });
@@ -310,7 +313,7 @@ async function publishViaCsPublisher(
       throw new Error(`CS Publisher redirected to ${location} — update wordpressUrl to canonical origin.`);
     }
 
-    // 404 rest_no_route — try next URL format
+    // 404 rest_no_route — try next variant
     if (res.status === 404) {
       lastErrText = await res.text();
       continue;
@@ -466,26 +469,37 @@ export async function testWordPressConnection(
       resolvedOrigin = new URL(canonical).origin;
     } catch { /* fall back to configured */ }
 
-    // Four URL formats to try, in order of preference:
-    //   1. Pretty permalink on resolved (canonical) origin
-    //   2. Pretty permalink on configured URL
-    //   3. Query-string fallback on resolved origin (bypasses URL rewriting/cache)
-    //   4. Query-string fallback on configured URL
-    // The query-string format always works even when pretty permalinks are
-    // broken by a bad .htaccess, a caching layer serving stale 404s for that
-    // exact URL, or a WAF rule that only matches the pretty path.
-    const rawUrls = [
-      `${resolvedOrigin}/wp-json/cs-publisher/v1/ping`,
-      `${configured}/wp-json/cs-publisher/v1/ping`,
-      `${resolvedOrigin}/?rest_route=/cs-publisher/v1/ping`,
-      `${configured}/?rest_route=/cs-publisher/v1/ping`,
+    // Try 4 URL formats × 2 auth styles (header + query param) in order:
+    //   - Pretty permalink with X-CS-Secret header
+    //   - Pretty permalink with ?cs_secret= query param (WAF fallback)
+    //   - Query-string rest_route with header
+    //   - Query-string rest_route with cs_secret in URL
+    // Header is preferred (doesn't leak the secret in server logs). Query-param
+    // is the fallback for Wordfence-hardened sites that drop custom headers.
+    const encodedSecret = encodeURIComponent(client.csPublisherSecret);
+    const attempts: { url: string; useHeader: boolean }[] = [
+      { url: `${resolvedOrigin}/wp-json/cs-publisher/v1/ping`, useHeader: true },
+      { url: `${resolvedOrigin}/wp-json/cs-publisher/v1/ping?cs_secret=${encodedSecret}`, useHeader: false },
+      { url: `${configured}/wp-json/cs-publisher/v1/ping`, useHeader: true },
+      { url: `${configured}/wp-json/cs-publisher/v1/ping?cs_secret=${encodedSecret}`, useHeader: false },
+      { url: `${resolvedOrigin}/?rest_route=/cs-publisher/v1/ping`, useHeader: true },
+      { url: `${resolvedOrigin}/?rest_route=/cs-publisher/v1/ping&cs_secret=${encodedSecret}`, useHeader: false },
+      { url: `${configured}/?rest_route=/cs-publisher/v1/ping`, useHeader: true },
+      { url: `${configured}/?rest_route=/cs-publisher/v1/ping&cs_secret=${encodedSecret}`, useHeader: false },
     ];
-    const urlsToTry = rawUrls.filter((u, i) => rawUrls.indexOf(u) === i);
+    const seenKeys = new Set<string>();
+    const attemptsToTry = attempts.filter((a) => {
+      const key = `${a.url}|${a.useHeader}`;
+      if (seenKeys.has(key)) return false;
+      seenKeys.add(key);
+      return true;
+    });
+    const urlsToTry = Array.from(new Set(attempts.map((a) => a.url)));
 
-    for (const pingUrl of urlsToTry) {
+    for (const { url: pingUrl, useHeader } of attemptsToTry) {
       try {
         const pingRes = await fetch(pingUrl, {
-          headers: { "X-CS-Secret": client.csPublisherSecret },
+          headers: useHeader ? { "X-CS-Secret": client.csPublisherSecret } : {},
         });
         if (pingRes.ok) {
           const info: { user_login?: string; user_id?: number; version?: string } =
@@ -499,7 +513,7 @@ export async function testWordPressConnection(
         if (pingRes.status === 401) {
           return {
             success: false,
-            message: `Plugin found at ${pingUrl} but secret doesn't match — download a fresh installer and re-upload`,
+            message: `Plugin found but secret doesn't match — click Get Plugin to download a fresh installer and re-upload`,
           };
         }
         // 404 rest_no_route — plugin not loaded on this URL, try next
