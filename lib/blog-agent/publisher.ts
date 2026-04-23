@@ -252,8 +252,14 @@ async function publishViaCsPublisher(
   post: BlogPost,
   publishAsDraft: boolean
 ): Promise<{ wordpressPostId: number; publishedUrl: string }> {
-  const canonical = await resolveCanonicalApiBase(client);
-  const origin = new URL(canonical).origin;
+  // Prefer the redirect-resolved origin; fall back to the configured URL so
+  // the plugin works even when the resolver lands on the wrong host.
+  const configured = client.wordpressUrl.replace(/\/+$/, "");
+  let origin = configured;
+  try {
+    const canonical = await resolveCanonicalApiBase(client);
+    origin = new URL(canonical).origin;
+  } catch { /* fall back to configured */ }
   const url = `${origin}/wp-json/cs-publisher/v1/publish`;
 
   const onPageH1 = post.h1 || post.title;
@@ -430,33 +436,66 @@ export async function testWordPressConnection(
   // the plugin posts as, and get a clear error if the plugin is missing or
   // the secret is wrong.
   if (client.csPublisherSecret) {
+    // Try two URLs: (1) the redirect-resolved canonical origin, (2) the raw
+    // configured URL. This catches cases where the redirect resolver lands on
+    // the wrong host (CDN, staging, etc.) while the plugin lives on the
+    // configured URL.
+    const configured = client.wordpressUrl.replace(/\/+$/, "");
+    let resolvedOrigin = configured;
     try {
       const canonical = await resolveCanonicalApiBase(client);
-      const origin = new URL(canonical).origin;
-      const pingRes = await fetch(`${origin}/wp-json/cs-publisher/v1/ping`, {
-        headers: { "X-CS-Secret": client.csPublisherSecret },
-      });
-      if (!pingRes.ok) {
-        const errText = await pingRes.text();
-        return {
-          success: false,
-          message:
-            `CS Publisher ping failed: ${pingRes.status} ${pingRes.statusText} — ` +
-            `${errText.slice(0, 300)}`,
-        };
-      }
-      const info: { user_login?: string; user_id?: number; version?: string } =
-        await pingRes.json();
-      return {
-        success: true,
-        message: `CS Publisher v${info.version ?? "?"} active — posting as ${info.user_login} (user #${info.user_id})`,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: `CS Publisher error: ${error instanceof Error ? error.message : "Unknown error"}`,
-      };
+      resolvedOrigin = new URL(canonical).origin;
+    } catch { /* fall back to configured */ }
+
+    const rawUrls = [
+      `${resolvedOrigin}/wp-json/cs-publisher/v1/ping`,
+      `${configured}/wp-json/cs-publisher/v1/ping`,
+    ];
+    const urlsToTry = rawUrls.filter((u, i) => rawUrls.indexOf(u) === i);
+
+    for (const pingUrl of urlsToTry) {
+      try {
+        const pingRes = await fetch(pingUrl, {
+          headers: { "X-CS-Secret": client.csPublisherSecret },
+        });
+        if (pingRes.ok) {
+          const info: { user_login?: string; user_id?: number; version?: string } =
+            await pingRes.json();
+          return {
+            success: true,
+            message: `CS Publisher v${info.version ?? "?"} active — posting as ${info.user_login} (user #${info.user_id})`,
+          };
+        }
+        // 401 means plugin IS registered, secret just doesn't match
+        if (pingRes.status === 401) {
+          return {
+            success: false,
+            message: `Plugin found at ${pingUrl} but secret doesn't match — download a fresh installer and re-upload`,
+          };
+        }
+        // 404 rest_no_route — plugin not loaded on this URL, try next
+      } catch { /* network error, try next URL */ }
     }
+
+    // Neither URL worked — fetch /wp-json/ to see what namespaces ARE registered,
+    // so we can tell if the plugin loaded at all vs wrong URL.
+    let namespaceInfo = "";
+    try {
+      const nsRes = await fetch(`${configured}/wp-json/`, { redirect: "follow" });
+      if (nsRes.ok) {
+        const nsData: { namespaces?: string[] } = await nsRes.json();
+        const ns = nsData.namespaces || [];
+        const hasPlugin = ns.includes("cs-publisher/v1");
+        namespaceInfo = hasPlugin
+          ? " (namespace IS registered — secret mismatch?)"
+          : ` (namespace missing from WP — registered: ${ns.slice(0, 8).join(", ")})`;
+      }
+    } catch { /* ignore */ }
+
+    return {
+      success: false,
+      message: `Plugin not responding — tried: ${urlsToTry.join(" and ")}${namespaceInfo}`,
+    };
   }
 
   try {
