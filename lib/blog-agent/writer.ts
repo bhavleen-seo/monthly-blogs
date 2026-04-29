@@ -5,6 +5,8 @@ import { complete } from "./llm";
 import { analyzeKeywords, inferRegion } from "./serper";
 import { fetchPageContents, formatPageForPrompt } from "./youcom";
 import { searchStockImage, buildAltText } from "./freepik";
+import { fetchSiteContext } from "./site-context";
+import { fetchRecentPosts } from "./wp-posts";
 
 function generateSlug(title: string): string {
   return title
@@ -18,7 +20,7 @@ function generateSlug(title: string): string {
 const CORE_SEO_RULES = `
 - Primary keyword in the first 100 words and naturally in the final paragraph.
 - Use H2 for main sections (2–5 per post), H3 for subsections.
-- Include at least 2 internal links and 1 authoritative external link per post.
+- Include exactly 8 internal links (5 service pages + 3 recent blog posts) and 2 authoritative external links per post — pulled ONLY from the link pool provided in the prompt, never invented.
 - Build content around topic clusters — every blog should link to its pillar page and at least one related cluster post.
 - Use semantic keyword variations and related entities throughout (avoid exact-match keyword stuffing).
 - Include a concise, direct-answer paragraph (40–60 words) near the top of the post optimized for featured snippets and AI overviews.
@@ -182,9 +184,41 @@ export async function writeBlogPost(
     ? `\n\n## Additional Content Instructions from Settings (also mandatory)\n${settings.contentInstructions}`
     : "";
 
-  const internalLinkTargets: string[] = [];
-  if (topic.internalLinkTarget) internalLinkTargets.push(topic.internalLinkTarget);
   const websiteUrl = client.websiteUrl || client.wordpressUrl;
+
+  // Build the real pool of internal-link targets so the writer never invents
+  // URLs. Service pages come from the homepage nav; blog posts come from the
+  // client's WP REST API. Both calls no-op gracefully on failure.
+  const [siteContext, recentPosts] = await Promise.all([
+    fetchSiteContext(websiteUrl),
+    fetchRecentPosts(client.wordpressUrl),
+  ]);
+
+  const servicePool = siteContext.servicePages
+    .filter((p) => p.url !== topic.internalLinkTarget)
+    .slice(0, 15);
+  const blogPool = recentPosts.slice(0, 15);
+
+  const servicePoolText = servicePool.length > 0
+    ? servicePool.map((p) => `- ${p.url} — "${p.label}"`).join("\n")
+    : "(none extracted from homepage nav — use only the primary service page above)";
+
+  const blogPoolText = blogPool.length > 0
+    ? blogPool.map((p) => `- ${p.url} — "${p.title}"`).join("\n")
+    : "(no published posts yet on this site — skip this category and make up the slack with more service-page links if needed)";
+
+  const linkPoolSection = `
+# Real Internal Link Pool (USE ONLY THESE URLS — NEVER INVENT)
+You MUST pick internal links ONLY from the URLs listed below. Do not guess or
+fabricate any URL on ${websiteUrl}. If the URL you want isn't in this list,
+don't link to it.
+
+## Service / Money Pages on This Site
+${topic.internalLinkTarget ? `- ${topic.internalLinkTarget} — primary service this post supports (link to this one for sure)\n` : ""}${servicePoolText}
+
+## Recent Blog Posts on This Site
+${blogPoolText}
+`.trim();
 
   // Pull top 3 currently-ranking pages for the primary informational keyword
   // so the writer can outperform them on depth and differentiation.
@@ -243,17 +277,22 @@ ${topic.supportsCommercialKeyword ? `- **Supporting commercial keyword:** "${top
 ${topic.funnelStage ? `- **Funnel stage:** ${topic.funnelStage} — ${topic.funnelStage === "TOFU" ? "educate and build trust, soft CTAs" : topic.funnelStage === "MOFU" ? "compare options, address objections, nudge toward service" : "decision-stage — clear CTA with service link"}` : ""}
 ${competitorSection}
 
-# Internal Linking Requirements (CRITICAL)
-You MUST include at least 2 internal links to pages on ${websiteUrl}. These should be:
-1. ${topic.internalLinkTarget ? `Link to the primary service page: ${topic.internalLinkTarget}` : `A link to the most relevant service page on ${websiteUrl}`}
-2. A link to another relevant page, blog post, or service category on ${websiteUrl}
+${linkPoolSection}
 
-Internal links MUST be:
-- Embedded naturally within paragraph text using keyword-rich anchor text
-- NOT standalone buttons, banners, or "click here" CTAs
-- Distributed throughout the post (not all in one section)
+# Internal & External Linking Requirements (CRITICAL)
+You MUST include EXACTLY:
+- **5 internal links to service / money pages** — pick from the "Service / Money Pages" list above. If the primary service page is listed, link to it for sure. If fewer than 5 unique service pages are available in the pool, use as many as exist (do not invent extras).
+- **3 internal links to recent blog posts** — pick from the "Recent Blog Posts" list above. If the pool is empty or smaller, use as many as exist (do not invent extras).
+- **2 external links** to high-authority sources (government sites, industry publications, peer-reviewed studies, established trade bodies — NEVER competitors, NEVER content farms).
 
-You MUST also include at least 1 authoritative external link to a high-authority source (government site, industry publication, research study — NOT a competitor).
+All links MUST be:
+- Embedded naturally inside paragraph text with keyword-rich anchor text
+- NEVER "click here", "learn more", or button-style CTAs
+- Distributed across the post — not clumped in one section
+- Each URL used only once (no duplicate links)
+- Internal anchor text should describe the destination page, not the current article
+
+CRITICAL: If a URL is not in the link pool above, you may NOT link to it as an internal link. Hallucinated URLs cause 404s on the live site.
 
 # Word Count
 Write ${minWords}–${maxWords} words. If the topic demands more depth, go up to ${Math.round(maxWords * 1.2)}. Never go below ${minWords}.
