@@ -87,22 +87,25 @@ export async function POST() {
   const today = new Date().toISOString().slice(0, 10);
   const title = `CS Design Studios — Published Blogs (${today})`;
 
-  // Step 1: create the spreadsheet
+  // Step 1: create the spreadsheet via Drive API (different code path from Sheets API)
   let spreadsheetId: string;
   let spreadsheetUrl: string;
-  let firstSheetId: number;
+  const firstSheetId = 0;
   try {
-    const createResp = await sheets.spreadsheets.create({
-      requestBody: { properties: { title } },
+    const driveResp = await drive.files.create({
+      requestBody: {
+        name: title,
+        mimeType: "application/vnd.google-apps.spreadsheet",
+      },
+      fields: "id,webViewLink",
     });
-    if (!createResp.data.spreadsheetId || !createResp.data.spreadsheetUrl) {
-      return NextResponse.json({ error: "[create] Google returned no spreadsheet ID/URL." }, { status: 500 });
+    if (!driveResp.data.id || !driveResp.data.webViewLink) {
+      return NextResponse.json({ error: "[create via Drive] Google returned no file ID/link." }, { status: 500 });
     }
-    spreadsheetId = createResp.data.spreadsheetId;
-    spreadsheetUrl = createResp.data.spreadsheetUrl;
-    firstSheetId = createResp.data.sheets?.[0]?.properties?.sheetId ?? 0;
+    spreadsheetId = driveResp.data.id;
+    spreadsheetUrl = driveResp.data.webViewLink;
   } catch (err) {
-    return NextResponse.json({ error: googleErrMsg(err, "create spreadsheet") }, { status: 500 });
+    return NextResponse.json({ error: googleErrMsg(err, "create spreadsheet via Drive") }, { status: 500 });
   }
 
   // Step 2: write the data
