@@ -5,100 +5,125 @@ import { getPosts, getClients } from "@/lib/blog-agent";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+function googleErrMsg(err: unknown, step: string): string {
+  if (err && typeof err === "object") {
+    const e = err as Record<string, unknown>;
+    // googleapis wraps API errors in err.response.data.error
+    const apiErr = (e.response as Record<string, unknown>)?.data as Record<string, unknown> | undefined;
+    if (apiErr?.error) {
+      const ae = apiErr.error as Record<string, unknown>;
+      return `[${step}] ${ae.message ?? ae.status ?? JSON.stringify(ae)} (HTTP ${(e.response as Record<string, unknown>)?.status ?? "?"})`;
+    }
+    if (typeof e.message === "string") return `[${step}] ${e.message}`;
+  }
+  return `[${step}] Unknown error`;
+}
+
 export async function POST() {
+  const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  const shareEmail = process.env.GOOGLE_SHEETS_SHARE_EMAIL;
+
+  if (!serviceAccountJson) {
+    return NextResponse.json(
+      { error: "GOOGLE_SERVICE_ACCOUNT_JSON is not set in Vercel. Paste the full contents of the .json key file as that variable's value." },
+      { status: 500 }
+    );
+  }
+  if (!shareEmail) {
+    return NextResponse.json(
+      { error: "GOOGLE_SHEETS_SHARE_EMAIL is not set. Set it to the email that should receive the sheet." },
+      { status: 500 }
+    );
+  }
+
+  let credentials: { client_email?: string; private_key?: string };
   try {
-    const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-    const shareEmail = process.env.GOOGLE_SHEETS_SHARE_EMAIL;
+    credentials = JSON.parse(serviceAccountJson);
+  } catch {
+    return NextResponse.json(
+      { error: "GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON. Paste the full file contents including the opening { and closing }." },
+      { status: 500 }
+    );
+  }
+  if (!credentials.client_email || !credentials.private_key) {
+    return NextResponse.json(
+      { error: "Service account JSON is missing client_email or private_key. Re-download the key file from Google Cloud Console." },
+      { status: 500 }
+    );
+  }
 
-    if (!serviceAccountJson) {
-      return NextResponse.json(
-        { error: "GOOGLE_SERVICE_ACCOUNT_JSON env var is not set in Vercel. Paste the entire contents of the service account .json key file as that variable's value." },
-        { status: 500 }
-      );
-    }
-    if (!shareEmail) {
-      return NextResponse.json(
-        { error: "GOOGLE_SHEETS_SHARE_EMAIL env var is not set. Set it to the Google account email that should receive the sheet." },
-        { status: 500 }
-      );
-    }
+  const [posts, clients] = await Promise.all([getPosts(), getClients()]);
+  const clientMap = new Map(clients.map((c) => [c.id, c]));
 
-    let credentials: { client_email?: string; private_key?: string };
-    try {
-      credentials = JSON.parse(serviceAccountJson);
-    } catch {
-      return NextResponse.json(
-        { error: "GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON. Make sure you pasted the full contents of the .json file (including the curly braces)." },
-        { status: 500 }
-      );
-    }
-    if (!credentials.client_email || !credentials.private_key) {
-      return NextResponse.json(
-        { error: "Service account JSON is missing client_email or private_key. Re-download the key file from Google Cloud Console." },
-        { status: 500 }
-      );
-    }
+  const rows = posts
+    .filter((p) => p.status === "published" && p.publishedUrl)
+    .map((p) => ({
+      clientName: clientMap.get(p.clientId)?.businessName || "Unknown",
+      url: p.publishedUrl!,
+    }))
+    .sort((a, b) => a.clientName.localeCompare(b.clientName) || a.url.localeCompare(b.url));
 
-    const [posts, clients] = await Promise.all([getPosts(), getClients()]);
-    const clientMap = new Map(clients.map((c) => [c.id, c]));
+  if (rows.length === 0) {
+    return NextResponse.json(
+      { error: "No published posts to export yet." },
+      { status: 400 }
+    );
+  }
 
-    const rows = posts
-      .filter((p) => p.status === "published" && p.publishedUrl)
-      .map((p) => ({
-        clientName: clientMap.get(p.clientId)?.businessName || "Unknown",
-        url: p.publishedUrl!,
-      }))
-      .sort((a, b) => a.clientName.localeCompare(b.clientName) || a.url.localeCompare(b.url));
+  const auth = new google.auth.GoogleAuth({
+    credentials: {
+      client_email: credentials.client_email,
+      private_key: credentials.private_key,
+    },
+    scopes: [
+      "https://www.googleapis.com/auth/spreadsheets",
+      "https://www.googleapis.com/auth/drive",
+    ],
+  });
 
-    if (rows.length === 0) {
-      return NextResponse.json(
-        { error: "No published posts to export yet — publish some posts first." },
-        { status: 400 }
-      );
-    }
+  const sheets = google.sheets({ version: "v4", auth });
+  const drive = google.drive({ version: "v3", auth });
 
-    const auth = new google.auth.JWT({
-      email: credentials.client_email,
-      key: credentials.private_key,
-      scopes: [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive",
-      ],
-    });
+  const today = new Date().toISOString().slice(0, 10);
+  const title = `CS Design Studios — Published Blogs (${today})`;
 
-    const sheets = google.sheets({ version: "v4", auth });
-    const drive = google.drive({ version: "v3", auth });
-
-    const today = new Date().toISOString().slice(0, 10);
-    const title = `CS Design Studios — Published Blogs (${today})`;
-
+  // Step 1: create the spreadsheet
+  let spreadsheetId: string;
+  let spreadsheetUrl: string;
+  let firstSheetId: number;
+  try {
     const createResp = await sheets.spreadsheets.create({
       requestBody: { properties: { title } },
     });
-
-    const spreadsheetId = createResp.data.spreadsheetId;
-    const spreadsheetUrl = createResp.data.spreadsheetUrl;
-    const firstSheetId = createResp.data.sheets?.[0]?.properties?.sheetId ?? 0;
-
-    if (!spreadsheetId || !spreadsheetUrl) {
-      return NextResponse.json(
-        { error: "Sheet was created but Google didn't return an ID/URL. Try again." },
-        { status: 500 }
-      );
+    if (!createResp.data.spreadsheetId || !createResp.data.spreadsheetUrl) {
+      return NextResponse.json({ error: "[create] Google returned no spreadsheet ID/URL." }, { status: 500 });
     }
+    spreadsheetId = createResp.data.spreadsheetId;
+    spreadsheetUrl = createResp.data.spreadsheetUrl;
+    firstSheetId = createResp.data.sheets?.[0]?.properties?.sheetId ?? 0;
+  } catch (err) {
+    return NextResponse.json({ error: googleErrMsg(err, "create spreadsheet") }, { status: 500 });
+  }
 
-    const values: (string | number)[][] = [
-      ["Client Name", "Blog URL"],
-      ...rows.map((r) => [r.clientName, r.url]),
-    ];
-
+  // Step 2: write the data
+  try {
     await sheets.spreadsheets.values.update({
       spreadsheetId,
       range: "A1",
       valueInputOption: "USER_ENTERED",
-      requestBody: { values },
+      requestBody: {
+        values: [
+          ["Client Name", "Blog URL"],
+          ...rows.map((r) => [r.clientName, r.url]),
+        ],
+      },
     });
+  } catch (err) {
+    return NextResponse.json({ error: googleErrMsg(err, "write data") }, { status: 500 });
+  }
 
+  // Step 3: format (bold header, freeze row, auto-resize)
+  try {
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
       requestBody: {
@@ -124,35 +149,27 @@ export async function POST() {
         ],
       },
     });
-
-    let shareWarning: string | undefined;
-    try {
-      await drive.permissions.create({
-        fileId: spreadsheetId,
-        sendNotificationEmail: false,
-        requestBody: {
-          type: "user",
-          role: "writer",
-          emailAddress: shareEmail,
-        },
-      });
-    } catch (shareErr) {
-      shareWarning = `Sheet was created but sharing with ${shareEmail} failed: ${
-        shareErr instanceof Error ? shareErr.message : "unknown error"
-      }. The link still works for the service account — open it manually.`;
-    }
-
-    return NextResponse.json({
-      url: spreadsheetUrl,
-      title,
-      rowCount: rows.length,
-      sharedWith: shareEmail,
-      shareWarning,
-    });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to create Google Sheet" },
-      { status: 500 }
-    );
+  } catch (err) {
+    return NextResponse.json({ error: googleErrMsg(err, "format sheet") }, { status: 500 });
   }
+
+  // Step 4: share with user (non-fatal if it fails)
+  let shareWarning: string | undefined;
+  try {
+    await drive.permissions.create({
+      fileId: spreadsheetId,
+      sendNotificationEmail: false,
+      requestBody: { type: "user", role: "writer", emailAddress: shareEmail },
+    });
+  } catch (shareErr) {
+    shareWarning = `Sheet created but sharing with ${shareEmail} failed: ${googleErrMsg(shareErr, "share")}. Find it in the service account's Drive or open via the link.`;
+  }
+
+  return NextResponse.json({
+    url: spreadsheetUrl,
+    title,
+    rowCount: rows.length,
+    sharedWith: shareEmail,
+    shareWarning,
+  });
 }
