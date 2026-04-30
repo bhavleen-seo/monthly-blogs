@@ -44,6 +44,7 @@ export default function PostsTab({
   const [draft, setDraft] = useState<Partial<Post>>({});
   const [saving, setSaving] = useState(false);
   const [contentView, setContentView] = useState<"preview" | "html">("preview");
+  const [creatingSheet, setCreatingSheet] = useState(false);
 
   const client = clients.find((c) => c.id === clientId);
 
@@ -63,6 +64,11 @@ export default function PostsTab({
     published: clientPosts.filter((p) => p.status === "published").length,
     failed:    clientPosts.filter((p) => p.status === "failed").length,
   };
+
+  const publishedWithUrlCount = useMemo(
+    () => posts.filter((p) => p.status === "published" && p.publishedUrl).length,
+    [posts]
+  );
 
   // Reset edit state when post changes
   useEffect(() => {
@@ -84,6 +90,27 @@ export default function PostsTab({
     await navigator.clipboard.writeText(value);
     setCopiedField(key);
     setTimeout(() => setCopiedField((k) => (k === key ? null : k)), 2000);
+  };
+
+  const createGoogleSheet = async () => {
+    if (creatingSheet || publishedWithUrlCount === 0) return;
+    setCreatingSheet(true);
+    try {
+      const res = await fetch("/api/blog-agent/posts/export-published-sheet", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(`Couldn't create the sheet:\n\n${data.error || "Unknown error"}`);
+        return;
+      }
+      if (data.shareWarning) {
+        alert(data.shareWarning);
+      }
+      window.open(data.url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      alert(`Couldn't create the sheet: ${err instanceof Error ? err.message : "Network error"}`);
+    } finally {
+      setCreatingSheet(false);
+    }
   };
 
   const saveEdits = async () => {
@@ -120,28 +147,43 @@ export default function PostsTab({
             <option key={c.id} value={c.id}>{c.businessName}</option>
           ))}
         </select>
-        {clientId && (
-          <div className="flex gap-2">
-            {counts.approvedTopics > 0 && (
-              <button
-                onClick={onWritePosts}
-                disabled={loading}
-                className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40"
-              >
-                Write Posts ({counts.approvedTopics})
-              </button>
-            )}
-            {counts.ready > 0 && (
-              <button
-                onClick={onPublishPosts}
-                disabled={loading}
-                className="bg-[var(--color-success)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40"
-              >
-                Publish ({counts.ready})
-              </button>
-            )}
-          </div>
-        )}
+        <div className="flex gap-2 flex-wrap">
+          <a
+            href="/api/blog-agent/posts/export-published"
+            className={`px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] hover:bg-[var(--color-hover)] transition-all ${
+              publishedWithUrlCount === 0 ? "pointer-events-none opacity-40" : ""
+            }`}
+            title="Download a CSV of all published posts (Client Name, Blog URL). Open it in Google Sheets via File → Import, or drag-and-drop."
+          >
+            Download CSV ({publishedWithUrlCount})
+          </a>
+          <button
+            onClick={createGoogleSheet}
+            disabled={creatingSheet || publishedWithUrlCount === 0}
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:opacity-90 disabled:opacity-40 transition-all"
+            title="Create a new Google Sheet with all published URLs. Opens in a new tab and is shared with you automatically."
+          >
+            {creatingSheet ? "Creating sheet…" : `Open in Google Sheets (${publishedWithUrlCount})`}
+          </button>
+          {clientId && counts.approvedTopics > 0 && (
+            <button
+              onClick={onWritePosts}
+              disabled={loading}
+              className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40"
+            >
+              Write Posts ({counts.approvedTopics})
+            </button>
+          )}
+          {clientId && counts.ready > 0 && (
+            <button
+              onClick={onPublishPosts}
+              disabled={loading}
+              className="bg-[var(--color-success)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40"
+            >
+              Publish ({counts.ready})
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Empty state — show clients that have posts so user can jump in */}
