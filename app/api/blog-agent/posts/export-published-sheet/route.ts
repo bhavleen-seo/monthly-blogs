@@ -87,7 +87,17 @@ export async function POST() {
   const today = new Date().toISOString().slice(0, 10);
   const title = `CS Design Studios — Published Blogs (${today})`;
 
-  // Step 1: create the spreadsheet via Drive API (different code path from Sheets API)
+  // Step 1: create the spreadsheet in the user's shared Drive folder.
+  // The service account has no Drive storage quota in this Workspace org, so
+  // it must write into a folder owned by the user (shared with the service account as Editor).
+  const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+  if (!folderId) {
+    return NextResponse.json(
+      { error: "GOOGLE_DRIVE_FOLDER_ID is not set. Create a folder in your Google Drive, share it with the service account as Editor, then paste the folder ID from the URL into that Vercel env var." },
+      { status: 500 }
+    );
+  }
+
   let spreadsheetId: string;
   let spreadsheetUrl: string;
   const firstSheetId = 0;
@@ -96,6 +106,7 @@ export async function POST() {
       requestBody: {
         name: title,
         mimeType: "application/vnd.google-apps.spreadsheet",
+        parents: [folderId],
       },
       fields: "id,webViewLink",
     });
@@ -105,7 +116,7 @@ export async function POST() {
     spreadsheetId = driveResp.data.id;
     spreadsheetUrl = driveResp.data.webViewLink;
   } catch (err) {
-    return NextResponse.json({ error: googleErrMsg(err, "create spreadsheet via Drive") }, { status: 500 });
+    return NextResponse.json({ error: googleErrMsg(err, "create spreadsheet in folder") }, { status: 500 });
   }
 
   // Step 2: write the data

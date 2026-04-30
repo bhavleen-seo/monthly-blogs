@@ -55,8 +55,20 @@ export default function BlogAgentDashboard() {
   const fetchPosts = useCallback(async () => {
     const res = await fetch("/api/blog-agent/posts");
     const data = await res.json();
-    setPosts(data.posts || []);
+    const fetched: Post[] = data.posts || [];
+    setPosts(fetched);
+    return fetched;
   }, []);
+
+  // After writing, KV replication can lag — poll until the expected posts appear.
+  const pollFetchPosts = useCallback(async (expectedMinCount: number) => {
+    const delays = [1500, 2500, 4000, 6000, 8000, 10000];
+    for (const delay of delays) {
+      await new Promise((r) => setTimeout(r, delay));
+      const fetched = await fetchPosts();
+      if (fetched.length >= expectedMinCount) break;
+    }
+  }, [fetchPosts]);
 
   useEffect(() => {
     fetchClients();
@@ -202,14 +214,21 @@ export default function BlogAgentDashboard() {
       : `Writing posts${clientName ? ` for ${clientName}` : " from all approved topics"}`;
     setActiveOp({ kind: "write", label, expected: "usually 1-3 minutes per post", startedAt: Date.now() });
     try {
+      const beforeCount = posts.length;
       const res = await fetch("/api/blog-agent/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ clientId, topicIds }),
       });
       const data = await res.json();
-      res.ok ? showToast(`Wrote ${data.postsWritten} post(s)!`, "success") : showToast(`Error: ${data.error}`, "error");
-      fetchPosts();
+      if (res.ok) {
+        showToast(`Wrote ${data.postsWritten} post(s)!`, "success");
+        const expectedCount = beforeCount + (data.postsWritten || 0);
+        await fetchPosts();
+        pollFetchPosts(expectedCount);
+      } else {
+        showToast(`Error: ${data.error}`, "error");
+      }
       fetchTopics();
     } catch { showToast("Failed to write posts", "error"); }
     setActiveOp(null);
@@ -232,8 +251,14 @@ export default function BlogAgentDashboard() {
         body: JSON.stringify({ topicIds: [post.topicId] }),
       });
       const data = await res.json();
-      res.ok ? showToast(`Rewritten! ${data.postsWritten} post(s)`, "success") : showToast(`Error: ${data.error}`, "error");
-      fetchPosts();
+      if (res.ok) {
+        showToast(`Rewritten! ${data.postsWritten} post(s)`, "success");
+        await fetchPosts();
+        pollFetchPosts(posts.length - 1 + (data.postsWritten || 1));
+      } else {
+        showToast(`Error: ${data.error}`, "error");
+        fetchPosts();
+      }
     } catch { showToast("Failed to rewrite post", "error"); }
     setActiveOp(null);
     setLoading(false);
