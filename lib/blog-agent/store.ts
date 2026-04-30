@@ -29,7 +29,7 @@ const DEFAULT_SETTINGS: GlobalSettings = {
   seoRules: "",
   contentInstructions: "",
   avoidTopics: "",
-  preferredWordCount: { min: 1200, max: 1800 },
+  preferredWordCount: { min: 800, max: 950 },
   model: "anthropic/claude-sonnet-4.5",
   researchModel: "",
   writerModel: "",
