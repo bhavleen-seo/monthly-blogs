@@ -45,6 +45,7 @@ export default function ClientsTab({
   const [editDraft, setEditDraft] = useState<Partial<Client>>({});
   const [profiles, setProfiles] = useState<Record<string, ClientSiteProfile>>({});
   const [analyzingClientId, setAnalyzingClientId] = useState<string | null>(null);
+  const [expandedProfiles, setExpandedProfiles] = useState<Set<string>>(new Set());
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [showUnmatched, setShowUnmatched] = useState(false);
@@ -530,9 +531,15 @@ export default function ClientsTab({
               </div>
             )}
 
-            {/* Site Profile */}
+            {/* Site Profile — collapsible */}
             {(() => {
               const profile = profiles[client.id];
+              const isExpanded = expandedProfiles.has(client.id);
+              const toggle = () => setExpandedProfiles((prev) => {
+                const next = new Set(prev);
+                next.has(client.id) ? next.delete(client.id) : next.add(client.id);
+                return next;
+              });
               const analyzedAgo = profile?.analyzedAt
                 ? (() => {
                     const diff = Date.now() - new Date(profile.analyzedAt).getTime();
@@ -544,20 +551,36 @@ export default function ClientsTab({
                 : null;
               return (
                 <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
-                  {profile ? (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-[10px] text-[var(--color-muted-foreground)]">
-                          Site analysis · {analyzedAgo}
-                        </p>
-                        <button
-                          onClick={() => analyzeClient(client.id)}
-                          disabled={analyzingClientId === client.id}
-                          className="text-[10px] font-medium text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] disabled:opacity-40 transition-colors"
-                        >
-                          {analyzingClientId === client.id ? "Analyzing…" : "Refresh"}
-                        </button>
-                      </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <button
+                      onClick={toggle}
+                      className="flex items-center gap-1.5 text-[10px] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors"
+                    >
+                      <svg className={`w-3 h-3 transition-transform ${isExpanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                      {profile ? `Site analysis · ${analyzedAgo}` : "Site analysis · none yet"}
+                    </button>
+                    {profile ? (
+                      <button
+                        onClick={() => analyzeClient(client.id)}
+                        disabled={analyzingClientId === client.id}
+                        className="text-[10px] font-medium text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] disabled:opacity-40 transition-colors"
+                      >
+                        {analyzingClientId === client.id ? "Analyzing…" : "Refresh"}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => analyzeClient(client.id)}
+                        disabled={analyzingClientId === client.id}
+                        className="text-[10px] font-medium text-[var(--color-primary)] hover:opacity-70 disabled:opacity-40 transition-colors"
+                      >
+                        {analyzingClientId === client.id ? "Analyzing…" : "Analyze Now"}
+                      </button>
+                    )}
+                  </div>
+                  {isExpanded && profile && (
+                    <div className="mt-2 space-y-2">
                       {profile.summary && (
                         <p className="text-[11px] text-[var(--color-foreground)] leading-relaxed">{profile.summary}</p>
                       )}
@@ -571,19 +594,11 @@ export default function ClientsTab({
                         </div>
                       )}
                     </div>
-                  ) : (
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-[10px] text-[var(--color-muted-foreground)] italic">
-                        No site analysis yet — will auto-run on first research
-                      </p>
-                      <button
-                        onClick={() => analyzeClient(client.id)}
-                        disabled={analyzingClientId === client.id}
-                        className="text-[10px] font-medium text-[var(--color-primary)] hover:opacity-70 disabled:opacity-40 transition-colors shrink-0"
-                      >
-                        {analyzingClientId === client.id ? "Analyzing…" : "Analyze Now"}
-                      </button>
-                    </div>
+                  )}
+                  {isExpanded && !profile && (
+                    <p className="mt-2 text-[10px] text-[var(--color-muted-foreground)] italic">
+                      No site analysis yet — will auto-run on first research, or click Analyze Now above.
+                    </p>
                   )}
                 </div>
               );
