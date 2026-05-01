@@ -222,7 +222,13 @@ export default function BlogAgentDashboard() {
       });
       const data = await res.json();
       if (res.ok) {
-        showToast(`Wrote ${data.postsWritten} post(s)!`, "success");
+        if (data.postsWritten > 0) {
+          showToast(`Wrote ${data.postsWritten} post(s)!`, "success");
+        } else if (data.run?.details) {
+          showToast(`0 posts written — ${data.run.details.split("\n")[0]}`, "error");
+        } else {
+          showToast("0 posts written — no approved topics found for this client", "error");
+        }
         const expectedCount = beforeCount + (data.postsWritten || 0);
         await fetchPosts();
         pollFetchPosts(expectedCount);

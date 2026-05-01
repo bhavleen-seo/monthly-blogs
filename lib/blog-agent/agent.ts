@@ -166,7 +166,12 @@ export async function runWriting(
     for (const topic of approvedTopics) {
       try {
         const client = await getClient(topic.clientId);
-        if (!client) continue;
+        if (!client) {
+          const detail = `Skipped "${topic.title}" — client ID ${topic.clientId} not found. The client may have been deleted and re-added. Re-research topics for this client to fix.`;
+          run.details = run.details ? `${run.details}\n${detail}` : detail;
+          await updateRun(run.id, { details: run.details });
+          continue;
+        }
 
         const post = await writeBlogPost(client, topic);
         await savePost(post);

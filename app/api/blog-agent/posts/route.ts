@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPosts, getClients, runWriting, getPost, savePost, deletePost, deleteFromWordPress, getClient } from "@/lib/blog-agent";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
