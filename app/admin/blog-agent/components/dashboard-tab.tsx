@@ -174,39 +174,6 @@ export default function DashboardTab({
         </div>
       )}
 
-      {/* Pending topics quick list */}
-      {pendingTopics.length > 0 && (
-        <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
-            <h3 className="font-semibold text-[var(--color-foreground)]">Awaiting Approval</h3>
-            <button
-              onClick={() => onBulkApprove(pendingTopics.map((t) => t.id))}
-              className="text-xs font-medium bg-[var(--color-success)] text-[var(--color-primary-foreground)] px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity"
-            >
-              Approve All ({pendingTopics.length})
-            </button>
-          </div>
-          <div className="divide-y divide-[var(--color-border)]">
-            {pendingTopics.slice(0, 8).map((topic) => (
-              <div key={topic.id} className="flex items-center justify-between px-5 py-3 hover:bg-[var(--color-hover)] transition-colors">
-                <div className="flex-1 min-w-0 mr-4">
-                  <p className="text-sm font-medium text-[var(--color-foreground)] truncate">{topic.title}</p>
-                  <p className="text-xs text-[var(--color-muted-foreground)]">{topic.clientName}</p>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <button onClick={() => onApprove(topic.id)} className="text-xs font-medium text-[var(--color-success)] hover:underline">Approve</button>
-                  <button onClick={() => onReject(topic.id)} className="text-xs font-medium text-[var(--color-destructive)] hover:underline">Reject</button>
-                </div>
-              </div>
-            ))}
-          </div>
-          {pendingTopics.length > 8 && (
-            <div className="px-5 py-3 text-center text-xs text-[var(--color-muted-foreground)] border-t border-[var(--color-border)]">
-              +{pendingTopics.length - 8} more — go to Topics tab
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
