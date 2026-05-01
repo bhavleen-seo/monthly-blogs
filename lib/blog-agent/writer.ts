@@ -144,7 +144,7 @@ const CORE_CONTENT_INSTRUCTIONS = `
 - MUST be under 60 characters.
 - Front-load the primary keyword in the first 3-4 words.
 - Keyword-dense, scannable, and optimized for CTR in search results.
-- Can include year/numbers and brand suffix if space allows.
+- Can include year/numbers and brand suffix if space allows. When including a year, ALWAYS use the current year: CURRENT_YEAR_PLACEHOLDER.
 
 **H1 Heading** — the big headline readers see on the page itself:
 - MUST be DIFFERENT from the page title (never identical) — this is an SEO best practice.
@@ -258,7 +258,7 @@ ${pages.map((p) => formatPageForPrompt(p, 1500)).join("\n\n---\n\n")}`;
 ${CORE_SEO_RULES}${extraSeoRules}
 
 # MANDATORY CONTENT INSTRUCTIONS (follow ALL of these)
-${CORE_CONTENT_INSTRUCTIONS}${extraContentInstructions}
+${CORE_CONTENT_INSTRUCTIONS.replace("CURRENT_YEAR_PLACEHOLDER", String(currentYear))}${extraContentInstructions}
 
 # ${BANNED_AI_TELLS}
 
