@@ -205,6 +205,15 @@ export default function BlogAgentDashboard() {
     if (res.ok) { showToast(`${topicIds.length} topics approved!`, "success"); fetchTopics(); }
   };
 
+  const handleBulkReject = async (topicIds: string[]) => {
+    const res = await fetch("/api/blog-agent/topics/approve", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topicIds, action: "reject" }),
+    });
+    if (res.ok) { showToast(`${topicIds.length} topics removed`, "info"); fetchTopics(); }
+  };
+
   const handleWritePosts = async (clientId?: string, topicIds?: string[]) => {
     setLoading(true);
     const count = topicIds?.length || 0;
@@ -442,8 +451,9 @@ export default function BlogAgentDashboard() {
               onWritePosts={() => handleWritePosts()}
               onPublishPosts={() => handlePublishPosts()}
               onApprove={(id) => handleTopicAction(id, "approve")}
-              onBulkApprove={handleBulkApprove}
               onReject={(id) => handleTopicAction(id, "reject")}
+              onBulkApprove={handleBulkApprove}
+              onBulkReject={handleBulkReject}
             />
           )}
 
@@ -471,6 +481,7 @@ export default function BlogAgentDashboard() {
               onApprove={(id) => handleTopicAction(id, "approve")}
               onReject={(id) => handleTopicAction(id, "reject")}
               onBulkApprove={handleBulkApprove}
+              onBulkReject={handleBulkReject}
               onRegenerate={(clientId) => handleResearchTopics(clientId, true)}
               onWriteSelected={(topicIds) => handleWritePosts(undefined, topicIds)}
             />

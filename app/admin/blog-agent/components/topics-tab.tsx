@@ -12,6 +12,7 @@ export default function TopicsTab({
   onApprove,
   onReject,
   onBulkApprove,
+  onBulkReject,
   onRegenerate,
   onWriteSelected,
 }: {
@@ -21,6 +22,7 @@ export default function TopicsTab({
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
   onBulkApprove: (ids: string[]) => void;
+  onBulkReject: (ids: string[]) => void;
   onRegenerate: (clientId: string) => void;
   onWriteSelected: (topicIds: string[]) => void;
 }) {
@@ -195,12 +197,20 @@ export default function TopicsTab({
             <h3 className="text-xs font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">
               Pending approval ({pending.length})
             </h3>
-            <button
-              onClick={() => onBulkApprove(pending.map((t) => t.id))}
-              className="text-xs font-medium text-[var(--color-success)] hover:underline"
-            >
-              Approve all
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => onBulkApprove(pending.map((t) => t.id))}
+                className="text-xs font-medium text-[var(--color-success)] hover:underline"
+              >
+                Approve all
+              </button>
+              <button
+                onClick={() => onBulkReject(pending.map((t) => t.id))}
+                className="text-xs font-medium text-[var(--color-destructive)] hover:underline"
+              >
+                Reject all
+              </button>
+            </div>
           </div>
           <div className="divide-y divide-[var(--color-border)]">
             {pending.map((topic) => (
