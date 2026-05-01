@@ -121,7 +121,7 @@ export default function PostsTab({
           className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] min-w-[260px]"
         >
           <option value="">Select a client…</option>
-          {clients.map((c) => (
+          {[...clients].sort((a, b) => a.businessName.localeCompare(b.businessName)).map((c) => (
             <option key={c.id} value={c.id}>{c.businessName}</option>
           ))}
         </select>
@@ -170,7 +170,7 @@ export default function PostsTab({
           else if (p.status === "failed") entry.failed++;
         }
         const rows = Array.from(byClient.values())
-          .sort((a, b) => (b.failed + b.ready) - (a.failed + a.ready) || b.published - a.published);
+          .sort((a, b) => a.clientName.localeCompare(b.clientName));
 
         if (rows.length === 0) {
           return (

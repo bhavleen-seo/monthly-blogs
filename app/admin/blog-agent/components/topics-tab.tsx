@@ -78,7 +78,7 @@ export default function TopicsTab({
           className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] min-w-[260px]"
         >
           <option value="">Select a client…</option>
-          {clients.map((c) => (
+          {[...clients].sort((a, b) => a.businessName.localeCompare(b.businessName)).map((c) => (
             <option key={c.id} value={c.id}>{c.businessName}</option>
           ))}
         </select>
@@ -118,7 +118,7 @@ export default function TopicsTab({
         }
         const rows = Array.from(byClient.values())
           .filter((r) => r.pending > 0 || r.approved > 0)
-          .sort((a, b) => b.pending - a.pending || b.approved - a.approved);
+          .sort((a, b) => a.clientName.localeCompare(b.clientName));
 
         if (rows.length === 0) {
           return (
