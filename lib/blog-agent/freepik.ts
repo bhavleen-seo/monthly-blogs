@@ -21,9 +21,9 @@
 const FREEPIK_API = "https://api.freepik.com/v1/resources";
 
 // Target output dimensions and quality for the resized featured image.
-const IMG_W = 750;
-const IMG_H = 500;
-const IMG_QUALITY = 85;
+const IMG_W = 1200;
+const IMG_H = 800;
+const IMG_QUALITY = 90;
 
 export interface FreepikImage {
   /** Direct URL to the image (for upload to WordPress via the publisher) */

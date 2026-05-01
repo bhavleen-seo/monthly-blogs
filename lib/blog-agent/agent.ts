@@ -5,6 +5,7 @@ import {
   getClient,
   getTopics,
   saveTopic,
+  deleteTopic,
   savePost,
   getPost,
   getPosts as getPostsFromStore,
@@ -53,10 +54,30 @@ export async function runResearch(clientId?: string): Promise<{
       return { run, topicsByClient };
     }
 
+    // Delete all pending (unapproved) topics from any previous month.
+    // Approved topics are kept regardless of age.
+    const allPending = await getTopics({ status: "pending" });
+    const staleTopics = allPending.filter((t) => t.month < month);
+    for (const t of staleTopics) await deleteTopic(t.id);
+    if (staleTopics.length > 0) {
+      console.log(`[runResearch] Cleaned up ${staleTopics.length} stale pending topics from previous months`);
+    }
+
     let totalTopics = 0;
+    let skippedCount = 0;
 
     for (const client of clients) {
       try {
+        // Skip clients that already have topics for this month (unless regenerate
+        // deleted them first via the API route before calling runResearch).
+        const existing = await getTopics({ clientId: client.id, month });
+        if (existing.length > 0) {
+          console.log(`[runResearch] Skipping ${client.businessName} — already has ${existing.length} topics for ${month}`);
+          topicsByClient[client.id] = existing;
+          skippedCount++;
+          continue;
+        }
+
         const topics = await researchTopics(client, month);
         topicsByClient[client.id] = topics;
 
@@ -82,9 +103,10 @@ export async function runResearch(clientId?: string): Promise<{
       }
     }
 
+    const researched = clients.length - skippedCount;
     await updateRun(run.id, {
       status: "completed",
-      message: `Generated ${totalTopics} topic suggestions for ${clients.length} client(s)`,
+      message: `Generated ${totalTopics} topic suggestions for ${researched} client(s)${skippedCount > 0 ? ` (${skippedCount} skipped — already researched this month)` : ""}`,
       completedAt: new Date().toISOString(),
     });
   } catch (error) {

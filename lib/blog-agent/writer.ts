@@ -169,6 +169,7 @@ export async function writeBlogPost(
   client: Client,
   topic: TopicSuggestion
 ): Promise<BlogPost> {
+  const currentYear = new Date().getFullYear();
   const settings = await getGlobalSettings();
   const { min: minWords, max: maxWords } = settings.preferredWordCount;
   const model = settings.writerModel || settings.model || "anthropic/claude-sonnet-4.5";
@@ -241,7 +242,7 @@ These are the top ${pages.length} pages ranking for "${primaryKeyword}" right no
 - Go deeper on the most important sub-topics (more specifics, examples, numbers)
 - Be better structured (clearer headings, more scannable, better FAQ)
 - Never duplicate their phrasing — write in the client's brand voice
-- Surface newer data / 2026 context where relevant
+- Surface newer data / ${currentYear} context where relevant
 
 ${pages.map((p) => formatPageForPrompt(p, 1500)).join("\n\n---\n\n")}`;
         }
@@ -291,6 +292,7 @@ All links MUST be:
 - Distributed across the post — not clumped in one section
 - Each URL used only once (no duplicate links)
 - Internal anchor text should describe the destination page, not the current article
+- ALL links (internal and external) MUST include target="_blank" rel="noopener noreferrer" so they open in a new tab. Example: <a href="https://example.com/page" target="_blank" rel="noopener noreferrer">anchor text</a>
 
 CRITICAL: If a URL is not in the link pool above, you may NOT link to it as an internal link. Hallucinated URLs cause 404s on the live site.
 
@@ -342,7 +344,14 @@ Return ONLY the JSON object, no other text.`;
   // Strip em dashes / smart quotes / ellipsis / etc. from every text field.
   // Done AFTER parse so we don't risk breaking the JSON, BEFORE detection so
   // the AI-tells warning only flags things the silent cleanup couldn't catch.
-  const cleanContent  = sanitizeAiArtifacts(parsed.content);
+  // Also enforce target="_blank" on every link — the prompt asks for it but the
+  // model doesn't always comply, so we fix it deterministically here.
+  const enforceNewTab = (html: string) =>
+    html.replace(/<a\s([^>]*?)>/gi, (match, attrs: string) => {
+      if (/target\s*=/i.test(attrs)) return match;
+      return `<a ${attrs} target="_blank" rel="noopener noreferrer">`;
+    });
+  const cleanContent  = enforceNewTab(sanitizeAiArtifacts(parsed.content));
   const cleanExcerpt  = sanitizeAiArtifacts(parsed.excerpt || "");
   const cleanMeta     = sanitizeAiArtifacts(parsed.metaDescription || "");
   const cleanSeoTitle = parsed.seoTitle ? sanitizeAiArtifacts(parsed.seoTitle) : undefined;
