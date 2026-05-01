@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { Client } from "./types";
+import type { ClientSiteProfile } from "@/lib/blog-agent/types";
 
 interface SyncStatus {
   lastSyncAt: string | null;
@@ -40,11 +41,10 @@ export default function ClientsTab({
 }) {
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
-  const [editingKeywords, setEditingKeywords] = useState<string | null>(null);
   const [editingClient, setEditingClient] = useState<string | null>(null);
-  const [kwDraft, setKwDraft] = useState("");
-  const [seoDraft, setSeoDraft] = useState("");
   const [editDraft, setEditDraft] = useState<Partial<Client>>({});
+  const [profiles, setProfiles] = useState<Record<string, ClientSiteProfile>>({});
+  const [analyzingClientId, setAnalyzingClientId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [showUnmatched, setShowUnmatched] = useState(false);
@@ -106,7 +106,33 @@ export default function ClientsTab({
     } catch {}
   }, []);
 
+  const fetchProfiles = useCallback(async () => {
+    try {
+      const res = await fetch("/api/blog-agent/clients/profiles");
+      if (res.ok) setProfiles(await res.json());
+    } catch {}
+  }, []);
+
+  const analyzeClient = async (clientId: string) => {
+    setAnalyzingClientId(clientId);
+    try {
+      const res = await fetch(`/api/blog-agent/clients/${clientId}/profile`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        setProfiles((prev) => ({ ...prev, [clientId]: data.profile }));
+      } else {
+        const data = await res.json();
+        alert(`Analysis failed: ${data.error || "Unknown error"}`);
+      }
+    } catch (err) {
+      alert(`Analysis failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setAnalyzingClientId(null);
+    }
+  };
+
   useEffect(() => { fetchSyncStatus(); }, [fetchSyncStatus]);
+  useEffect(() => { fetchProfiles(); }, [fetchProfiles]);
 
   const handleSyncCredentials = async () => {
     if (!confirm("Trigger Bitwarden sync? The GitHub Action runs in ~1-2 minutes; this page will auto-refresh.")) return;
@@ -166,7 +192,7 @@ export default function ClientsTab({
       wordpressAppPassword: fd.get("wordpressAppPassword"),
       csPublisherSecret: fd.get("csPublisherSecret") || undefined,
       tone: fd.get("tone"),
-      keywords: (fd.get("keywords") as string).split(",").map((k) => k.trim()).filter(Boolean),
+      keywords: ((fd.get("keywords") as string) || "").split(",").map((k) => k.trim()).filter(Boolean),
       blogCategories: (fd.get("blogCategories") as string).split(",").map((c) => c.trim()).filter(Boolean),
       postsPerMonth: parseInt(fd.get("postsPerMonth") as string) || 2,
     });
@@ -311,7 +337,6 @@ export default function ClientsTab({
                 <option value="conversational">Conversational</option>
               </select>
             </div>
-            <Input name="keywords" label="Target Keywords" placeholder="plumber arizona, emergency plumber" />
             <Input name="blogCategories" label="Blog Categories" placeholder="Tips, News, Guides" />
             <Input name="postsPerMonth" label="Posts Per Month" placeholder="1" type="number" />
           </div>
@@ -411,16 +436,8 @@ export default function ClientsTab({
               {/* Row 1 — settings-style links */}
               <div className="flex items-center gap-2.5">
                 <button
-                  onClick={() => { setEditingKeywords(editingKeywords === client.id ? null : client.id); setEditingClient(null); setKwDraft(client.keywords?.join(", ") || ""); setSeoDraft(client.seoNotes || ""); }}
-                  className={`text-xs font-medium transition-colors ${editingKeywords === client.id ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"}`}
-                >
-                  Keywords
-                </button>
-                <span className="text-[var(--color-border)]">|</span>
-                <button
                   onClick={() => {
                     setEditingClient(editingClient === client.id ? null : client.id);
-                    setEditingKeywords(null);
                     setEditDraft({ wordpressUrl: client.wordpressUrl, wordpressUsername: client.wordpressUsername, wordpressAppPassword: "", csPublisherSecret: "", name: client.name, businessName: client.businessName, industry: client.industry, targetAudience: client.targetAudience, location: client.location, websiteUrl: client.websiteUrl, tone: client.tone, blogCategories: client.blogCategories, postsPerMonth: client.postsPerMonth });
                   }}
                   className={`text-xs font-medium transition-colors ${editingClient === client.id ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"}`}
@@ -457,56 +474,6 @@ export default function ClientsTab({
                 </button>
               </div>
             </div>
-
-            {/* Keywords & SEO editor */}
-            {editingKeywords === client.id && (
-              <div className="mt-4 pt-4 border-t border-[var(--color-border)] space-y-3 animate-slide-up">
-                <div>
-                  <label className="block text-xs font-medium text-[var(--color-muted-foreground)] mb-1.5">Target Keywords</label>
-                  <input
-                    type="text"
-                    value={kwDraft}
-                    onChange={(e) => setKwDraft(e.target.value)}
-                    placeholder="keyword 1, keyword 2, keyword 3"
-                    className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted-foreground)]"
-                  />
-                  <p className="text-[10px] text-[var(--color-muted-foreground)] mt-1">Comma-separated keywords Claude should target</p>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-[var(--color-muted-foreground)] mb-1.5">SEO Notes for this Client</label>
-                  <textarea
-                    value={seoDraft}
-                    onChange={(e) => setSeoDraft(e.target.value)}
-                    rows={3}
-                    placeholder="e.g. Focus on local Phoenix area keywords. Link to /services/roof-repair page. Mention 20+ years experience."
-                    className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted-foreground)] resize-y"
-                  />
-                  <p className="text-[10px] text-[var(--color-muted-foreground)] mt-1">Client-specific instructions Claude follows when researching and writing</p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      onUpdateClient({
-                        ...client,
-                        keywords: kwDraft.split(",").map((k) => k.trim()).filter(Boolean),
-                        seoNotes: seoDraft,
-                        updatedAt: new Date().toISOString(),
-                      });
-                      setEditingKeywords(null);
-                    }}
-                    className="text-xs font-medium px-4 py-1.5 rounded-lg bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:opacity-90 transition-all"
-                  >
-                    Save
-                  </button>
-                  <button
-                    onClick={() => setEditingKeywords(null)}
-                    className="text-xs font-medium px-4 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-all"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
 
             {/* Edit client form */}
             {editingClient === client.id && (
@@ -562,6 +529,65 @@ export default function ClientsTab({
                 </div>
               </div>
             )}
+
+            {/* Site Profile */}
+            {(() => {
+              const profile = profiles[client.id];
+              const analyzedAgo = profile?.analyzedAt
+                ? (() => {
+                    const diff = Date.now() - new Date(profile.analyzedAt).getTime();
+                    const days = Math.floor(diff / 86400000);
+                    if (days < 1) return "today";
+                    if (days === 1) return "1 day ago";
+                    return `${days} days ago`;
+                  })()
+                : null;
+              return (
+                <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
+                  {profile ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10px] text-[var(--color-muted-foreground)]">
+                          Site analysis · {analyzedAgo}
+                        </p>
+                        <button
+                          onClick={() => analyzeClient(client.id)}
+                          disabled={analyzingClientId === client.id}
+                          className="text-[10px] font-medium text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] disabled:opacity-40 transition-colors"
+                        >
+                          {analyzingClientId === client.id ? "Analyzing…" : "Refresh"}
+                        </button>
+                      </div>
+                      {profile.summary && (
+                        <p className="text-[11px] text-[var(--color-foreground)] leading-relaxed">{profile.summary}</p>
+                      )}
+                      {profile.keywords?.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {profile.keywords.slice(0, 6).map((kw) => (
+                            <span key={kw} className="inline-flex px-2 py-0.5 rounded-full text-[10px] bg-[var(--color-muted)] text-[var(--color-muted-foreground)] border border-[var(--color-border)]">
+                              {kw}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[10px] text-[var(--color-muted-foreground)] italic">
+                        No site analysis yet — will auto-run on first research
+                      </p>
+                      <button
+                        onClick={() => analyzeClient(client.id)}
+                        disabled={analyzingClientId === client.id}
+                        className="text-[10px] font-medium text-[var(--color-primary)] hover:opacity-70 disabled:opacity-40 transition-colors shrink-0"
+                      >
+                        {analyzingClientId === client.id ? "Analyzing…" : "Analyze Now"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
           );
         })}

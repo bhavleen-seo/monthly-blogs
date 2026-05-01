@@ -1,11 +1,12 @@
 import { v4 as uuidv4 } from "uuid";
 import type { Client, TopicSuggestion } from "./types";
-import { getTopics, getGlobalSettings } from "./store";
+import { getTopics, getGlobalSettings, getClientProfile, saveClientProfile } from "./store";
 import { complete } from "./llm";
 import { getPublishedPostTitles } from "./publisher";
 import { getRelatedQuestions } from "./alsoasked";
 import { analyzeKeywords, formatSerpForPrompt, inferRegion } from "./serper";
 import { fetchSiteContext } from "./site-context";
+import { buildClientProfile } from "./site-profiler";
 import { fetchPageContents, formatPageForPrompt } from "./youcom";
 import { fetchKeywordMetrics, formatMetricsForPrompt } from "./semrush";
 
@@ -21,9 +22,23 @@ export async function researchTopics(
   const pastTopics = await getTopics({ clientId: client.id });
   const pastTitles = pastTopics.map((t) => t.title).slice(-20);
 
-  // Use up to 5 keywords for SERP analysis — more than that blows up the prompt
-  const seedKeywords = client.keywords.slice(0, 5);
+  // Use the cached site profile for keywords + positioning. If no profile exists
+  // (first run) or the website URL changed, build and cache it now.
   const websiteUrl = client.websiteUrl || client.wordpressUrl;
+  let profile = await getClientProfile(client.id);
+  if (!profile || profile.websiteUrl !== websiteUrl) {
+    console.log(`[researcher] Building site profile for ${client.businessName}…`);
+    try {
+      profile = await buildClientProfile(client);
+      await saveClientProfile(profile);
+    } catch (err) {
+      console.error(`[researcher] Site profile build failed for ${client.businessName}:`, err);
+      // Non-fatal — fall back to manually entered keywords below
+    }
+  }
+
+  // Use profile keywords if available, otherwise fall back to manually entered ones
+  const seedKeywords = (profile?.keywords?.length ? profile.keywords : client.keywords).slice(0, 5);
 
   // Fetch all research signals in parallel.
   // All are best-effort: failure just reduces research quality.
@@ -129,9 +144,11 @@ ${globalRulesSection}
 - **Website:** ${websiteUrl}
 - **Brand Tone:** ${client.tone}
 - **Commercial Target Keywords (money terms — DO NOT target blog posts at these directly):**
-${client.keywords.map((k) => `  - ${k}`).join("\n")}
+${seedKeywords.map((k) => `  - ${k}`).join("\n")}
 - **Blog Categories:** ${client.blogCategories.join(", ")}
-${client.seoNotes ? `\n## Client-Specific SEO Instructions (MUST follow)\n${client.seoNotes}` : ""}
+${profile?.summary ? `- **What this business does:** ${profile.summary}` : ""}
+${profile?.services?.length ? `- **Their services:** ${profile.services.join(", ")}` : ""}
+${(profile?.seoNotes || client.seoNotes) ? `\n## Client-Specific SEO Instructions (MUST follow)\n${profile?.seoNotes || client.seoNotes}` : ""}
 
 # Research Context
 

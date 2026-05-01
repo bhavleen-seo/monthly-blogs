@@ -89,6 +89,21 @@ export interface BlogPost {
   updatedAt: string;
 }
 
+export interface ClientSiteProfile {
+  clientId: string;
+  /** The websiteUrl that was analyzed — used to detect if the URL changed and a re-analysis is needed */
+  websiteUrl: string;
+  /** 2-3 sentence summary of what the business does */
+  summary: string;
+  /** Main service offerings extracted from the site */
+  services: string[];
+  /** Commercial keywords auto-derived from the site content */
+  keywords: string[];
+  /** Positioning / SEO notes for the researcher to follow */
+  seoNotes: string;
+  analyzedAt: string;
+}
+
 export interface AgentRun {
   id: string;
   type: "research" | "write" | "publish";

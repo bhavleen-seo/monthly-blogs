@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
-import type { AgentStore, Client, TopicSuggestion, BlogPost, AgentRun, GlobalSettings, ScheduleConfig } from "./types";
+import type { AgentStore, Client, TopicSuggestion, BlogPost, AgentRun, GlobalSettings, ScheduleConfig, ClientSiteProfile } from "./types";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const STORE_FILE = path.join(DATA_DIR, "blog-agent.json");
@@ -9,14 +9,15 @@ const STORE_FILE = path.join(DATA_DIR, "blog-agent.json");
 // Old architecture: ONE key for everything → payload too large, race conditions,
 // silent write failures. New: each data type has its own small key.
 const KV = {
-  SETTINGS:  "ba:settings",
-  CLIENTS:   "ba:clients",
-  TOPICS:    "ba:topics",
-  POSTS:     "ba:posts",
-  RUNS:      "ba:runs",
-  SCHEDULE:  "ba:schedule",
-  WPCREDS:   "ba:wpcreds", // encrypted WP creds per clientId + sync status
-  OLD_STORE: "blog-agent-store", // legacy single-blob key for migration
+  SETTINGS:     "ba:settings",
+  CLIENTS:      "ba:clients",
+  TOPICS:       "ba:topics",
+  POSTS:        "ba:posts",
+  RUNS:         "ba:runs",
+  SCHEDULE:     "ba:schedule",
+  WPCREDS:      "ba:wpcreds",       // encrypted WP creds per clientId + sync status
+  SITEPROFILES: "ba:siteprofiles",  // Record<clientId, ClientSiteProfile>
+  OLD_STORE:    "blog-agent-store", // legacy single-blob key for migration
 } as const;
 
 // Per-client CS Publisher secret key. Kept in a SEPARATE KV key (one per
@@ -528,6 +529,34 @@ export async function saveWpCredsStore(store: WpCredsStore): Promise<void> {
 export async function getWpCredEntry(clientId: string): Promise<EncryptedWpCredEntry | undefined> {
   const store = await getWpCredsStore();
   return store.entries.find((e) => e.clientId === clientId);
+}
+
+// ─── Site Profiles ────────────────────────────────────────────────────────────
+// Stored as a single Record<clientId, ClientSiteProfile> under ba:siteprofiles.
+// One KV read fetches all profiles; updates read-modify-write the blob.
+
+export async function getAllSiteProfiles(): Promise<Record<string, ClientSiteProfile>> {
+  if (!useKV()) return {};
+  return kvGet<Record<string, ClientSiteProfile>>(KV.SITEPROFILES, {});
+}
+
+export async function getClientProfile(clientId: string): Promise<ClientSiteProfile | null> {
+  const all = await getAllSiteProfiles();
+  return all[clientId] ?? null;
+}
+
+export async function saveClientProfile(profile: ClientSiteProfile): Promise<void> {
+  if (!useKV()) return;
+  const all = await getAllSiteProfiles();
+  all[profile.clientId] = profile;
+  await kvSet(KV.SITEPROFILES, all);
+}
+
+export async function deleteClientProfile(clientId: string): Promise<void> {
+  if (!useKV()) return;
+  const all = await getAllSiteProfiles();
+  delete all[clientId];
+  await kvSet(KV.SITEPROFILES, all);
 }
 
 // ─── Schedule ────────────────────────────────────────────────────────────────
