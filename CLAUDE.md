@@ -1,9 +1,22 @@
-# monthly-blogs — agent context
+# CLAUDE.md
 
-A Next.js + Vercel app that researches, writes, and publishes monthly blog posts for 26 client WordPress sites managed by CS Design Studios.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## monthly-blogs — agent context
+
+A Next.js 14 (App Router) + Vercel app that researches, writes, and publishes monthly blog posts for 26 client WordPress sites managed by CS Design Studios. Package manager is **pnpm**.
 
 ## Who you're working with
 The user is an SEO, not a developer. Default to plain English and explain any technical term on first use. When giving instructions, split clearly into "what I'm doing" vs "what you need to do."
+
+## Commands
+
+- `pnpm dev` — run the Next.js dev server (dashboard lives at `/admin/blog-agent`, gated by `DASHBOARD_PASSWORD`).
+- `pnpm build` — production build (this is what Vercel runs on push to `main`).
+- `pnpm lint` — `next lint`.
+- `pnpm start` — start the built production server.
+- No test runner is configured — there's no `pnpm test`. Don't invent test commands.
+- Typecheck: `npx tsc --noEmit`. Pre-existing errors exist (see Conventions); the Vercel build still passes.
 
 ## Pipeline (end-to-end)
 
