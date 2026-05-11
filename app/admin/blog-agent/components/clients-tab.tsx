@@ -4,16 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import type { Client } from "./types";
 import type { ClientSiteProfile } from "@/lib/blog-agent/types";
 
-interface SyncStatus {
-  lastSyncAt: string | null;
-  lastSyncError: string | null;
-  totalClients: number;
-  matchedCount: number;
-  unmatchedClientIds: string[];
-  unmatchedItemNames: string[];
-  syncedUsernames: Record<string, string>;
-}
-
 export default function ClientsTab({
   clients,
   loading,
@@ -24,7 +14,6 @@ export default function ClientsTab({
   onUpdateClient,
   onTestConnection,
   onResearch,
-  onApplyPostsRule,
   onInstallerDownloaded,
 }: {
   clients: Client[];
@@ -36,7 +25,6 @@ export default function ClientsTab({
   onUpdateClient: (client: Client) => void;
   onTestConnection: (id: string) => void;
   onResearch: (clientId: string) => void;
-  onApplyPostsRule: () => void;
   onInstallerDownloaded: () => void;
 }) {
   const [search, setSearch] = useState("");
@@ -46,9 +34,6 @@ export default function ClientsTab({
   const [profiles, setProfiles] = useState<Record<string, ClientSiteProfile>>({});
   const [analyzingClientId, setAnalyzingClientId] = useState<string | null>(null);
   const [expandedProfiles, setExpandedProfiles] = useState<Set<string>>(new Set());
-  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [showUnmatched, setShowUnmatched] = useState(false);
   const [downloadingInstaller, setDownloadingInstaller] = useState<string | null>(null);
   const [checkingAll, setCheckingAll] = useState(false);
   const [connectionResults, setConnectionResults] = useState<Record<string, { success: boolean; message: string }>>({});
@@ -100,13 +85,6 @@ export default function ClientsTab({
     }
   };
 
-  const fetchSyncStatus = useCallback(async () => {
-    try {
-      const res = await fetch("/api/blog-agent/sync-credentials");
-      if (res.ok) setSyncStatus(await res.json());
-    } catch {}
-  }, []);
-
   const fetchProfiles = useCallback(async () => {
     try {
       const res = await fetch("/api/blog-agent/clients/profiles");
@@ -132,45 +110,7 @@ export default function ClientsTab({
     }
   };
 
-  useEffect(() => { fetchSyncStatus(); }, [fetchSyncStatus]);
   useEffect(() => { fetchProfiles(); }, [fetchProfiles]);
-
-  const handleSyncCredentials = async () => {
-    if (!confirm("Trigger Bitwarden sync? The GitHub Action runs in ~1-2 minutes; this page will auto-refresh.")) return;
-    setSyncing(true);
-    try {
-      const res = await fetch("/api/blog-agent/sync-credentials", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) {
-        alert(`Sync dispatch failed: ${data.error}`);
-        setSyncing(false);
-        return;
-      }
-      alert("Sync triggered. Refreshing status in 90s...");
-      setTimeout(async () => {
-        await fetchSyncStatus();
-        setSyncing(false);
-      }, 90_000);
-    } catch (err) {
-      alert(`Sync failed: ${err instanceof Error ? err.message : "unknown"}`);
-      setSyncing(false);
-    }
-  };
-
-  const formatLastSync = (iso: string | null): string => {
-    if (!iso) return "never";
-    const diff = Date.now() - new Date(iso).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return "just now";
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    return `${Math.floor(hrs / 24)}d ago`;
-  };
-
-  const unmatchedClients = syncStatus
-    ? clients.filter((c) => syncStatus.unmatchedClientIds.includes(c.id))
-    : [];
 
   const filtered = clients.filter((c) =>
     c.businessName.toLowerCase().includes(search.toLowerCase()) ||
@@ -226,22 +166,6 @@ export default function ClientsTab({
           {clients.length > 0 && (
             <>
               <button
-                onClick={handleSyncCredentials}
-                disabled={syncing}
-                title={`Last sync: ${formatLastSync(syncStatus?.lastSyncAt || null)}`}
-                className="border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-hover)] px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-40"
-              >
-                {syncing ? "Syncing..." : "Sync from Bitwarden"}
-              </button>
-              <button
-                onClick={onApplyPostsRule}
-                disabled={loading}
-                title="Sets all clients to 1 post/month except GLW and Rose (2/month)"
-                className="border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-hover)] px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-40"
-              >
-                Sync posts/month rule
-              </button>
-              <button
                 onClick={handleCheckAll}
                 disabled={checkingAll}
                 title="Test WordPress connection for all clients at once"
@@ -259,59 +183,6 @@ export default function ClientsTab({
           </button>
         </div>
       </div>
-
-      {/* Sync status summary + warnings */}
-      {syncStatus && clients.length > 0 && (
-        <div className="space-y-2">
-          {(syncStatus.unmatchedClientIds.length > 0 || syncStatus.lastSyncError) && (
-            <div className="bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/40 rounded-xl overflow-hidden">
-              <button
-                onClick={() => setShowUnmatched(!showUnmatched)}
-                className="w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--color-warning)]/5 transition-colors"
-              >
-                <div className="flex items-center gap-2 text-sm text-[var(--color-foreground)]">
-                  <svg className="w-4 h-4 text-[var(--color-warning)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  <span className="font-medium">
-                    {syncStatus.lastSyncError
-                      ? "Last Bitwarden sync failed"
-                      : `${syncStatus.matchedCount}/${syncStatus.totalClients} clients matched Bitwarden — ${syncStatus.unmatchedClientIds.length} unmatched`}
-                  </span>
-                </div>
-                <svg className={`w-4 h-4 text-[var(--color-muted-foreground)] transition-transform ${showUnmatched ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-              {showUnmatched && (
-                <div className="px-4 py-3 border-t border-[var(--color-warning)]/30 space-y-3 text-xs">
-                  {syncStatus.lastSyncError && (
-                    <div>
-                      <p className="font-semibold text-[var(--color-destructive)] mb-1">Error:</p>
-                      <p className="text-[var(--color-foreground)] font-mono break-all">{syncStatus.lastSyncError}</p>
-                    </div>
-                  )}
-                  {unmatchedClients.length > 0 && (
-                    <div>
-                      <p className="font-semibold text-[var(--color-foreground)] mb-1">
-                        Clients without a Bitwarden match ({unmatchedClients.length}) — using stored password:
-                      </p>
-                      <ul className="list-disc pl-5 space-y-0.5 text-[var(--color-muted-foreground)]">
-                        {unmatchedClients.map((c) => <li key={c.id}>{c.businessName}</li>)}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-          {syncStatus.lastSyncAt && !syncStatus.lastSyncError && syncStatus.unmatchedClientIds.length === 0 && (
-            <p className="text-[10px] text-[var(--color-muted-foreground)]">
-              Bitwarden sync: {syncStatus.matchedCount}/{syncStatus.totalClients} matched · {formatLastSync(syncStatus.lastSyncAt)}
-            </p>
-          )}
-        </div>
-      )}
 
       {/* Add form */}
       {showAdd && (

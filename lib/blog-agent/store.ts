@@ -15,7 +15,6 @@ const KV = {
   POSTS:        "ba:posts",
   RUNS:         "ba:runs",
   SCHEDULE:     "ba:schedule",
-  WPCREDS:      "ba:wpcreds",       // encrypted WP creds per clientId + sync status
   SITEPROFILES: "ba:siteprofiles",  // Record<clientId, ClientSiteProfile>
   TOPICHISTORY: "ba:topichistory",  // Record<clientId, string[]> — every topic title ever suggested per client
   OLD_STORE:    "blog-agent-store", // legacy single-blob key for migration
@@ -481,55 +480,6 @@ export async function getRuns(limit = 20): Promise<AgentRun[]> {
   if (useKV()) { runs = await kvGet<AgentRun[]>(KV.RUNS, []); }
   else { runs = (await getFileStore()).runs || []; }
   return runs.slice(-limit).reverse();
-}
-
-// ─── Encrypted WP credentials (from Bitwarden sync) ─────────────────────────
-// Stored as a single blob keyed by clientId for atomic updates.
-
-import type { EncryptedBlob } from "./credentials";
-
-export interface EncryptedWpCredEntry {
-  clientId: string;
-  clientName: string;
-  bitwardenItemId: string;
-  bitwardenItemName: string;
-  username: EncryptedBlob;
-  password: EncryptedBlob;
-  uri: string | null;
-  updatedAt: string;
-}
-
-export interface WpCredsStore {
-  lastSyncAt: string | null;
-  lastSyncError: string | null;
-  /** Client IDs that had no matching Bitwarden item at last sync */
-  unmatchedClientIds: string[];
-  /** Bitwarden item names that didn't match any client (by business name) */
-  unmatchedItemNames: string[];
-  entries: EncryptedWpCredEntry[];
-}
-
-const EMPTY_WPCREDS: WpCredsStore = {
-  lastSyncAt: null,
-  lastSyncError: null,
-  unmatchedClientIds: [],
-  unmatchedItemNames: [],
-  entries: [],
-};
-
-export async function getWpCredsStore(): Promise<WpCredsStore> {
-  if (!useKV()) return EMPTY_WPCREDS;
-  return kvGet<WpCredsStore>(KV.WPCREDS, EMPTY_WPCREDS);
-}
-
-export async function saveWpCredsStore(store: WpCredsStore): Promise<void> {
-  if (!useKV()) return;
-  await kvSet(KV.WPCREDS, store);
-}
-
-export async function getWpCredEntry(clientId: string): Promise<EncryptedWpCredEntry | undefined> {
-  const store = await getWpCredsStore();
-  return store.entries.find((e) => e.clientId === clientId);
 }
 
 // ─── Site Profiles ────────────────────────────────────────────────────────────

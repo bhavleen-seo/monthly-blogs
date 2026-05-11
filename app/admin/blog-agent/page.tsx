@@ -90,27 +90,6 @@ export default function BlogAgentDashboard() {
     setLoading(false);
   };
 
-  const handleApplyPostsRule = async () => {
-    if (!confirm("Set all clients to 1 post/month except GLW and Rose (2/month). Continue?")) return;
-    setLoading(true);
-    try {
-      const res = await fetch("/api/blog-agent/clients/apply-posts-rule", { method: "POST" });
-      const data = await res.json();
-      if (res.ok) {
-        showToast(
-          data.updatedCount > 0
-            ? `Updated ${data.updatedCount} client${data.updatedCount === 1 ? "" : "s"}`
-            : "All clients already match the rule",
-          "success"
-        );
-        fetchClients();
-      } else {
-        showToast(`Error: ${data.error}`, "error");
-      }
-    } catch { showToast("Failed to sync rule", "error"); }
-    setLoading(false);
-  };
-
   const handleAddClient = async (clientData: Record<string, unknown>) => {
     const res = await fetch("/api/blog-agent/clients", {
       method: "POST",
@@ -468,7 +447,6 @@ export default function BlogAgentDashboard() {
               onUpdateClient={handleUpdateClient}
               onTestConnection={handleTestConnection}
               onResearch={(id) => handleResearchTopics(id)}
-              onApplyPostsRule={handleApplyPostsRule}
               onInstallerDownloaded={fetchClients}
             />
           )}

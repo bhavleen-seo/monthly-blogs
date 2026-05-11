@@ -1,6 +1,4 @@
 import type { Client, BlogPost } from "./types";
-import { getWpCredEntry } from "./store";
-import { decrypt } from "./credentials";
 
 interface WordPressCategory {
   id: number;
@@ -15,22 +13,14 @@ interface WordPressPostResponse {
 }
 
 /**
- * Resolve the WP username/password for a client. Prefers encrypted creds
- * synced from Bitwarden (KV key ba:wpcreds). Falls back to the plaintext
- * fields on the client record if no Bitwarden match exists.
+ * Build a Basic Auth header from the WordPress username + application password
+ * stored on the client record. Previously this preferred an encrypted Bitwarden-
+ * synced copy; that integration was removed — credentials now come straight
+ * from the client form in the dashboard.
  */
 async function getAuthHeader(client: Client): Promise<string> {
-  let username = client.wordpressUsername;
-  let password = client.wordpressAppPassword || "";
-  try {
-    const entry = await getWpCredEntry(client.id);
-    if (entry) {
-      username = decrypt(entry.username);
-      password = decrypt(entry.password);
-    }
-  } catch (err) {
-    console.error(`[publisher] Failed to decrypt creds for ${client.businessName}, falling back to stored:`, err);
-  }
+  const username = client.wordpressUsername;
+  const password = client.wordpressAppPassword || "";
   const credentials = `${username}:${password}`;
   return `Basic ${Buffer.from(credentials).toString("base64")}`;
 }

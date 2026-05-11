@@ -16,9 +16,10 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Bearer-token-protected ingest endpoint (GitHub Action posts encrypted
-  // credentials here). Its route handler validates SYNC_INGEST_TOKEN itself.
-  if (pathname === "/api/blog-agent/receive-credentials") {
+  // Vercel cron endpoint: called by Vercel's cron system with its own
+  // Authorization: Bearer $CRON_SECRET header. The route validates that
+  // itself, and Vercel cron has no dashboard cookie to satisfy this gate.
+  if (pathname.startsWith("/api/blog-agent/cron/")) {
     return NextResponse.next();
   }
 
@@ -39,10 +40,9 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    // Skip static assets AND the Bearer-auth ingest endpoint (its own
-    // handler validates SYNC_INGEST_TOKEN). Routing this endpoint through
-    // middleware was corrupting POST bodies (observed HTTP headers
-    // prepended to the body on the server side).
-    "/((?!_next/static|_next/image|favicon.ico|api/blog-agent/receive-credentials).*)",
+    // Skip static assets and the Vercel cron endpoint (which authenticates
+    // itself via CRON_SECRET). Cron calls have no dashboard cookie and would
+    // otherwise be redirected to /login, silently breaking automation.
+    "/((?!_next/static|_next/image|favicon.ico|api/blog-agent/cron/).*)",
   ],
 };
