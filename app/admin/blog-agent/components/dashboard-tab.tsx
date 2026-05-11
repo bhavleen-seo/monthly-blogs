@@ -136,41 +136,44 @@ export default function DashboardTab({
       {/* Pipeline overview */}
       {pipeline.length > 0 && (
         <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-[var(--color-border)]">
+          <div className="px-5 py-4 border-b border-[var(--color-border)] flex items-center justify-between flex-wrap gap-3">
             <h3 className="font-semibold text-[var(--color-foreground)]">Client Pipeline</h3>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-[var(--color-muted-foreground)]">
+              <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: "#f59e0b" }} />Pending</span>
+              <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: "#6366f1" }} />Approved</span>
+              <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: "#8b5cf6" }} />Written</span>
+              <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: "#10b981" }} />Published</span>
+            </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-[var(--color-border)]">
-                  <th className="text-left px-5 py-3 text-xs font-medium text-[var(--color-muted-foreground)] uppercase tracking-wider">Client</th>
-                  <th className="text-center px-4 py-3 text-xs font-medium text-[var(--color-muted-foreground)] uppercase tracking-wider">Pending</th>
-                  <th className="text-center px-4 py-3 text-xs font-medium text-[var(--color-muted-foreground)] uppercase tracking-wider">Approved</th>
-                  <th className="text-center px-4 py-3 text-xs font-medium text-[var(--color-muted-foreground)] uppercase tracking-wider">Written</th>
-                  <th className="text-center px-4 py-3 text-xs font-medium text-[var(--color-muted-foreground)] uppercase tracking-wider">Published</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pipeline.map((row) => (
-                  <tr key={row.id} className="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-hover)] transition-colors">
-                    <td className="px-5 py-3 font-medium text-[var(--color-foreground)]">{row.name}</td>
-                    <td className="text-center px-4 py-3">
-                      {row.pending > 0 ? <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[var(--color-warning)]" />{row.pending}</span> : <span className="text-[var(--color-muted-foreground)]">-</span>}
-                    </td>
-                    <td className="text-center px-4 py-3">
-                      {row.approved > 0 ? <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[var(--color-primary)]" />{row.approved}</span> : <span className="text-[var(--color-muted-foreground)]">-</span>}
-                    </td>
-                    <td className="text-center px-4 py-3">
-                      {row.written > 0 ? <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[var(--color-accent)]" />{row.written}</span> : <span className="text-[var(--color-muted-foreground)]">-</span>}
-                    </td>
-                    <td className="text-center px-4 py-3">
-                      {row.published > 0 ? <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[var(--color-success)]" />{row.published}</span> : <span className="text-[var(--color-muted-foreground)]">-</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ul className="divide-y divide-[var(--color-border)]">
+            {pipeline.map((row) => {
+              const total = row.pending + row.approved + row.written + row.published;
+              const segments = [
+                { count: row.pending, color: "#f59e0b", label: "Pending" },
+                { count: row.approved, color: "#6366f1", label: "Approved" },
+                { count: row.written, color: "#8b5cf6", label: "Written" },
+                { count: row.published, color: "#10b981", label: "Published" },
+              ].filter((s) => s.count > 0);
+              return (
+                <li key={row.id} className="px-5 py-3.5 flex items-center gap-4 hover:bg-[var(--color-hover)] transition-colors">
+                  <div className="w-36 sm:w-48 shrink-0 text-sm font-medium text-[var(--color-foreground)] truncate" title={row.name}>{row.name}</div>
+                  <div className="flex-1 flex h-6 rounded-md overflow-hidden bg-[var(--color-hover)] min-w-0">
+                    {segments.map((s) => (
+                      <div
+                        key={s.label}
+                        title={`${s.label}: ${s.count}`}
+                        className="flex items-center justify-center text-[11px] font-semibold text-white min-w-0 overflow-hidden transition-opacity hover:opacity-90"
+                        style={{ flex: s.count, backgroundColor: s.color }}
+                      >
+                        {s.count}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="w-10 shrink-0 text-right text-sm font-semibold text-[var(--color-foreground)] tabular-nums">{total}</div>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
 
