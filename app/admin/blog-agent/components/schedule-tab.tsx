@@ -34,27 +34,51 @@ export default function ScheduleTab() {
 
   return (
     <div className="space-y-6 animate-fade-in max-w-3xl">
-      {/* Schedule config */}
+      {/* Active automation schedule (fixed by Vercel cron) */}
       <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl p-6">
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold text-[var(--color-foreground)]">Automation Schedule</h3>
-          <button
-            onClick={handleSave}
-            className={`px-5 py-2 rounded-lg text-sm font-medium text-[var(--color-primary-foreground)] transition-all ${saved ? "bg-[var(--color-success)]" : "bg-[var(--color-primary)] hover:opacity-90"}`}
-          >
-            {saved ? "Saved!" : "Save Schedule"}
-          </button>
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--color-success)]">
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-success)]" />
+            Active
+          </span>
         </div>
+        <p className="text-sm text-[var(--color-muted-foreground)] mb-4">
+          Runs daily at ~9am Melbourne time via Vercel Cron. The dates below are fixed in <code className="text-xs px-1 py-0.5 rounded bg-[var(--color-muted)]">vercel.json</code> — changing them requires a code deploy.
+        </p>
 
-        <div className="space-y-5">
-          <label className="flex items-center gap-3 cursor-pointer group">
+        <div className="space-y-3">
+          {[
+            { day: "Day 1", desc: "Researcher generates 5 topic ideas per active client. Slack ping when ready." },
+            { day: "Days 1-9", desc: "You review topics in the dashboard and approve one per client." },
+            { day: "Day 8", desc: "Slack reminder if any clients still have no approved topic." },
+            { day: "Day 10", desc: "Writing kicks off: non-approved topics are auto-cleared, approved ones get written." },
+            { day: "Days 11-19", desc: "Daily silent sweep catches any late approvals and writes them." },
+            { day: "Day 20", desc: "Approval window closes. Slack ping listing any clients that didn't get a post this cycle." },
+            { day: "Anytime", desc: "You publish posts manually from the Posts tab when you're ready." },
+          ].map((step, i) => (
+            <div key={i} className="flex gap-3">
+              <span className="text-xs font-mono font-medium text-[var(--color-primary)] w-20 shrink-0 pt-0.5">{step.day}</span>
+              <span className="text-sm text-[var(--color-muted-foreground)]">{step.desc}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Legacy schedule config — kept for manual single-client trigger preferences */}
+      <details className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl p-6 group">
+        <summary className="cursor-pointer flex items-center justify-between">
+          <h3 className="font-semibold text-[var(--color-foreground)]">Legacy schedule config</h3>
+          <span className="text-xs text-[var(--color-muted-foreground)]">click to expand</span>
+        </summary>
+        <p className="text-xs text-[var(--color-muted-foreground)] mt-3 mb-4">
+          The old day-of-month settings below are <strong>no longer used</strong> by the cron. They're kept here for reference. Edit <code className="text-xs px-1 py-0.5 rounded bg-[var(--color-muted)]">vercel.json</code> to change the live schedule.
+        </p>
+
+        <div className="space-y-5 opacity-60 pointer-events-none">
+          <label className="flex items-center gap-3">
             <div className="relative">
-              <input
-                type="checkbox"
-                checked={schedule.enabled}
-                onChange={(e) => setSchedule({ ...schedule, enabled: e.target.checked })}
-                className="sr-only peer"
-              />
+              <input type="checkbox" checked={schedule.enabled} readOnly className="sr-only peer" />
               <div className="w-9 h-5 bg-[var(--color-muted)] peer-checked:bg-[var(--color-success)] rounded-full transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full" />
             </div>
             <span className="text-sm text-[var(--color-foreground)]">Enable monthly automation</span>
@@ -63,51 +87,18 @@ export default function ScheduleTab() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-[var(--color-muted-foreground)] mb-1.5">Research Day</label>
-              <input
-                type="number" min="1" max="28"
-                value={schedule.researchDayOfMonth}
-                onChange={(e) => setSchedule({ ...schedule, researchDayOfMonth: parseInt(e.target.value) })}
-                className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)]"
-              />
-              <p className="text-[10px] text-[var(--color-muted-foreground)] mt-1">Day topics are generated</p>
+              <input type="number" value={schedule.researchDayOfMonth} readOnly className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)]" />
             </div>
             <div>
               <label className="block text-xs font-medium text-[var(--color-muted-foreground)] mb-1.5">Write Day</label>
-              <input
-                type="number" min="1" max="28"
-                value={schedule.writeDayOfMonth}
-                onChange={(e) => setSchedule({ ...schedule, writeDayOfMonth: parseInt(e.target.value) })}
-                className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)]"
-              />
-              <p className="text-[10px] text-[var(--color-muted-foreground)] mt-1">Day approved topics are written</p>
+              <input type="number" value={schedule.writeDayOfMonth} readOnly className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)]" />
             </div>
           </div>
-
-          <div className="bg-[var(--color-muted)] rounded-lg px-4 py-3">
-            <p className="text-sm font-medium text-[var(--color-foreground)]">Publish: Last business day of the month</p>
-            <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">Moves to Monday if month ends on a weekend.</p>
-          </div>
         </div>
-      </div>
-
-      {/* Workflow overview */}
-      <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl p-6">
-        <h3 className="font-semibold text-[var(--color-foreground)] mb-4">Monthly Workflow</h3>
-        <div className="space-y-3">
-          {[
-            { day: `Day ${schedule.researchDayOfMonth}`, desc: "Agent researches trending topics for all active clients" },
-            { day: `Day ${schedule.researchDayOfMonth}-${schedule.writeDayOfMonth}`, desc: "You review and approve/reject topic suggestions" },
-            { day: `Day ${schedule.writeDayOfMonth}`, desc: "Agent writes SEO-optimized blog posts for approved topics" },
-            { day: `Day ${schedule.writeDayOfMonth}+`, desc: "You review written posts and make any edits" },
-            { day: "Last biz day", desc: "Agent publishes all ready posts to WordPress" },
-          ].map((step, i) => (
-            <div key={i} className="flex gap-3">
-              <span className="text-xs font-mono font-medium text-[var(--color-primary)] w-24 shrink-0 pt-0.5">{step.day}</span>
-              <span className="text-sm text-[var(--color-muted-foreground)]">{step.desc}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+        <button onClick={handleSave} className={`mt-4 px-4 py-1.5 rounded-lg text-xs font-medium text-[var(--color-primary-foreground)] transition-all ${saved ? "bg-[var(--color-success)]" : "bg-[var(--color-primary)] hover:opacity-90"}`}>
+          {saved ? "Saved" : "Save legacy values"}
+        </button>
+      </details>
 
       {/* Recent runs */}
       <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl overflow-hidden">

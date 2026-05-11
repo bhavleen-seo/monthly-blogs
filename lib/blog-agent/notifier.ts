@@ -77,6 +77,63 @@ export const notify = {
       `${count} new topic${count === 1 ? "" : "s"} for *${clientName}* awaiting review.`
     ),
 
+  /** Day-1 summary: one Slack message after research finishes for all clients. */
+  researchCompleteSummary: (clientCount: number, totalTopics: number) =>
+    send(
+      "info",
+      "Topic research complete",
+      `Generated *${totalTopics}* topic${totalTopics === 1 ? "" : "s"} across *${clientCount}* client${clientCount === 1 ? "" : "s"}. Open the dashboard to approve one topic per client. Writing kicks off on the 10th.`
+    ),
+
+  /** Day-8 reminder: pings only if any clients still have zero approved topics. */
+  topicsPendingReminder: (pendingClients: string[]) =>
+    send(
+      "warning",
+      "Topics still need approval",
+      `${pendingClients.length} client${pendingClients.length === 1 ? " has" : "s have"} no approved topic yet. Writing starts on the 10th — please review:\n${pendingClients
+        .slice(0, 30)
+        .map((n) => `• ${n}`)
+        .join("\n")}${pendingClients.length > 30 ? `\n…and ${pendingClients.length - 30} more.` : ""}`
+    ),
+
+  /** Day-10+ sweep: one summary after each daily write sweep. */
+  writingSweepSummary: (
+    writtenCount: number,
+    stillPendingClients: string[],
+    isFinalDay: boolean
+  ) => {
+    const lines: string[] = [];
+    if (writtenCount > 0) {
+      lines.push(`Wrote *${writtenCount}* new post${writtenCount === 1 ? "" : "s"} from approved topics.`);
+    } else {
+      lines.push(`No new posts written in this sweep.`);
+    }
+    if (stillPendingClients.length > 0 && !isFinalDay) {
+      lines.push(
+        `\n${stillPendingClients.length} client${stillPendingClients.length === 1 ? " is" : "s are"} still waiting on your approval:\n${stillPendingClients
+          .slice(0, 30)
+          .map((n) => `• ${n}`)
+          .join("\n")}${stillPendingClients.length > 30 ? `\n…and ${stillPendingClients.length - 30} more.` : ""}`
+      );
+    }
+    return send(
+      stillPendingClients.length > 0 ? "warning" : "success",
+      "Writing sweep complete",
+      lines.join("\n")
+    );
+  },
+
+  /** Day-20 closure: clients that never got an approved topic this cycle. */
+  clientsSkippedForMonth: (skippedClients: string[]) =>
+    send(
+      "warning",
+      "Clients skipped this month",
+      `Approval window has closed. These client${skippedClients.length === 1 ? "" : "s"} did not get a post this cycle (no topic approved in time):\n${skippedClients
+        .slice(0, 30)
+        .map((n) => `• ${n}`)
+        .join("\n")}${skippedClients.length > 30 ? `\n…and ${skippedClients.length - 30} more.` : ""}`
+    ),
+
   postsWritten: (count: number, totalApproved: number) =>
     send(
       "info",

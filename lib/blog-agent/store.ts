@@ -17,6 +17,7 @@ const KV = {
   SCHEDULE:     "ba:schedule",
   WPCREDS:      "ba:wpcreds",       // encrypted WP creds per clientId + sync status
   SITEPROFILES: "ba:siteprofiles",  // Record<clientId, ClientSiteProfile>
+  TOPICHISTORY: "ba:topichistory",  // Record<clientId, string[]> — every topic title ever suggested per client
   OLD_STORE:    "blog-agent-store", // legacy single-blob key for migration
 } as const;
 
@@ -557,6 +558,36 @@ export async function deleteClientProfile(clientId: string): Promise<void> {
   const all = await getAllSiteProfiles();
   delete all[clientId];
   await kvSet(KV.SITEPROFILES, all);
+}
+
+// ─── Topic history ────────────────────────────────────────────────────────────
+// Per-client log of every topic title ever suggested. The researcher reads this
+// list and passes it to the LLM as a strict exclusion: "you may reuse the same
+// commercial keyword, but you may NOT propose a topic angle/title that resembles
+// any of these." Capped at 300 most-recent per client to keep KV size sensible.
+
+const TOPIC_HISTORY_CAP = 300;
+
+export async function getAllTopicHistory(): Promise<Record<string, string[]>> {
+  if (!useKV()) return {};
+  return kvGet<Record<string, string[]>>(KV.TOPICHISTORY, {});
+}
+
+export async function getTopicHistory(clientId: string): Promise<string[]> {
+  const all = await getAllTopicHistory();
+  return all[clientId] || [];
+}
+
+export async function appendTopicHistory(
+  clientId: string,
+  titles: string[]
+): Promise<void> {
+  if (!useKV() || titles.length === 0) return;
+  const all = await getAllTopicHistory();
+  const existing = all[clientId] || [];
+  const merged = [...existing, ...titles].slice(-TOPIC_HISTORY_CAP);
+  all[clientId] = merged;
+  await kvSet(KV.TOPICHISTORY, all);
 }
 
 // ─── Schedule ────────────────────────────────────────────────────────────────

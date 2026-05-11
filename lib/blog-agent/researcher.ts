@@ -1,6 +1,12 @@
 import { v4 as uuidv4 } from "uuid";
 import type { Client, TopicSuggestion } from "./types";
-import { getTopics, getGlobalSettings, getClientProfile, saveClientProfile } from "./store";
+import {
+  getGlobalSettings,
+  getClientProfile,
+  saveClientProfile,
+  getTopicHistory,
+  appendTopicHistory,
+} from "./store";
 import { complete } from "./llm";
 import { getPublishedPostTitles } from "./publisher";
 import { getRelatedQuestions } from "./alsoasked";
@@ -15,12 +21,16 @@ export async function researchTopics(
   month: string,
   count?: number
 ): Promise<TopicSuggestion[]> {
-  const numTopics = count || Math.max(5, client.postsPerMonth * 2);
+  // Fixed at 5 topics per client by default — user picks the best one to approve,
+  // and the rest are auto-cleared on the day-10 write sweep.
+  const numTopics = count ?? 5;
   const settings = await getGlobalSettings();
   const region = inferRegion(client.location);
 
-  const pastTopics = await getTopics({ clientId: client.id });
-  const pastTitles = pastTopics.map((t) => t.title).slice(-20);
+  // Full topic memory: every title ever suggested for this client.
+  // Cron writes new titles to this list at the end of each research run.
+  const everSuggested = await getTopicHistory(client.id);
+  const pastTitles = everSuggested.slice(-150); // cap prompt size
 
   // Use the cached site profile for keywords + positioning. If no profile exists
   // (first run) or the website URL changed, build and cache it now.
@@ -170,7 +180,12 @@ ${relatedQuestions.map((q) => `- ${q}`).join("\n")}
 Every topic you suggest MUST cover a distinctly different angle than ALL of these:
 ${publishedTitles.length > 0 ? publishedTitles.map((t) => `- ${t}`).join("\n") : "None fetched"}
 
-## Previously Suggested (don't repeat):
+## Previously Suggested for This Client — STRICT EXCLUSIONS
+The titles below have already been proposed for this client in past months. Strict rules:
+- **You CAN reuse the same commercial keyword or focus topic** — the same money term can support many distinct articles.
+- **You CANNOT propose a topic whose angle, headline, or core thesis resembles any title below.** Even if the wording differs, if a reader would get substantially the same article from your title, it's a repeat — pick a different angle.
+- If you're unsure whether a new title is "too similar" to a past one, assume it is and pick a fresh angle.
+
 ${pastTitles.length > 0 ? pastTitles.map((t) => `- ${t}`).join("\n") : "None yet"}
 
 # Your Decision Framework
@@ -259,7 +274,7 @@ Return ONLY the JSON array.`;
     // If SEMrush had no data at all for the keyword, keep it (fall back to LLM estimate).
     .filter(({ m }) => !(m && m.volume === 0));
 
-  return validated.map(({ s, m }) => ({
+  const finalTopics: TopicSuggestion[] = validated.map(({ s, m }) => ({
     id: uuidv4(),
     clientId: client.id,
     title: s.title,
@@ -279,4 +294,15 @@ Return ONLY the JSON array.`;
     month,
     createdAt: new Date().toISOString(),
   }));
+
+  // Persist every newly-suggested title to the client's topic history so future
+  // research runs can exclude similar angles. Best-effort: a failure here just
+  // means the next run might repeat — never block topic delivery.
+  try {
+    await appendTopicHistory(client.id, finalTopics.map((t) => t.title));
+  } catch (err) {
+    console.error("[researcher] Failed to append topic history (non-fatal):", err);
+  }
+
+  return finalTopics;
 }
