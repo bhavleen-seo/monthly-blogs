@@ -220,7 +220,7 @@ export default function ClientsTab({
         <div className="flex gap-2 flex-wrap">
           {clients.length === 0 && (
             <button onClick={onSeed} disabled={loading} className="bg-[var(--color-success)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40">
-              Load All 26 Clients
+              Load All 24 Clients
             </button>
           )}
           {clients.length > 0 && (
