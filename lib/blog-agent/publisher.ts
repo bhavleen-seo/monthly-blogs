@@ -208,7 +208,6 @@ async function getOrCreateCategories(
   categoryNames: string[]
 ): Promise<number[]> {
   const authHeader = await getAuthHeader(client);
-  const categoryIds: number[] = [];
 
   const res = await fetch(`${apiBase}/categories?per_page=100`, {
     headers: { Authorization: authHeader },
@@ -220,31 +219,11 @@ async function getOrCreateCategories(
 
   const existing: WordPressCategory[] = await res.json();
 
-  for (const name of categoryNames) {
-    const found = existing.find(
-      (c) => c.name.toLowerCase() === name.toLowerCase()
-    );
-
-    if (found) {
-      categoryIds.push(found.id);
-    } else {
-      const createRes = await fetch(`${apiBase}/categories`, {
-        method: "POST",
-        headers: {
-          Authorization: authHeader,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ name }),
-      });
-
-      if (createRes.ok) {
-        const newCat: WordPressCategory = await createRes.json();
-        categoryIds.push(newCat.id);
-      }
-    }
-  }
-
-  return categoryIds;
+  // Only use categories that already exist on the site — never create new ones.
+  return categoryNames
+    .map((name) => existing.find((c) => c.name.toLowerCase() === name.toLowerCase()))
+    .filter((c): c is WordPressCategory => c !== undefined)
+    .map((c) => c.id);
 }
 
 async function getOrCreateTags(
