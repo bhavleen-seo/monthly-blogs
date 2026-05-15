@@ -25,6 +25,7 @@ export default function PostsTab({
   onPostUpdated,
   onDeletePost,
   onRewritePost,
+  onCleanupPosts,
 }: {
   clients: Client[];
   topics: Topic[];
@@ -36,6 +37,7 @@ export default function PostsTab({
   onPostUpdated: () => void;
   onDeletePost: (id: string) => void;
   onRewritePost: (postId: string) => void;
+  onCleanupPosts: () => void;
 }) {
   const [clientId, setClientId] = useState("");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
@@ -135,6 +137,15 @@ export default function PostsTab({
           >
             Export Published URLs ({publishedWithUrlCount})
           </a>
+          {posts.some((p) => p.status !== "published") && (
+            <button
+              onClick={onCleanupPosts}
+              title="Delete all draft and ready posts — only published posts are kept"
+              className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-destructive)]/40 text-[var(--color-destructive)] hover:bg-[var(--color-destructive)]/10 transition-all"
+            >
+              Delete Drafts ({posts.filter((p) => p.status !== "published").length})
+            </button>
+          )}
           {clientId && counts.approvedTopics > 0 && (
             <button
               onClick={onWritePosts}

@@ -300,6 +300,16 @@ export default function BlogAgentDashboard() {
     }
   };
 
+  const handleCleanupPosts = async () => {
+    const unpublished = posts.filter((p) => p.status !== "published").length;
+    if (unpublished === 0) { showToast("No drafts to clean up", "info"); return; }
+    if (!confirm(`Delete ${unpublished} unpublished post(s)? Published posts are not affected.`)) return;
+    const res = await fetch("/api/blog-agent/posts/cleanup", { method: "POST" });
+    const data = await res.json();
+    if (res.ok) { showToast(`Deleted ${data.deleted} draft post(s)`, "success"); fetchPosts(); }
+    else showToast(`Cleanup failed: ${data.error}`, "error");
+  };
+
   const handlePublishPosts = async (clientId?: string) => {
     setLoading(true);
     const clientName = clientId ? clients.find((c) => c.id === clientId)?.businessName : undefined;
@@ -477,6 +487,7 @@ export default function BlogAgentDashboard() {
               onPostUpdated={fetchPosts}
               onDeletePost={handleDeletePost}
               onRewritePost={handleRewritePost}
+              onCleanupPosts={handleCleanupPosts}
             />
           )}
 

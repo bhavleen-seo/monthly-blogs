@@ -27,6 +27,7 @@ export default function TopicsTab({
   onWriteSelected: (topicIds: string[]) => void;
 }) {
   const [clientId, setClientId] = useState("");
+  const [monthFilter, setMonthFilter] = useState("all");
   const [sortMode, setSortMode] = useState<SortMode>("default");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [expandedRationales, setExpandedRationales] = useState<Set<string>>(new Set());
@@ -34,9 +35,22 @@ export default function TopicsTab({
 
   const client = clients.find((c) => c.id === clientId);
 
+  // All unique months across all topics for this client, sorted newest first.
+  const availableMonths = useMemo(() => {
+    if (!clientId) return [];
+    const months = [...new Set(topics.filter((t) => t.clientId === clientId).map((t) => t.month).filter(Boolean))];
+    return months.sort((a, b) => b.localeCompare(a));
+  }, [topics, clientId]);
+
+  const formatMonth = (m: string) => {
+    const [year, month] = m.split("-");
+    return new Date(Number(year), Number(month) - 1).toLocaleDateString("en-AU", { month: "long", year: "numeric" });
+  };
+
   const sortedTopics = useMemo(() => {
     if (!clientId) return [];
-    const list = topics.filter((t) => t.clientId === clientId);
+    let list = topics.filter((t) => t.clientId === clientId);
+    if (monthFilter !== "all") list = list.filter((t) => t.month === monthFilter);
     if (sortMode === "volume") {
       return [...list].sort((a, b) => (b.searchVolume ?? -1) - (a.searchVolume ?? -1));
     }
@@ -44,7 +58,7 @@ export default function TopicsTab({
       return [...list].sort((a, b) => (a.keywordDifficulty ?? 999) - (b.keywordDifficulty ?? 999));
     }
     return list;
-  }, [topics, clientId, sortMode]);
+  }, [topics, clientId, monthFilter, sortMode]);
 
   const pending = sortedTopics.filter((t) => t.status === "pending");
   const approved = sortedTopics.filter((t) => t.status === "approved");
@@ -76,7 +90,7 @@ export default function TopicsTab({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <select
           value={clientId}
-          onChange={(e) => { setClientId(e.target.value); clearSelection(); setExpandedRationales(new Set()); }}
+          onChange={(e) => { setClientId(e.target.value); setMonthFilter("all"); clearSelection(); setExpandedRationales(new Set()); }}
           className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] min-w-[260px]"
         >
           <option value="">Select a client…</option>
@@ -85,7 +99,19 @@ export default function TopicsTab({
           ))}
         </select>
         {clientId && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {availableMonths.length > 1 && (
+              <select
+                value={monthFilter}
+                onChange={(e) => setMonthFilter(e.target.value)}
+                className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-xs text-[var(--color-foreground)]"
+              >
+                <option value="all">All months</option>
+                {availableMonths.map((m) => (
+                  <option key={m} value={m}>{formatMonth(m)}</option>
+                ))}
+              </select>
+            )}
             <select
               value={sortMode}
               onChange={(e) => setSortMode(e.target.value as SortMode)}
