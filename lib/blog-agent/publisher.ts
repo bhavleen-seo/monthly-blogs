@@ -220,10 +220,12 @@ async function getOrCreateCategories(
   const existing: WordPressCategory[] = await res.json();
 
   // Only use categories that already exist on the site — never create new ones.
-  return categoryNames
+  // Deduplicate IDs so the same category is never assigned twice.
+  const ids = categoryNames
     .map((name) => existing.find((c) => c.name.toLowerCase() === name.toLowerCase()))
     .filter((c): c is WordPressCategory => c !== undefined)
     .map((c) => c.id);
+  return [...new Set(ids)];
 }
 
 async function getOrCreateTags(
