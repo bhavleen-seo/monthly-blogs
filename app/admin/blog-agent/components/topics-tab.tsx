@@ -441,7 +441,7 @@ function TopicRow({
           )}
         </div>
 
-        {showActions && (
+        {showActions ? (
           <div className="flex gap-2 shrink-0">
             <button onClick={() => onApprove(topic.id)} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-success)] text-[var(--color-primary-foreground)] hover:opacity-90 transition-opacity">
               Approve
@@ -450,6 +450,14 @@ function TopicRow({
               Reject
             </button>
           </div>
+        ) : (
+          <button
+            onClick={() => onReject(topic.id)}
+            title="Remove from approved"
+            className="shrink-0 text-[10px] font-medium px-2.5 py-1 rounded-lg border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)] hover:border-[var(--color-destructive)] transition-all"
+          >
+            Reject
+          </button>
         )}
       </div>
     </div>
