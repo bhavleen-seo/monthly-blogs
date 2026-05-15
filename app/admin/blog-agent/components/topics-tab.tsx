@@ -88,16 +88,29 @@ export default function TopicsTab({
     <div className="space-y-5 animate-fade-in">
       {/* Client picker */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <select
-          value={clientId}
-          onChange={(e) => { setClientId(e.target.value); setMonthFilter("all"); clearSelection(); setExpandedRationales(new Set()); }}
-          className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] min-w-[260px]"
-        >
-          <option value="">Select a client…</option>
-          {[...clients].sort((a, b) => a.businessName.localeCompare(b.businessName)).map((c) => (
-            <option key={c.id} value={c.id}>{c.businessName}</option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          {clientId && (
+            <button
+              onClick={() => { setClientId(""); setMonthFilter("all"); clearSelection(); setExpandedRationales(new Set()); }}
+              className="flex items-center gap-1 text-sm text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors shrink-0"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+              All clients
+            </button>
+          )}
+          <select
+            value={clientId}
+            onChange={(e) => { setClientId(e.target.value); setMonthFilter("all"); clearSelection(); setExpandedRationales(new Set()); }}
+            className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] min-w-[260px]"
+          >
+            <option value="">Select a client…</option>
+            {[...clients].sort((a, b) => a.businessName.localeCompare(b.businessName)).map((c) => (
+              <option key={c.id} value={c.id}>{c.businessName}</option>
+            ))}
+          </select>
+        </div>
         {clientId && (
           <div className="flex items-center gap-2 flex-wrap">
             {availableMonths.length > 1 && (
