@@ -189,6 +189,22 @@ export async function runWriting(
       }
     }
 
+    // Auto-reject any approved topics that weren't part of this writing run.
+    // This keeps the queue clean — next time writing runs, only freshly-approved
+    // topics are present, not old leftovers from previous months.
+    if (posts.length > 0) {
+      const writtenTopicIds = new Set(approvedTopics.map((t) => t.id));
+      const affectedClientIds = [...new Set(approvedTopics.map((t) => t.clientId))];
+      for (const cid of affectedClientIds) {
+        const allApproved = await getTopics({ clientId: cid, status: "approved" });
+        for (const t of allApproved) {
+          if (!writtenTopicIds.has(t.id)) {
+            await saveTopic({ ...t, status: "rejected" });
+          }
+        }
+      }
+    }
+
     await updateRun(run.id, {
       status: "completed",
       message: `Wrote ${posts.length} blog post(s) from ${approvedTopics.length} approved topic(s)`,
