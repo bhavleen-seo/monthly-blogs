@@ -68,12 +68,13 @@ export async function runResearch(clientId?: string): Promise<{
 
     for (const client of clients) {
       try {
-        // Skip clients that already have topics for this month (unless regenerate
-        // deleted them first via the API route before calling runResearch).
-        const existing = await getTopics({ clientId: client.id, month });
-        if (existing.length > 0) {
-          console.log(`[runResearch] Skipping ${client.businessName} — already has ${existing.length} topics for ${month}`);
-          topicsByClient[client.id] = existing;
+        // Skip clients that already have PENDING topics for this month.
+        // Approved/rejected topics don't count — clients with only approved
+        // topics still need fresh pending suggestions for the next pick.
+        const existingPending = await getTopics({ clientId: client.id, month, status: "pending" });
+        if (existingPending.length > 0) {
+          console.log(`[runResearch] Skipping ${client.businessName} — already has ${existingPending.length} pending topics for ${month}`);
+          topicsByClient[client.id] = existingPending;
           skippedCount++;
           continue;
         }
