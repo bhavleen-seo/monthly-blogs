@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import type { Client, TopicSuggestion, BlogPost } from "./types";
-import { getGlobalSettings } from "./store";
+import { getGlobalSettings, getPosts } from "./store";
 import { complete } from "./llm";
 import { analyzeKeywords, inferRegion } from "./serper";
 import { fetchPageContents, formatPageForPrompt } from "./youcom";
@@ -368,12 +368,26 @@ Return ONLY the JSON object, no other text.`;
     console.warn(`[writer] AI tells survived in post "${finalTitle}":`, aiTellsDetected);
   }
 
+  // Collect Freepik IDs already used by this client so we never reuse the
+  // same image across monthly posts. Best-effort: if the fetch fails we just
+  // proceed without the exclusion list.
+  let usedFreepikIds: Set<string | number> | undefined;
+  try {
+    const previousPosts = await getPosts({ clientId: client.id });
+    const ids = previousPosts
+      .map((p) => p.freepikId)
+      .filter((id): id is string | number => id !== undefined && id !== null);
+    if (ids.length > 0) usedFreepikIds = new Set(ids);
+  } catch {
+    // Non-fatal — proceed without exclusions
+  }
+
   // Auto-find a featured image from Freepik. Failures don't block the post —
   // the user can paste a URL manually in the preview modal if Freepik returns
   // nothing useful.
-  const stockImage = await searchStockImage(primaryKeyword || topic.title, topic.title);
+  const stockImage = await searchStockImage(primaryKeyword || topic.title, topic.title, usedFreepikIds);
   if (stockImage) {
-    console.log(`[writer] Freepik image found for "${finalTitle}" (id: ${stockImage.freepikId})`);
+    console.log(`[writer] Freepik image found for "${finalTitle}" (id: ${stockImage.freepikId}${usedFreepikIds?.size ? `, skipped ${usedFreepikIds.size} previously used` : ""})`);
   }
   const featuredImageAlt = stockImage
     ? buildAltText(parsed.featuredImagePrompt, primaryKeyword)
@@ -394,6 +408,7 @@ Return ONLY the JSON object, no other text.`;
     tags: [],
     featuredImagePrompt: parsed.featuredImagePrompt,
     featuredImageUrl: stockImage?.url,
+    freepikId: stockImage?.freepikId,
     featuredImageAlt,
     wordCount,
     status: "ready",

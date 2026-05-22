@@ -55,7 +55,8 @@ interface FreepikSearchResponse {
  */
 export async function searchStockImage(
   primaryQuery: string,
-  fallbackQuery?: string
+  fallbackQuery?: string,
+  excludedIds?: Set<string | number>
 ): Promise<FreepikImage | null> {
   const apiKey = process.env.FREEPIK_API_KEY;
   if (!apiKey) {
@@ -64,14 +65,14 @@ export async function searchStockImage(
   }
 
   for (const query of [primaryQuery, fallbackQuery].filter((q): q is string => !!q && q.trim().length > 0)) {
-    const result = await trySearch(query.trim(), apiKey);
+    const result = await trySearch(query.trim(), apiKey, excludedIds);
     if (result) return result;
   }
 
   return null;
 }
 
-async function trySearch(query: string, apiKey: string): Promise<FreepikImage | null> {
+async function trySearch(query: string, apiKey: string, excludedIds?: Set<string | number>): Promise<FreepikImage | null> {
   try {
     const params = new URLSearchParams();
     params.append("term", query);
@@ -100,17 +101,20 @@ async function trySearch(query: string, apiKey: string): Promise<FreepikImage | 
       return null;
     }
 
-    // Find the first usable result — its preview URL is a safe fallback.
+    // Find the first usable result that hasn't been used for this client before.
     let chosen: { id: string | number; previewUrl: string } | null = null;
     for (const item of items) {
+      const id = item?.id ?? "img";
+      // Skip images already used by this client in previous posts.
+      if (excludedIds && id !== "img" && excludedIds.has(id)) continue;
       const url = item?.image?.source?.url || item?.preview?.url || item?.url;
       if (typeof url === "string" && url.startsWith("http")) {
-        chosen = { id: item?.id ?? "img", previewUrl: url };
+        chosen = { id, previewUrl: url };
         break;
       }
     }
     if (!chosen) {
-      console.warn(`[freepik] No usable image URL in ${items.length} results for "${query}"`);
+      console.warn(`[freepik] No usable image URL in ${items.length} results for "${query}" (${excludedIds?.size ?? 0} excluded)`);
       return null;
     }
 

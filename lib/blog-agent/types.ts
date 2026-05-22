@@ -76,6 +76,9 @@ export interface BlogPost {
   tags: string[];
   featuredImagePrompt: string;
   featuredImageUrl?: string;
+  /** Freepik resource ID used for the featured image. Tracked to prevent
+   *  the same image being reused across monthly posts for the same client. */
+  freepikId?: string | number;
   /** SEO-friendly alt text for the featured image. Stored on the post for reference; not pushed to WordPress (the current plugin doesn't support attachment alt). Manually copy into WP admin if needed. */
   featuredImageAlt?: string;
   wordCount: number;
