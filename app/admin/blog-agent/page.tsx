@@ -195,8 +195,11 @@ export default function BlogAgentDashboard() {
         console.error(`Research failed for ${c.businessName}`);
       }
       // Refresh topics after every client so the Topics tab updates in real time
-      fetchTopics();
+      fetchTopics(); // fire-and-forget per-client refresh (best effort)
     }
+
+    // Final authoritative refresh once the full loop is done
+    await fetchTopics();
 
     const msg = errors > 0
       ? `Generated ${totalTopics} topics (${errors} client(s) had errors)`
