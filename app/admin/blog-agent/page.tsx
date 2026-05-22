@@ -481,7 +481,7 @@ export default function BlogAgentDashboard() {
               topics={topics}
               posts={posts}
               loading={loading}
-              onWritePosts={() => handleWritePosts()}
+              onWritePosts={(cId) => handleWritePosts(cId)}
               onPublishPosts={() => handlePublishPosts()}
               onPublishPost={handlePublishSinglePost}
               onPostUpdated={fetchPosts}

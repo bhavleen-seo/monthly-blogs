@@ -7,11 +7,10 @@ function generateSlugPreview(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-const POST_SECTIONS: { status: string; label: string }[] = [
-  { status: "ready",     label: "Ready to Publish" },
-  { status: "draft",     label: "Drafts" },
-  { status: "published", label: "Published" },
-  { status: "failed",    label: "Failed" },
+const UNPUBLISHED_SECTIONS: { status: string; label: string }[] = [
+  { status: "ready",  label: "Ready to Publish" },
+  { status: "draft",  label: "Drafts" },
+  { status: "failed", label: "Failed" },
 ];
 
 export default function PostsTab({
@@ -31,7 +30,7 @@ export default function PostsTab({
   topics: Topic[];
   posts: Post[];
   loading: boolean;
-  onWritePosts: () => void;
+  onWritePosts: (clientId: string) => void;
   onPublishPosts: () => void;
   onPublishPost: (postId: string) => void;
   onPostUpdated: () => void;
@@ -40,6 +39,7 @@ export default function PostsTab({
   onCleanupPosts: () => void;
 }) {
   const [clientId, setClientId] = useState("");
+  const [publishedExpanded, setPublishedExpanded] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -161,7 +161,7 @@ export default function PostsTab({
           )}
           {clientId && counts.approvedTopics > 0 && (
             <button
-              onClick={onWritePosts}
+              onClick={() => onWritePosts(clientId)}
               disabled={loading}
               className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40"
             >
@@ -272,85 +272,64 @@ export default function PostsTab({
         </div>
       )}
 
-      {/* Post sections */}
-      {clientId && POST_SECTIONS.map(({ status, label }) => {
-        const items = clientPosts.filter((p) => p.status === status);
-        if (items.length === 0) return null;
+      {/* Unpublished section */}
+      {clientId && (() => {
+        const unpublished = clientPosts.filter((p) => p.status !== "published");
+        if (unpublished.length === 0) return null;
         return (
-          <div key={status} className="space-y-2">
-            <h3 className="text-xs font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">
-              {label} ({items.length})
-            </h3>
-            <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl overflow-hidden divide-y divide-[var(--color-border)]">
-              {items.map((post) => {
-                const isGhostPublished = post.status === "published" && !post.publishedUrl;
-                const canPublish = post.status === "ready" || post.status === "draft" || post.status === "failed" || isGhostPublished;
-                const publishLabel = post.status === "failed" || isGhostPublished ? "Retry Publish" : "Publish";
-
-                return (
-                  <div key={post.id} className="flex items-center justify-between px-5 py-3 hover:bg-[var(--color-hover)] transition-colors">
-                    <div className="flex-1 min-w-0 mr-4">
-                      <p className="text-sm font-medium text-[var(--color-foreground)] truncate">{post.title}</p>
-                      <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                        <span className="text-xs text-[var(--color-muted-foreground)]">{post.wordCount} words</span>
-                        {isGhostPublished && (
-                          <span className="text-xs text-[var(--color-warning)]">no live URL — likely never reached WP</span>
-                        )}
-                        {post.aiTellsDetected && post.aiTellsDetected.length > 0 && (
-                          <span
-                            className="text-xs text-[var(--color-warning)] cursor-help"
-                            title={`AI-tell phrases detected:\n${post.aiTellsDetected.join("\n")}`}
-                          >
-                            ⚠ {post.aiTellsDetected.length} AI tell{post.aiTellsDetected.length === 1 ? "" : "s"}
-                          </span>
-                        )}
-                        {post.publishedUrl && (
-                          <a href={post.publishedUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--color-primary)] hover:underline">
-                            View live
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex gap-2 shrink-0">
-                      <button
-                        onClick={() => { setSelectedPost(post); setCopiedField(null); }}
-                        className="text-xs font-medium px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:bg-[var(--color-hover)] hover:text-[var(--color-foreground)] transition-all"
-                      >
-                        Preview
-                      </button>
-                      {canPublish && (
-                        <button
-                          onClick={() => onPublishPost(post.id)}
-                          disabled={loading}
-                          className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-success)] text-[var(--color-primary-foreground)] hover:opacity-90 transition-all disabled:opacity-40"
-                        >
-                          {publishLabel}
-                        </button>
-                      )}
-                      {post.status !== "published" && (
-                        <button
-                          onClick={() => onRewritePost(post.id)}
-                          disabled={loading}
-                          className="text-xs font-medium px-3 py-1.5 rounded-lg text-[var(--color-warning)] hover:bg-[var(--color-warning)]/10 transition-all disabled:opacity-40"
-                        >
-                          Rewrite
-                        </button>
-                      )}
-                      <button
-                        onClick={() => onDeletePost(post.id)}
-                        className="text-xs font-medium px-2 py-1.5 rounded-lg text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)] transition-all"
-                        title={post.status === "published" ? "Delete from dashboard and optionally WordPress" : "Remove from dashboard"}
-                      >
-                        {post.status === "published" ? "Delete" : "Remove"}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+          <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl overflow-hidden">
+            <div className="px-5 py-3 bg-[var(--color-muted)]/40 border-b border-[var(--color-border)]">
+              <h3 className="text-xs font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">
+                Unpublished ({unpublished.length})
+              </h3>
+              <p className="text-[11px] text-[var(--color-muted-foreground)] mt-0.5">These posts need to be published or are still being generated.</p>
             </div>
+            {UNPUBLISHED_SECTIONS.map(({ status, label }) => {
+              const items = clientPosts.filter((p) => p.status === status);
+              if (items.length === 0) return null;
+              return (
+                <div key={status}>
+                  <div className="px-5 py-2 border-b border-[var(--color-border)] bg-[var(--color-muted)]/20">
+                    <p className="text-[11px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">{label} ({items.length})</p>
+                  </div>
+                  <div className="divide-y divide-[var(--color-border)]">
+                    {items.map((post) => <PostRow key={post.id} post={post} loading={loading} onPreview={() => { setSelectedPost(post); setCopiedField(null); }} onPublish={() => onPublishPost(post.id)} onRewrite={() => onRewritePost(post.id)} onDelete={() => onDeletePost(post.id)} />)}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         );
-      })}
+      })()}
+
+      {/* Published section — collapsible */}
+      {clientId && (() => {
+        const published = clientPosts.filter((p) => p.status === "published");
+        if (published.length === 0) return null;
+        return (
+          <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl overflow-hidden">
+            <button
+              onClick={() => setPublishedExpanded(!publishedExpanded)}
+              className="w-full flex items-center justify-between px-5 py-3 hover:bg-[var(--color-hover)] transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <svg className={`w-4 h-4 text-[var(--color-muted-foreground)] transition-transform ${publishedExpanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+                <h3 className="text-xs font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">
+                  Published ({published.length})
+                </h3>
+              </div>
+              <span className="text-[11px] text-[var(--color-success)]">✓ Live on WordPress</span>
+            </button>
+            {publishedExpanded && (
+              <div className="border-t border-[var(--color-border)] divide-y divide-[var(--color-border)]">
+                {published.map((post) => <PostRow key={post.id} post={post} loading={loading} onPreview={() => { setSelectedPost(post); setCopiedField(null); }} onPublish={() => onPublishPost(post.id)} onRewrite={() => onRewritePost(post.id)} onDelete={() => onDeletePost(post.id)} />)}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Empty state for selected client with no posts */}
       {clientId && clientPosts.length === 0 && (
@@ -596,6 +575,60 @@ export default function PostsTab({
           </div>
         );
       })()}
+    </div>
+  );
+}
+
+function PostRow({ post, loading, onPreview, onPublish, onRewrite, onDelete }: {
+  post: Post;
+  loading: boolean;
+  onPreview: () => void;
+  onPublish: () => void;
+  onRewrite: () => void;
+  onDelete: () => void;
+}) {
+  const isGhostPublished = post.status === "published" && !post.publishedUrl;
+  const canPublish = post.status === "ready" || post.status === "draft" || post.status === "failed" || isGhostPublished;
+  const publishLabel = post.status === "failed" || isGhostPublished ? "Retry Publish" : "Publish";
+  return (
+    <div className="flex items-center justify-between px-5 py-3 hover:bg-[var(--color-hover)] transition-colors">
+      <div className="flex-1 min-w-0 mr-4">
+        <p className="text-sm font-medium text-[var(--color-foreground)] truncate">{post.title}</p>
+        <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+          <span className="text-xs text-[var(--color-muted-foreground)]">{post.wordCount} words</span>
+          {isGhostPublished && (
+            <span className="text-xs text-[var(--color-warning)]">no live URL — likely never reached WP</span>
+          )}
+          {post.aiTellsDetected && post.aiTellsDetected.length > 0 && (
+            <span className="text-xs text-[var(--color-warning)] cursor-help" title={`AI-tell phrases detected:\n${post.aiTellsDetected.join("\n")}`}>
+              ⚠ {post.aiTellsDetected.length} AI tell{post.aiTellsDetected.length === 1 ? "" : "s"}
+            </span>
+          )}
+          {post.publishedUrl && (
+            <a href={post.publishedUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--color-primary)] hover:underline">
+              View live
+            </a>
+          )}
+        </div>
+      </div>
+      <div className="flex gap-2 shrink-0">
+        <button onClick={onPreview} className="text-xs font-medium px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:bg-[var(--color-hover)] hover:text-[var(--color-foreground)] transition-all">
+          Preview
+        </button>
+        {canPublish && (
+          <button onClick={onPublish} disabled={loading} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-success)] text-[var(--color-primary-foreground)] hover:opacity-90 transition-all disabled:opacity-40">
+            {publishLabel}
+          </button>
+        )}
+        {post.status !== "published" && (
+          <button onClick={onRewrite} disabled={loading} className="text-xs font-medium px-3 py-1.5 rounded-lg text-[var(--color-warning)] hover:bg-[var(--color-warning)]/10 transition-all disabled:opacity-40">
+            Rewrite
+          </button>
+        )}
+        <button onClick={onDelete} className="text-xs font-medium px-2 py-1.5 rounded-lg text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)] transition-all" title={post.status === "published" ? "Delete from dashboard and optionally WordPress" : "Remove from dashboard"}>
+          {post.status === "published" ? "Delete" : "Remove"}
+        </button>
+      </div>
     </div>
   );
 }
