@@ -300,6 +300,28 @@ export default function BlogAgentDashboard() {
     }
   };
 
+  const handleReset = async () => {
+    const confirmed = confirm(
+      "This will permanently delete ALL topics (pending, approved, rejected) and all unpublished posts (drafts & ready).\n\n" +
+      "Published posts on WordPress are NOT affected.\n\n" +
+      "Are you sure you want to start over?"
+    );
+    if (!confirmed) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/blog-agent/reset", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(`Reset complete — deleted ${data.topicsDeleted} topic(s) and ${data.postsDeleted} draft post(s)`, "success");
+        fetchTopics();
+        fetchPosts();
+      } else {
+        showToast(`Reset failed: ${data.error}`, "error");
+      }
+    } catch { showToast("Reset failed", "error"); }
+    setLoading(false);
+  };
+
   const handleCleanupPosts = async () => {
     const unpublished = posts.filter((p) => p.status !== "published").length;
     if (unpublished === 0) { showToast("No drafts to clean up", "info"); return; }
@@ -443,6 +465,7 @@ export default function BlogAgentDashboard() {
               onReject={(id) => handleTopicAction(id, "reject")}
               onBulkApprove={handleBulkApprove}
               onBulkReject={handleBulkReject}
+              onReset={handleReset}
             />
           )}
 

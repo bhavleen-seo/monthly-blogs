@@ -396,6 +396,13 @@ export async function deleteTopic(id: string): Promise<boolean> {
   return true;
 }
 
+/** Delete every topic in one write. Returns the count deleted. */
+export async function clearAllTopics(): Promise<number> {
+  const all = await getTopics();
+  await saveTopics([]);
+  return all.length;
+}
+
 // ─── Posts ────────────────────────────────────────────────────────────────────
 
 export async function getPosts(filters?: {
@@ -441,6 +448,15 @@ export async function deletePost(id: string): Promise<boolean> {
   if (filtered.length === all.length) return false;
   await savePosts(filtered);
   return true;
+}
+
+/** Delete all unpublished posts (draft / ready / failed) in one write. Returns count deleted. */
+export async function deleteUnpublishedPosts(): Promise<number> {
+  const all = await getPosts();
+  const keep = all.filter((p) => p.status === "published");
+  const deleted = all.length - keep.length;
+  await savePosts(keep);
+  return deleted;
 }
 
 // ─── Runs ────────────────────────────────────────────────────────────────────
