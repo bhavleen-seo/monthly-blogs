@@ -185,14 +185,29 @@ export default function BlogAgentDashboard() {
         });
         const data = await res.json();
         if (res.ok) {
-          totalTopics += data.totalTopics || 0;
+          const n = data.totalTopics || 0;
+          totalTopics += n;
+          // Surface silent zero-topic results (model error, all topics dropped, etc.)
+          if (n === 0) {
+            const reason = data.run?.message || "no topics returned";
+            console.warn(`[research] 0 topics for ${c.businessName}: ${reason}`);
+            if (errors === 0 && totalTopics === 0) {
+              // Show first failure immediately so the user sees something
+              showToast(`Warning: 0 topics for ${c.businessName} — ${reason}`, "error");
+            }
+          }
         } else {
           errors++;
-          console.error(`Research error for ${c.businessName}:`, data.error);
+          const reason = data.error || "unknown error";
+          console.error(`Research error for ${c.businessName}:`, reason);
+          // Surface first error immediately
+          if (errors === 1) showToast(`Research error (${c.businessName}): ${reason.slice(0, 120)}`, "error");
         }
-      } catch {
+      } catch (e) {
         errors++;
-        console.error(`Research failed for ${c.businessName}`);
+        const reason = e instanceof Error ? e.message : "network error";
+        console.error(`Research failed for ${c.businessName}:`, reason);
+        if (errors === 1) showToast(`Research failed (${c.businessName}): ${reason.slice(0, 120)}`, "error");
       }
       // Refresh topics after every client so the Topics tab updates in real time
       fetchTopics(); // fire-and-forget per-client refresh (best effort)
