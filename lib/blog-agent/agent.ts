@@ -146,6 +146,12 @@ export async function runWriting(
   };
   await addRun(run);
 
+  // Target month uses the same formula as the researcher: next calendar month.
+  // e.g. running on May 22 → writes topics tagged "2026-06".
+  const now = new Date();
+  const targetMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const targetMonth = `${targetMonthDate.getFullYear()}-${String(targetMonthDate.getMonth() + 1).padStart(2, "0")}`;
+
   const posts: BlogPost[] = [];
 
   try {
@@ -154,10 +160,24 @@ export async function runWriting(
       status: "approved",
     });
 
-    // If a specific selection was provided, narrow to just those.
+    // If a specific selection was provided, narrow to just those (no month filter —
+    // Write Selected lets the user explicitly pick what to write).
     if (topicIds && topicIds.length > 0) {
       const idSet = new Set(topicIds);
       approvedTopics = approvedTopics.filter((t) => idSet.has(t.id));
+    } else {
+      // Auto-reject stale approved topics from months before the target month —
+      // they're leftovers the user never cleaned up. Do this before filtering
+      // so they don't silently accumulate.
+      const staleApproved = approvedTopics.filter((t) => t.month && t.month < targetMonth);
+      for (const t of staleApproved) {
+        await saveTopic({ ...t, status: "rejected" });
+      }
+      if (staleApproved.length > 0) {
+        console.log(`[runWriting] Auto-rejected ${staleApproved.length} stale approved topic(s) from months before ${targetMonth}`);
+      }
+      // Only write this month's approved topics.
+      approvedTopics = approvedTopics.filter((t) => !t.month || t.month === targetMonth);
     }
 
     if (approvedTopics.length === 0) {

@@ -28,7 +28,15 @@ export default function DashboardTab({
 }) {
   const activeClients = clients.filter((c) => c.isActive);
   const pendingTopics = topics.filter((t) => t.status === "pending");
-  const approvedTopics = topics.filter((t) => t.status === "approved");
+
+  // Target month = next calendar month (same formula the researcher uses).
+  // Only count/write topics for this month — old stale approvals are ignored.
+  const targetMonth = useMemo(() => {
+    const t = new Date();
+    const m = new Date(t.getFullYear(), t.getMonth() + 1, 1);
+    return `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
+  const approvedTopics = topics.filter((t) => t.status === "approved" && (!t.month || t.month === targetMonth));
   const readyPosts = posts.filter((p) => p.status === "ready");
   const publishedPosts = posts.filter((p) => p.status === "published");
 

@@ -53,9 +53,16 @@ export default function PostsTab({
     () => (clientId ? posts.filter((p) => p.clientId === clientId) : []),
     [posts, clientId]
   );
+  // Target month = next calendar month (matches the research + write pipeline).
+  const targetMonth = useMemo(() => {
+    const t = new Date();
+    const m = new Date(t.getFullYear(), t.getMonth() + 1, 1);
+    return `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
+
   const clientApprovedTopics = useMemo(
-    () => (clientId ? topics.filter((t) => t.clientId === clientId && t.status === "approved") : []),
-    [topics, clientId]
+    () => (clientId ? topics.filter((t) => t.clientId === clientId && t.status === "approved" && (!t.month || t.month === targetMonth)) : []),
+    [topics, clientId, targetMonth]
   );
 
   const counts = {
