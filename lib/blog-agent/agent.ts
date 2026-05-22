@@ -146,11 +146,12 @@ export async function runWriting(
   };
   await addRun(run);
 
-  // Target month uses the same formula as the researcher: next calendar month.
-  // e.g. running on May 22 → writes topics tagged "2026-06".
+  // Target month = current calendar month.
+  // Research runs in the previous month and tags topics with the upcoming month
+  // (e.g. research in April → topics tagged "2026-05"). Writing happens in May,
+  // so the target month is the current month: "2026-05".
   const now = new Date();
-  const targetMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  const targetMonth = `${targetMonthDate.getFullYear()}-${String(targetMonthDate.getMonth() + 1).padStart(2, "0")}`;
+  const targetMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   const posts: BlogPost[] = [];
 

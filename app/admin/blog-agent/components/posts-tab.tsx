@@ -53,11 +53,11 @@ export default function PostsTab({
     () => (clientId ? posts.filter((p) => p.clientId === clientId) : []),
     [posts, clientId]
   );
-  // Target month = next calendar month (matches the research + write pipeline).
+  // Target month = current calendar month (research ran last month and tagged
+  // topics with the current month; writing and publishing happen this month).
   const targetMonth = useMemo(() => {
     const t = new Date();
-    const m = new Date(t.getFullYear(), t.getMonth() + 1, 1);
-    return `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, "0")}`;
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}`;
   }, []);
 
   const clientApprovedTopics = useMemo(
