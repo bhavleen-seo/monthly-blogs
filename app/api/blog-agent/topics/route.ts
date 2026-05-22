@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getTopics, getClients, getClient, runResearch, deleteTopicsByClient } from "@/lib/blog-agent";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 120; // single-client research needs up to 90 s; 120 gives buffer
 
 export async function GET(req: NextRequest) {
   try {

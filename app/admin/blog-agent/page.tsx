@@ -144,21 +144,64 @@ export default function BlogAgentDashboard() {
 
   const handleResearchTopics = async (clientId?: string, regenerate = false) => {
     setLoading(true);
-    const clientName = clientId ? clients.find((c) => c.id === clientId)?.businessName : undefined;
-    const label = clientName
-      ? `${regenerate ? "Regenerating" : "Researching"} topics for ${clientName}`
-      : `${regenerate ? "Regenerating" : "Researching"} topics for all active clients`;
-    setActiveOp({ kind: "research", label, expected: "usually 30-90 seconds per client", startedAt: Date.now() });
-    try {
-      const res = await fetch("/api/blog-agent/topics", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId, regenerate }),
+
+    // Single-client path (from Clients tab or Topics tab regenerate)
+    if (clientId) {
+      const clientName = clients.find((c) => c.id === clientId)?.businessName;
+      setActiveOp({ kind: "research", label: `${regenerate ? "Regenerating" : "Researching"} topics for ${clientName}`, expected: "usually 30-90 seconds", startedAt: Date.now() });
+      try {
+        const res = await fetch("/api/blog-agent/topics", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clientId, regenerate }),
+        });
+        const data = await res.json();
+        res.ok ? showToast(`Generated ${data.totalTopics} topics!`, "success") : showToast(`Error: ${data.error}`, "error");
+        fetchTopics();
+      } catch { showToast("Failed to research topics", "error"); }
+      setActiveOp(null);
+      setLoading(false);
+      return;
+    }
+
+    // "Run Research" for all active clients — call one client at a time so each
+    // request stays well under Vercel's per-function timeout limit.
+    const activeClients = clients.filter((c) => c.isActive);
+    let totalTopics = 0;
+    let errors = 0;
+    for (let i = 0; i < activeClients.length; i++) {
+      const c = activeClients[i];
+      setActiveOp({
+        kind: "research",
+        label: `Researching topics (${i + 1} of ${activeClients.length}) — ${c.businessName}`,
+        expected: "usually 30-90 seconds per client",
+        startedAt: Date.now(),
       });
-      const data = await res.json();
-      res.ok ? showToast(`Generated ${data.totalTopics} topics!`, "success") : showToast(`Error: ${data.error}`, "error");
+      try {
+        const res = await fetch("/api/blog-agent/topics", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clientId: c.id, regenerate }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          totalTopics += data.totalTopics || 0;
+        } else {
+          errors++;
+          console.error(`Research error for ${c.businessName}:`, data.error);
+        }
+      } catch {
+        errors++;
+        console.error(`Research failed for ${c.businessName}`);
+      }
+      // Refresh topics after every client so the Topics tab updates in real time
       fetchTopics();
-    } catch { showToast("Failed to research topics", "error"); }
+    }
+
+    const msg = errors > 0
+      ? `Generated ${totalTopics} topics (${errors} client(s) had errors)`
+      : `Generated ${totalTopics} topics for ${activeClients.length} clients!`;
+    showToast(msg, errors > 0 ? "info" : "success");
     setActiveOp(null);
     setLoading(false);
   };
