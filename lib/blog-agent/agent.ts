@@ -33,8 +33,9 @@ export async function runResearch(clientId?: string): Promise<{
 
   const topicsByClient: Record<string, TopicSuggestion[]> = {};
   const now = new Date();
-  const targetMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  const month = `${targetMonth.getFullYear()}-${String(targetMonth.getMonth() + 1).padStart(2, "0")}`;
+  // Tag topics with the CURRENT month — research, writing, and publishing all
+  // happen within the same calendar month (e.g. research in May → "2026-05").
+  const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   try {
     let clients: Client[];
@@ -147,9 +148,8 @@ export async function runWriting(
   await addRun(run);
 
   // Target month = current calendar month.
-  // Research runs in the previous month and tags topics with the upcoming month
-  // (e.g. research in April → topics tagged "2026-05"). Writing happens in May,
-  // so the target month is the current month: "2026-05".
+  // Research, writing, and publishing all happen within the same month
+  // (e.g. research in May → topics tagged "2026-05" → write & publish in May).
   const now = new Date();
   const targetMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 

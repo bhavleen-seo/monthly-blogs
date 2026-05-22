@@ -30,9 +30,8 @@ export default function DashboardTab({
   const pendingTopics = topics.filter((t) => t.status === "pending");
 
   // Target month = current calendar month.
-  // Research runs in the previous month and tags topics with the current month
-  // (e.g. research in April → topics tagged "2026-05"). Writing and publishing
-  // all happen within the same month.
+  // Research, writing, and publishing all happen within the same month
+  // (e.g. research in May → topics tagged "2026-05" → write & publish in May).
   const targetMonth = useMemo(() => {
     const t = new Date();
     return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}`;
