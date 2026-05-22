@@ -465,6 +465,7 @@ export default function BlogAgentDashboard() {
             <TopicsTab
               clients={clients}
               topics={topics}
+              posts={posts}
               loading={loading}
               onApprove={(id) => handleTopicAction(id, "approve")}
               onReject={(id) => handleTopicAction(id, "reject")}

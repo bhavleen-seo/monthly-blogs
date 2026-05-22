@@ -216,7 +216,7 @@ export async function runWriting(
     // topics are present, not old leftovers from previous months.
     if (posts.length > 0) {
       const writtenTopicIds = new Set(approvedTopics.map((t) => t.id));
-      const affectedClientIds = [...new Set(approvedTopics.map((t) => t.clientId))];
+      const affectedClientIds = Array.from(new Set(approvedTopics.map((t) => t.clientId)));
       for (const cid of affectedClientIds) {
         const allApproved = await getTopics({ clientId: cid, status: "approved" });
         for (const t of allApproved) {
