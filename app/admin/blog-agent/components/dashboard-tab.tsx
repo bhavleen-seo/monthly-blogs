@@ -40,7 +40,11 @@ export default function DashboardTab({
   }, []);
   const approvedTopics = topics.filter((t) => t.status === "approved" && (!t.month || t.month === targetMonth));
   const readyPosts = posts.filter((p) => p.status === "ready");
-  const publishedPosts = posts.filter((p) => p.status === "published");
+  // Only count posts published THIS cycle (current month) so the banner
+  // and stats card reflect the current month's work, not all-time totals.
+  const publishedPosts = posts.filter(
+    (p) => p.status === "published" && p.publishedAt && p.publishedAt.startsWith(targetMonth)
+  );
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
