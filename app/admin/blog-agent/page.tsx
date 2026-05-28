@@ -446,7 +446,13 @@ export default function BlogAgentDashboard() {
       });
       const data = await res.json();
       if (res.ok) {
-        showToast(`Images updated: ${data.updated} found, ${data.failed} still missing`, data.failed === 0 ? "success" : "info");
+        if (data.updated > 0) {
+          showToast(`Found ${data.updated} image(s)${data.failed > 0 ? ` — ${data.failed} still missing` : " — all done!"}`, data.failed === 0 ? "success" : "info");
+        } else if (data.firstError) {
+          showToast(`Freepik returned nothing — ${data.firstError.slice(0, 150)}`, "error");
+        } else {
+          showToast(data.message || "No images found — check FREEPIK_API_KEY in Vercel settings", "error");
+        }
         fetchPosts();
       } else {
         showToast(`Error: ${data.error}`, "error");

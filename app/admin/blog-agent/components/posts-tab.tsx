@@ -85,6 +85,14 @@ export default function PostsTab({
     [posts]
   );
 
+  // When the posts prop refreshes (e.g. after a backfill), sync selectedPost
+  // so the modal reflects the latest data without needing to close and reopen.
+  useEffect(() => {
+    if (!selectedPost) return;
+    const updated = posts.find((p) => p.id === selectedPost.id);
+    if (updated && updated !== selectedPost) setSelectedPost(updated);
+  }, [posts]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Reset edit state when post changes
   useEffect(() => {
     if (selectedPost) {

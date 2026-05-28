@@ -41,12 +41,12 @@ export async function POST(req: NextRequest) {
 
     let updated = 0;
     let failed = 0;
+    const errors: string[] = [];
 
     for (const post of targets) {
       try {
         const excludedIds = usedByClient.get(post.clientId);
 
-        // Build queries: featured image prompt → first 4 words of prompt → title → first 4 words of title
         const primaryQuery = post.featuredImagePrompt || post.title;
         const fallbackQuery = post.title !== primaryQuery ? post.title : undefined;
 
@@ -61,7 +61,6 @@ export async function POST(req: NextRequest) {
           post.updatedAt = new Date().toISOString();
           await savePost(post);
 
-          // Track this ID so the next post for the same client avoids it
           if (!usedByClient.has(post.clientId)) usedByClient.set(post.clientId, new Set());
           usedByClient.get(post.clientId)!.add(image.freepikId);
 
@@ -69,15 +68,25 @@ export async function POST(req: NextRequest) {
           console.log(`[backfill-images] ✓ ${post.clientName} — "${post.title.slice(0, 60)}"`);
         } else {
           failed++;
-          console.warn(`[backfill-images] ✗ No image found for "${post.title.slice(0, 60)}"`);
+          const msg = `No Freepik image found for "${post.title.slice(0, 50)}" — all queries returned empty`;
+          errors.push(msg);
+          console.warn(`[backfill-images] ✗ ${msg}`);
         }
       } catch (err) {
         failed++;
-        console.error(`[backfill-images] Error for post ${post.id}:`, err instanceof Error ? err.message : err);
+        const msg = err instanceof Error ? err.message : "Unknown error";
+        errors.push(`${post.clientName}: ${msg}`);
+        console.error(`[backfill-images] Error for post ${post.id}:`, msg);
       }
     }
 
-    return NextResponse.json({ updated, failed, total: targets.length });
+    return NextResponse.json({
+      updated,
+      failed,
+      total: targets.length,
+      // Surface first error so the UI can show what's going wrong
+      firstError: errors[0] || null,
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Backfill failed" },

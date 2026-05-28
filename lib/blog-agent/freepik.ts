@@ -129,6 +129,7 @@ async function trySearch(query: string, apiKey: string, excludedIds?: Set<string
     const res = await fetch(`${FREEPIK_API}?${params.toString()}`, {
       headers: {
         "x-freepik-api-key": apiKey,
+        "Accept": "application/json",
         "Accept-Language": "en-US",
       },
     });
@@ -202,6 +203,7 @@ async function getDownloadUrl(resourceId: string | number, apiKey: string): Prom
     const res = await fetch(`${FREEPIK_API}/${resourceId}/download`, {
       headers: {
         "x-freepik-api-key": apiKey,
+        "Accept": "application/json",
         "Accept-Language": "en-US",
       },
     });
