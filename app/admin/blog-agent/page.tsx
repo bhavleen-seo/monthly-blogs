@@ -434,6 +434,28 @@ export default function BlogAgentDashboard() {
     setLoading(false);
   };
 
+  const handleBackfillImages = async (postId?: string) => {
+    setLoading(true);
+    const label = postId ? "Fetching image for post…" : "Fetching missing Freepik images for all posts…";
+    setActiveOp({ kind: "publish", label, expected: "usually 5-15 seconds per post", startedAt: Date.now() });
+    try {
+      const res = await fetch("/api/blog-agent/posts/backfill-images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(`Images updated: ${data.updated} found, ${data.failed} still missing`, data.failed === 0 ? "success" : "info");
+        fetchPosts();
+      } else {
+        showToast(`Error: ${data.error}`, "error");
+      }
+    } catch { showToast("Failed to fetch images", "error"); }
+    setActiveOp(null);
+    setLoading(false);
+  };
+
   const handleCleanupPosts = async () => {
     const unpublished = posts.filter((p) => p.status !== "published").length;
     if (unpublished === 0) { showToast("No drafts to clean up", "info"); return; }
@@ -624,6 +646,7 @@ export default function BlogAgentDashboard() {
               onDeletePost={handleDeletePost}
               onRewritePost={handleRewritePost}
               onCleanupPosts={handleCleanupPosts}
+              onBackfillImages={handleBackfillImages}
             />
           )}
 

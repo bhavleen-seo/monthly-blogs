@@ -1,0 +1,87 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getPosts, savePost } from "@/lib/blog-agent/store";
+import { searchStockImage, buildAltText } from "@/lib/blog-agent/freepik";
+import type { BlogPost } from "@/lib/blog-agent/types";
+
+export const dynamic = "force-dynamic";
+export const maxDuration = 300;
+
+/**
+ * POST /api/blog-agent/posts/backfill-images
+ *
+ * Finds every post that is missing a featuredImageUrl and searches Freepik
+ * for one. Tries up to 5 progressively simpler queries per post so even
+ * niche topics get something.
+ *
+ * Body (all optional):
+ *   { postId?: string }  — if provided, only patches that one post
+ */
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    const postId: string | undefined = body.postId;
+
+    const all = await getPosts();
+    const targets: BlogPost[] = postId
+      ? all.filter((p) => p.id === postId)
+      : all.filter((p) => !p.featuredImageUrl);
+
+    if (targets.length === 0) {
+      return NextResponse.json({ updated: 0, failed: 0, message: "No posts need images" });
+    }
+
+    // Build a per-client set of already-used Freepik IDs so we don't reuse images.
+    const usedByClient = new Map<string, Set<string | number>>();
+    for (const p of all) {
+      if (p.freepikId) {
+        if (!usedByClient.has(p.clientId)) usedByClient.set(p.clientId, new Set());
+        usedByClient.get(p.clientId)!.add(p.freepikId);
+      }
+    }
+
+    let updated = 0;
+    let failed = 0;
+
+    for (const post of targets) {
+      try {
+        const excludedIds = usedByClient.get(post.clientId);
+
+        // Build queries: featured image prompt → first 4 words of prompt → title → first 4 words of title
+        const primaryQuery = post.featuredImagePrompt || post.title;
+        const fallbackQuery = post.title !== primaryQuery ? post.title : undefined;
+
+        const image = await searchStockImage(primaryQuery, fallbackQuery, excludedIds);
+
+        if (image) {
+          post.featuredImageUrl = image.url;
+          post.freepikId = image.freepikId;
+          if (!post.featuredImageAlt && post.featuredImagePrompt) {
+            post.featuredImageAlt = buildAltText(post.featuredImagePrompt);
+          }
+          post.updatedAt = new Date().toISOString();
+          await savePost(post);
+
+          // Track this ID so the next post for the same client avoids it
+          if (!usedByClient.has(post.clientId)) usedByClient.set(post.clientId, new Set());
+          usedByClient.get(post.clientId)!.add(image.freepikId);
+
+          updated++;
+          console.log(`[backfill-images] ✓ ${post.clientName} — "${post.title.slice(0, 60)}"`);
+        } else {
+          failed++;
+          console.warn(`[backfill-images] ✗ No image found for "${post.title.slice(0, 60)}"`);
+        }
+      } catch (err) {
+        failed++;
+        console.error(`[backfill-images] Error for post ${post.id}:`, err instanceof Error ? err.message : err);
+      }
+    }
+
+    return NextResponse.json({ updated, failed, total: targets.length });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Backfill failed" },
+      { status: 500 }
+    );
+  }
+}

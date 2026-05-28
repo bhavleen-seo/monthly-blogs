@@ -64,12 +64,57 @@ export async function searchStockImage(
     return null;
   }
 
-  for (const query of [primaryQuery, fallbackQuery].filter((q): q is string => !!q && q.trim().length > 0)) {
-    const result = await trySearch(query.trim(), apiKey, excludedIds);
-    if (result) return result;
+  // Build a cascade of queries from most specific → most generic.
+  // This way we always find *something* relevant rather than returning null.
+  const queries = buildQueryCascade(primaryQuery, fallbackQuery);
+
+  for (const query of queries) {
+    const result = await trySearch(query, apiKey, excludedIds);
+    if (result) {
+      console.log(`[freepik] Found image with query: "${query}"`);
+      return result;
+    }
   }
 
   return null;
+}
+
+/**
+ * Build a list of queries from most specific to least, so we always have
+ * a fallback when Freepik returns no results for a specific term.
+ */
+function buildQueryCascade(primaryQuery: string, fallbackQuery?: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+
+  const add = (q: string) => {
+    const t = q.trim().replace(/[":?!]/g, "").trim();
+    if (t.length > 2 && !seen.has(t.toLowerCase())) {
+      seen.add(t.toLowerCase());
+      out.push(t);
+    }
+  };
+
+  // 1. Full primary query (e.g. "roof lifespan Arizona climate")
+  add(primaryQuery);
+
+  // 2. First 4 words of primary (shorter = broader Freepik match)
+  const primaryWords = primaryQuery.split(/\s+/);
+  if (primaryWords.length > 4) add(primaryWords.slice(0, 4).join(" "));
+
+  // 3. First 2 words of primary (very broad)
+  if (primaryWords.length > 2) add(primaryWords.slice(0, 2).join(" "));
+
+  // 4. Fallback query (usually the blog title)
+  if (fallbackQuery) add(fallbackQuery);
+
+  // 5. First 4 words of fallback
+  if (fallbackQuery) {
+    const fw = fallbackQuery.split(/\s+/);
+    if (fw.length > 4) add(fw.slice(0, 4).join(" "));
+  }
+
+  return out;
 }
 
 async function trySearch(query: string, apiKey: string, excludedIds?: Set<string | number>): Promise<FreepikImage | null> {

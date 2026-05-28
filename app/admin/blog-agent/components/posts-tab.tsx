@@ -25,6 +25,7 @@ export default function PostsTab({
   onDeletePost,
   onRewritePost,
   onCleanupPosts,
+  onBackfillImages,
 }: {
   clients: Client[];
   topics: Topic[];
@@ -37,6 +38,7 @@ export default function PostsTab({
   onDeletePost: (id: string) => void;
   onRewritePost: (postId: string) => void;
   onCleanupPosts: () => void;
+  onBackfillImages: (postId?: string) => void;
 }) {
   const [clientId, setClientId] = useState("");
   const [publishedExpanded, setPublishedExpanded] = useState(false);
@@ -75,6 +77,11 @@ export default function PostsTab({
 
   const publishedWithUrlCount = useMemo(
     () => posts.filter((p) => p.status === "published" && p.publishedUrl).length,
+    [posts]
+  );
+
+  const missingImageCount = useMemo(
+    () => posts.filter((p) => !p.featuredImageUrl).length,
     [posts]
   );
 
@@ -157,6 +164,16 @@ export default function PostsTab({
           >
             Export Published URLs ({publishedWithUrlCount})
           </a>
+          {missingImageCount > 0 && (
+            <button
+              onClick={() => onBackfillImages()}
+              disabled={loading}
+              title="Search Freepik for featured images on all posts that don't have one yet"
+              className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] hover:bg-[var(--color-hover)] transition-all disabled:opacity-40"
+            >
+              Fetch Missing Images ({missingImageCount})
+            </button>
+          )}
           {posts.some((p) => p.status !== "published") && (
             <button
               onClick={onCleanupPosts}
@@ -465,16 +482,25 @@ export default function PostsTab({
                         <p className="text-xs font-medium text-[var(--color-warning)]">No image found</p>
                         {selectedPost.featuredImagePrompt && (
                           <p className="text-[11px] text-[var(--color-muted-foreground)] mt-0.5 truncate">
-                            Search Freepik for: &ldquo;{selectedPost.featuredImagePrompt.slice(0, 100)}&rdquo;
+                            Will search: &ldquo;{selectedPost.featuredImagePrompt.slice(0, 80)}&rdquo;
                           </p>
                         )}
                       </div>
-                      <button
-                        onClick={() => setEditing(true)}
-                        className="shrink-0 ml-3 text-xs font-medium text-[var(--color-primary)] hover:underline"
-                      >
-                        Add URL
-                      </button>
+                      <div className="flex items-center gap-2 shrink-0 ml-3">
+                        <button
+                          onClick={() => { onBackfillImages(selectedPost.id); }}
+                          disabled={loading}
+                          className="text-xs font-medium px-2.5 py-1 rounded-lg bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:opacity-90 disabled:opacity-40 transition-opacity"
+                        >
+                          Auto-fetch
+                        </button>
+                        <button
+                          onClick={() => setEditing(true)}
+                          className="text-xs font-medium text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
+                        >
+                          Paste URL
+                        </button>
+                      </div>
                     </div>
                   )}
                   {selectedPost.featuredImageAlt && (
