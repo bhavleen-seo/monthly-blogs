@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPosts, getClients, runWriting, getPost, savePost, deletePost, deleteFromWordPress, getClient } from "@/lib/blog-agent";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300; // single-post writing can take up to ~3 min; 300s gives plenty of buffer
 
 export async function GET(req: NextRequest) {
   try {

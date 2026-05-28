@@ -256,36 +256,87 @@ export default function BlogAgentDashboard() {
 
   const handleWritePosts = async (clientId?: string, topicIds?: string[]) => {
     setLoading(true);
-    const count = topicIds?.length || 0;
-    const clientName = clientId ? clients.find((c) => c.id === clientId)?.businessName : undefined;
-    const label = count > 0
-      ? `Writing ${count} selected post${count === 1 ? "" : "s"}${clientName ? ` for ${clientName}` : ""}`
-      : `Writing posts${clientName ? ` for ${clientName}` : " from all approved topics"}`;
-    setActiveOp({ kind: "write", label, expected: "usually 1-3 minutes per post", startedAt: Date.now() });
-    try {
-      const beforeCount = posts.length;
-      const res = await fetch("/api/blog-agent/posts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId, topicIds }),
+
+    // Build the list of topic IDs to write — one post per topic, one API call per topic
+    // so each request stays well under Vercel's per-function timeout.
+    const targetMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+    let toWrite: string[];
+    if (topicIds && topicIds.length > 0) {
+      // "Write Selected" from Topics tab — exact list, no month filter
+      toWrite = topicIds;
+    } else {
+      // "Write Posts" button — all approved topics for current month
+      // optionally scoped to one client (Posts tab per-client button)
+      const approved = topics.filter(
+        (t) =>
+          t.status === "approved" &&
+          (!t.month || t.month === targetMonth) &&
+          (!clientId || t.clientId === clientId)
+      );
+      toWrite = approved.map((t) => t.id);
+    }
+
+    if (toWrite.length === 0) {
+      showToast("No approved topics to write", "info");
+      setActiveOp(null);
+      setLoading(false);
+      return;
+    }
+
+    let written = 0;
+    let errors = 0;
+
+    for (let i = 0; i < toWrite.length; i++) {
+      const topicId = toWrite[i];
+      const topic = topics.find((t) => t.id === topicId);
+      const topicClientName = clients.find((c) => c.id === topic?.clientId)?.businessName;
+      setActiveOp({
+        kind: "write",
+        label: `Writing post (${i + 1} of ${toWrite.length})${topicClientName ? ` — ${topicClientName}` : ""}`,
+        expected: "usually 1-3 minutes per post",
+        startedAt: Date.now(),
       });
-      const data = await res.json();
-      if (res.ok) {
-        if (data.postsWritten > 0) {
-          showToast(`Wrote ${data.postsWritten} post(s)!`, "success");
-        } else if (data.run?.details) {
-          showToast(`0 posts written — ${data.run.details.split("\n")[0]}`, "error");
+
+      try {
+        const res = await fetch("/api/blog-agent/posts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ topicIds: [topicId] }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          if ((data.postsWritten || 0) > 0) {
+            written += data.postsWritten;
+          } else {
+            errors++;
+            const reason = data.run?.details?.split("\n")[0] || "no post written";
+            if (errors === 1) showToast(`Write error (${topicClientName}): ${reason.slice(0, 120)}`, "error");
+          }
         } else {
-          showToast("0 posts written — no approved topics found for this client", "error");
+          errors++;
+          const reason = data.error || "unknown error";
+          if (errors === 1) showToast(`Write error (${topicClientName}): ${reason.slice(0, 120)}`, "error");
         }
-        const expectedCount = beforeCount + (data.postsWritten || 0);
-        await fetchPosts();
-        pollFetchPosts(expectedCount);
-      } else {
-        showToast(`Error: ${data.error}`, "error");
+      } catch (e) {
+        errors++;
+        const reason = e instanceof Error ? e.message : "network error";
+        if (errors === 1) showToast(`Write failed (${topicClientName}): ${reason.slice(0, 120)}`, "error");
       }
-      fetchTopics();
-    } catch { showToast("Failed to write posts", "error"); }
+
+      // Refresh posts after each one so the Posts tab stays up to date
+      fetchPosts();
+    }
+
+    // Final authoritative refresh
+    await fetchPosts();
+    await fetchTopics();
+
+    if (written > 0) {
+      showToast(`Wrote ${written} of ${toWrite.length} post(s)!`, written < toWrite.length ? "info" : "success");
+    } else if (errors === 0) {
+      showToast("0 posts written — no approved topics found", "info");
+    }
+
     setActiveOp(null);
     setLoading(false);
   };
