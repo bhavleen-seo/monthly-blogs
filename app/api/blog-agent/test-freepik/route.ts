@@ -1,80 +1,57 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const FREEPIK_API = "https://api.freepik.com/v1/resources";
-
 /**
- * Diagnostic endpoint for verifying the Freepik integration end-to-end.
- * Hit /api/blog-agent/test-freepik in the browser (or add ?q=your+query).
- * Returns the raw Freepik API status + body so we can see exactly what's
- * failing without having to dig through Vercel logs.
+ * Diagnostic endpoint for verifying the Pexels integration end-to-end.
+ * Hit /api/blog-agent/test-freepik?q=your+query in the browser.
+ * Returns the raw Pexels API status + result so we can see exactly what's
+ * happening without digging through Vercel logs.
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") || "business professional";
 
-  const apiKey = process.env.FREEPIK_API_KEY;
+  const apiKey = process.env.PEXELS_API_KEY;
 
-  // --- 1. Check env var ---
   if (!apiKey) {
     return NextResponse.json({
       ok: false,
       stage: "env_check",
-      error: "FREEPIK_API_KEY is not set in Vercel environment variables.",
-      fix: "Go to Vercel dashboard → your project → Settings → Environment Variables. Add FREEPIK_API_KEY with your key, then redeploy.",
+      error: "PEXELS_API_KEY is not set in Vercel environment variables.",
+      fix: "Go to Vercel dashboard → your project → Settings → Environment Variables. Add PEXELS_API_KEY with your key from pexels.com/api, then redeploy.",
     });
   }
 
-  // --- 2. Raw API call so we can see exactly what Freepik returns ---
   const params = new URLSearchParams();
-  params.append("term", q);
-  params.append("filters[content_type][photo]", "1");
-  params.append("filters[orientation][]", "horizontal");
-  params.append("limit", "3");
-  params.append("order", "relevance");
+  params.append("query", q);
+  params.append("orientation", "landscape");
+  params.append("per_page", "3");
+  params.append("size", "large");
 
   let httpStatus: number | null = null;
   let rawBody: unknown = null;
   let fetchError: string | null = null;
 
   try {
-    const res = await fetch(`${FREEPIK_API}?${params.toString()}`, {
-      headers: {
-        "x-freepik-api-key": apiKey,
-        "Accept": "application/json",
-        "Accept-Language": "en-US",
-      },
+    const res = await fetch(`https://api.pexels.com/v1/search?${params.toString()}`, {
+      headers: { Authorization: apiKey },
     });
     httpStatus = res.status;
     const text = await res.text();
-    try {
-      rawBody = JSON.parse(text);
-    } catch {
-      rawBody = text.slice(0, 1000);
-    }
+    try { rawBody = JSON.parse(text); } catch { rawBody = text.slice(0, 500); }
   } catch (err) {
     fetchError = err instanceof Error ? err.message : String(err);
   }
 
-  // --- 3. Interpret the result ---
-  const items = (rawBody as { data?: unknown[] })?.data ?? [];
-  const hasResults = Array.isArray(items) && items.length > 0;
+  const photos = (rawBody as { photos?: unknown[] })?.photos ?? [];
+  const hasResults = Array.isArray(photos) && photos.length > 0;
 
   let diagnosis = "";
-  if (fetchError) {
-    diagnosis = "Network error reaching Freepik API. Check Vercel's outbound network settings.";
-  } else if (httpStatus === 401 || httpStatus === 403) {
-    diagnosis = "Freepik API key is invalid or expired. Generate a new key at freepik.com/api.";
-  } else if (httpStatus === 429) {
-    diagnosis = "Freepik rate limit hit. Wait a minute and try again.";
-  } else if (httpStatus === 402) {
-    diagnosis = "Freepik account has no remaining API credits.";
-  } else if (httpStatus !== 200) {
-    diagnosis = `Unexpected HTTP ${httpStatus} from Freepik.`;
-  } else if (!hasResults) {
-    diagnosis = `API call succeeded but returned 0 results for query "${q}". Try a different query.`;
-  } else {
-    diagnosis = `API call succeeded! Got ${(items as unknown[]).length} result(s) for query "${q}".`;
-  }
+  if (fetchError) diagnosis = "Network error reaching Pexels API.";
+  else if (httpStatus === 401 || httpStatus === 403) diagnosis = "Pexels API key is invalid. Double-check the key at pexels.com/api.";
+  else if (httpStatus === 429) diagnosis = "Pexels rate limit hit. Wait a minute and try again.";
+  else if (httpStatus !== 200) diagnosis = `Unexpected HTTP ${httpStatus} from Pexels.`;
+  else if (!hasResults) diagnosis = `API call succeeded but returned 0 photos for "${q}".`;
+  else diagnosis = `✓ Working! Got ${(photos as unknown[]).length} photo(s) for "${q}".`;
 
   return NextResponse.json({
     ok: httpStatus === 200 && hasResults,
@@ -84,7 +61,8 @@ export async function GET(req: NextRequest) {
     httpStatus,
     fetchError,
     diagnosis,
-    resultCount: Array.isArray(items) ? items.length : 0,
-    rawFreepikResponse: rawBody,
+    resultCount: Array.isArray(photos) ? photos.length : 0,
+    firstPhotoUrl: hasResults ? (photos[0] as { src?: { large2x?: string } })?.src?.large2x : null,
+    rawPexelsResponse: rawBody,
   });
 }
