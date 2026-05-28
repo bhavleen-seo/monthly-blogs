@@ -428,25 +428,54 @@ export default function PostsTab({
                       <span className="text-[10px] text-[var(--color-success)]">auto-found from Freepik</span>
                     )}
                   </div>
-                  {editing || !selectedPost.featuredImageUrl ? (
-                    <input
-                      type="url"
-                      value={draft.featuredImageUrl || ""}
-                      onChange={(e) => setDraft({ ...draft, featuredImageUrl: e.target.value })}
-                      placeholder={selectedPost.featuredImagePrompt
-                        ? `Suggested: "${selectedPost.featuredImagePrompt}" — paste a Freepik URL`
-                        : "https://img.freepik.com/..."}
-                      disabled={!editing}
-                      className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted-foreground)] disabled:opacity-50"
-                    />
-                  ) : null}
-                  {(editing ? draft.featuredImageUrl : selectedPost.featuredImageUrl) && (
+                  {editing ? (
+                    /* Edit mode — URL input + live preview */
+                    <div className="space-y-2">
+                      <input
+                        type="url"
+                        value={draft.featuredImageUrl || ""}
+                        onChange={(e) => setDraft({ ...draft, featuredImageUrl: e.target.value })}
+                        placeholder={selectedPost.featuredImagePrompt
+                          ? `Search Freepik for: "${selectedPost.featuredImagePrompt.slice(0, 80)}"`
+                          : "https://img.freepik.com/..."}
+                        className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted-foreground)]"
+                      />
+                      {draft.featuredImageUrl && (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                          src={draft.featuredImageUrl}
+                          alt="Featured preview"
+                          className="w-full max-h-64 object-cover rounded-lg border border-[var(--color-border)]"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                        />
+                      )}
+                    </div>
+                  ) : selectedPost.featuredImageUrl ? (
+                    /* Read mode — image found, show it */
                     /* eslint-disable-next-line @next/next/no-img-element */
                     <img
-                      src={editing ? draft.featuredImageUrl : selectedPost.featuredImageUrl}
+                      src={selectedPost.featuredImageUrl}
                       alt="Featured"
                       className="w-full max-h-64 object-cover rounded-lg border border-[var(--color-border)]"
                     />
+                  ) : (
+                    /* Read mode — no image found */
+                    <div className="flex items-center justify-between px-4 py-3 bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/30 rounded-lg">
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-[var(--color-warning)]">No image found</p>
+                        {selectedPost.featuredImagePrompt && (
+                          <p className="text-[11px] text-[var(--color-muted-foreground)] mt-0.5 truncate">
+                            Search Freepik for: &ldquo;{selectedPost.featuredImagePrompt.slice(0, 100)}&rdquo;
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setEditing(true)}
+                        className="shrink-0 ml-3 text-xs font-medium text-[var(--color-primary)] hover:underline"
+                      >
+                        Add URL
+                      </button>
+                    </div>
                   )}
                   {selectedPost.featuredImageAlt && (
                     <div className="flex items-start justify-between gap-2 px-3 py-2 bg-[var(--color-muted)]/40 border border-[var(--color-border)] rounded-lg">
