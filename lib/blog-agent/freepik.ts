@@ -53,10 +53,20 @@ interface FreepikSearchResponse {
  *
  * Returns null on any failure (missing API key, no results, network error).
  */
+/**
+ * Search Freepik for a stock photo.
+ *
+ * @param primaryQuery   The most specific query (e.g. the post's primary keyword)
+ * @param fallbackQuery  Secondary query (e.g. the blog title)
+ * @param excludedIds    Freepik IDs to skip (already used by this client)
+ * @param visualHints    Extra short visual terms to try if the above fail
+ *                       (e.g. client keywords like ["business uniforms", "workwear"])
+ */
 export async function searchStockImage(
   primaryQuery: string,
   fallbackQuery?: string,
-  excludedIds?: Set<string | number>
+  excludedIds?: Set<string | number>,
+  visualHints?: string[]
 ): Promise<FreepikImage | null> {
   const apiKey = process.env.FREEPIK_API_KEY;
   if (!apiKey) {
@@ -64,9 +74,7 @@ export async function searchStockImage(
     return null;
   }
 
-  // Build a cascade of queries from most specific → most generic.
-  // This way we always find *something* relevant rather than returning null.
-  const queries = buildQueryCascade(primaryQuery, fallbackQuery);
+  const queries = buildQueryCascade(primaryQuery, fallbackQuery, visualHints);
 
   for (const query of queries) {
     const result = await trySearch(query, apiKey, excludedIds);
@@ -80,38 +88,59 @@ export async function searchStockImage(
 }
 
 /**
- * Build a list of queries from most specific to least, so we always have
- * a fallback when Freepik returns no results for a specific term.
+ * Strip common photo-description prefixes so we're left with the visual subject.
+ * "Professional photograph of a business owner in an office" → "business owner in an office"
  */
-function buildQueryCascade(primaryQuery: string, fallbackQuery?: string): string[] {
+function stripPhotoPrefix(q: string): string {
+  return q
+    .replace(/^(professional\s+)?(photograph|photo|image|picture|illustration|rendering)\s+(of|showing|depicting|featuring)\s+/i, "")
+    .replace(/^(a|an|the)\s+/i, "")
+    .trim();
+}
+
+/**
+ * Build a cascade of queries from most specific → most visual/generic.
+ * Good Freepik queries are short concrete nouns (2-4 words), not full sentences.
+ */
+function buildQueryCascade(
+  primaryQuery: string,
+  fallbackQuery?: string,
+  visualHints?: string[]
+): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
 
   const add = (q: string) => {
-    const t = q.trim().replace(/[":?!]/g, "").trim();
+    // Strip punctuation and photo-description wording, keep it short and visual
+    const t = stripPhotoPrefix(q).replace(/[":?!,]/g, "").trim();
     if (t.length > 2 && !seen.has(t.toLowerCase())) {
       seen.add(t.toLowerCase());
       out.push(t);
     }
   };
 
-  // 1. Full primary query (e.g. "roof lifespan Arizona climate")
+  // 1. Client visual hints first — these are the most reliable Freepik matches
+  //    (e.g. "business uniforms", "workwear", "roofing contractor")
+  for (const hint of visualHints || []) add(hint);
+
+  // 2. Stripped primary query (removes "Professional photograph of…" boilerplate)
   add(primaryQuery);
 
-  // 2. First 4 words of primary (shorter = broader Freepik match)
-  const primaryWords = primaryQuery.split(/\s+/);
-  if (primaryWords.length > 4) add(primaryWords.slice(0, 4).join(" "));
+  // 3. First 3 words of stripped primary
+  const strippedPrimary = stripPhotoPrefix(primaryQuery).replace(/[":?!,]/g, "");
+  const primaryWords = strippedPrimary.split(/\s+/);
+  if (primaryWords.length > 3) add(primaryWords.slice(0, 3).join(" "));
 
-  // 3. First 2 words of primary (very broad)
+  // 4. First 2 words (broadest fallback from primary)
   if (primaryWords.length > 2) add(primaryWords.slice(0, 2).join(" "));
 
-  // 4. Fallback query (usually the blog title)
+  // 5. Fallback query (blog title) stripped
   if (fallbackQuery) add(fallbackQuery);
 
-  // 5. First 4 words of fallback
+  // 6. First 3 words of fallback
   if (fallbackQuery) {
-    const fw = fallbackQuery.split(/\s+/);
-    if (fw.length > 4) add(fw.slice(0, 4).join(" "));
+    const fw = stripPhotoPrefix(fallbackQuery).replace(/[":?!,]/g, "").split(/\s+/);
+    if (fw.length > 3) add(fw.slice(0, 3).join(" "));
   }
 
   return out;

@@ -385,7 +385,22 @@ Return ONLY the JSON object, no other text.`;
   // Auto-find a featured image from Freepik. Failures don't block the post —
   // the user can paste a URL manually in the preview modal if Freepik returns
   // nothing useful.
-  const stockImage = await searchStockImage(primaryKeyword || topic.title, topic.title, usedFreepikIds);
+  //
+  // visualHints: short concrete visual terms that make better Freepik queries
+  // than a blog title does — e.g. ["business uniforms", "workwear"] for a
+  // uniform supplier. We pull the client's own industry keywords so the query
+  // is always anchored to what the business actually sells.
+  const visualHints: string[] = [
+    topic.supportsCommercialKeyword,
+    ...(client.keywords || []).slice(0, 2),
+  ].filter((h): h is string => typeof h === "string" && h.length > 0);
+
+  const stockImage = await searchStockImage(
+    parsed.featuredImagePrompt || primaryKeyword || topic.title,
+    topic.title,
+    usedFreepikIds,
+    visualHints
+  );
   if (stockImage) {
     console.log(`[writer] Freepik image found for "${finalTitle}" (id: ${stockImage.freepikId}${usedFreepikIds?.size ? `, skipped ${usedFreepikIds.size} previously used` : ""})`);
   }

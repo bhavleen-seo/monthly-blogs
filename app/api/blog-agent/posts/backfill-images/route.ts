@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPosts, savePost } from "@/lib/blog-agent/store";
+import { getPosts, savePost, getClient } from "@/lib/blog-agent/store";
 import { searchStockImage, buildAltText } from "@/lib/blog-agent/freepik";
 import type { BlogPost } from "@/lib/blog-agent/types";
 
@@ -47,10 +47,23 @@ export async function POST(req: NextRequest) {
       try {
         const excludedIds = usedByClient.get(post.clientId);
 
+        // Look up the client so we can pass their industry keywords as visual
+        // hints to Freepik. Short concrete nouns (e.g. "business uniforms",
+        // "workwear") produce far better results than a blog title does.
+        let visualHints: string[] = [];
+        try {
+          const client = await getClient(post.clientId);
+          if (client?.keywords) {
+            visualHints = client.keywords.slice(0, 3).filter((k: string) => k.length > 0);
+          }
+        } catch {
+          // Non-fatal — proceed without visual hints
+        }
+
         const primaryQuery = post.featuredImagePrompt || post.title;
         const fallbackQuery = post.title !== primaryQuery ? post.title : undefined;
 
-        const image = await searchStockImage(primaryQuery, fallbackQuery, excludedIds);
+        const image = await searchStockImage(primaryQuery, fallbackQuery, excludedIds, visualHints);
 
         if (image) {
           post.featuredImageUrl = image.url;
