@@ -143,6 +143,13 @@ function buildQueryCascade(
     if (fw.length > 3) add(fw.slice(0, 3).join(" "));
   }
 
+  // 7. Universal safety-net queries — always return results on Freepik.
+  //    These are intentionally generic so a post always gets *something*
+  //    rather than no image at all.
+  for (const safe of ["business professional", "office workplace", "small business"]) {
+    add(safe);
+  }
+
   return out;
 }
 
