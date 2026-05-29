@@ -295,32 +295,26 @@ export default function PostsTab({
               Delete Drafts ({posts.filter((p) => p.status !== "published").length})
             </button>
           )}
-        </div>
-      </div>
-
-      {/* Client action row — Write Posts / Publish only shown when a client is selected */}
-      {clientId && (counts.approvedTopics > 0 || counts.ready > 0) && (
-        <div className="flex items-center gap-2">
-          {counts.approvedTopics > 0 && (
+          {clientId && counts.approvedTopics > 0 && (
             <button
               onClick={() => onWritePosts(clientId)}
               disabled={loading}
-              className="bg-[var(--color-primary)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40"
+              className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] hover:bg-[var(--color-hover)] transition-all disabled:opacity-40"
             >
               Write Posts ({counts.approvedTopics})
             </button>
           )}
-          {counts.ready > 0 && (
+          {clientId && counts.ready > 0 && (
             <button
               onClick={onPublishPosts}
               disabled={loading}
-              className="bg-[var(--color-success)] text-[var(--color-primary-foreground)] px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40"
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-[var(--color-success)] text-white hover:opacity-90 transition-all disabled:opacity-40"
             >
               Publish ({counts.ready})
             </button>
           )}
         </div>
-      )}
+      </div>
 
       {/* Empty state — show clients that have posts so user can jump in */}
       {!clientId && (() => {
