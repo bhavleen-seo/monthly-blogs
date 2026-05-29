@@ -316,7 +316,7 @@ Return ONLY a JSON object with these fields:
   "content": "<h2>...</h2><p>...</p>... (the full blog post HTML)",
   "excerpt": "150-160 character summary for search results",
   "metaDescription": "140-155 characters, includes primary keyword, clear value prop",
-  "featuredImagePrompt": "A detailed description for generating a featured image"
+  "featuredImagePrompt": "2-4 word Pexels stock photo search query — concrete nouns only, NO articles, prepositions, or adjectives like 'professional'. Good examples: 'pest control technician', 'body donation process', 'custom work uniforms', 'auto body collision repair', 'dumpster rental truck', 'roofing contractor shingles'. Must visually represent the core topic of this post."
 }
 
 Return ONLY the JSON object, no other text.`;

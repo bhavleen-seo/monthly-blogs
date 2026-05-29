@@ -91,12 +91,26 @@ function stripPhotoPrefix(q: string): string {
 
 // Common English words that make poor image search terms on their own.
 const STOP_WORDS = new Set([
-  "how", "why", "what", "when", "where", "who", "which", "will", "can", "does",
-  "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-  "for", "to", "of", "in", "on", "at", "by", "with", "that", "this", "these",
-  "and", "or", "but", "not", "your", "our", "their", "its", "my",
-  "eliminates", "helps", "makes", "gives", "gets", "needs", "want", "using",
-  "best", "top", "guide", "tips", "ways", "steps", "checklist",
+  // question words
+  "how", "why", "what", "when", "where", "who", "which",
+  // auxiliaries / linking verbs
+  "will", "can", "does", "did", "do", "don't", "doesn't", "didn't",
+  "is", "are", "was", "were", "be", "been", "being", "have", "has", "had",
+  // articles / prepositions / conjunctions
+  "the", "a", "an", "for", "to", "of", "in", "on", "at", "by", "with",
+  "that", "this", "these", "those", "than", "then", "from", "into", "about",
+  "and", "or", "but", "not", "nor",
+  // pronouns
+  "you", "your", "we", "our", "they", "their", "its", "my", "me", "us",
+  "i", "he", "she", "it", "him", "her", "them",
+  // common verbs that don't translate to visual subjects
+  "eliminates", "helps", "makes", "gives", "gets", "needs", "need", "want",
+  "using", "use", "know", "keep", "find", "avoid", "choose", "should", "must",
+  // SEO boilerplate
+  "best", "top", "guide", "tips", "ways", "steps", "checklist", "signs",
+  "things", "reasons", "mistakes", "questions", "answers", "facts",
+  // numbers written out
+  "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
 ]);
 
 /**
@@ -120,6 +134,13 @@ function extractNounPairs(text: string): string[] {
 /**
  * Build a cascade of queries from most specific → most visual/generic.
  * Good Pexels queries are short concrete nouns (2-4 words), not full sentences.
+ *
+ * Order of priority:
+ *  1. Noun pairs from blog title  — most content-specific signal we have
+ *  2. Client visual hints         — industry-specific keywords
+ *  3. featuredImagePrompt         — short if AI followed instructions, long = truncated
+ *  4. Single key noun from title  — last content-specific attempt
+ *  5. Generic safety net
  */
 function buildQueryCascade(
   primaryQuery: string,
@@ -137,40 +158,42 @@ function buildQueryCascade(
     }
   };
 
-  // 1. Client visual hints first (e.g. "body donation", "funeral services")
+  // 1. Noun pairs from the blog title — e.g. "body donation", "funeral costs",
+  //    "pest control", "collision repair". Blog titles are written with the
+  //    primary keyword in mind so these pairs are the most on-topic signal.
+  const titleSource = fallbackQuery || primaryQuery;
+  const titlePairs = extractNounPairs(titleSource);
+  for (const pair of titlePairs.slice(0, 4)) add(pair);
+
+  // 2. Client visual hints (e.g. ["pest control", "exterminator service"]).
+  //    These are industry-level but still more specific than generic fallbacks.
   for (const hint of visualHints || []) add(hint);
 
-  // 2. Stripped primary query (removes "Professional photograph of…" boilerplate)
-  add(primaryQuery);
-
-  // 3. First 3 words of stripped primary
-  const strippedPrimary = stripPhotoPrefix(primaryQuery).replace(/[":?!,]/g, "");
-  const primaryWords = strippedPrimary.split(/\s+/);
-  if (primaryWords.length > 3) add(primaryWords.slice(0, 3).join(" "));
-
-  // 4. First 2 words (broadest fallback from primary)
-  if (primaryWords.length > 2) add(primaryWords.slice(0, 2).join(" "));
-
-  // 5. Meaningful 2-word noun pairs from the blog title.
-  //    e.g. "How Body Donation Eliminates Funeral Costs for Arizona Families"
-  //    → ["body donation", "funeral costs", "arizona families"]
-  //    This is much more relevant than "business professional" as a fallback.
-  if (fallbackQuery) {
-    for (const pair of extractNounPairs(fallbackQuery)) add(pair);
+  // 3. The featuredImagePrompt — after the writer-prompt fix this should be a
+  //    short 2-4 word phrase. If it's still long, we truncate to 3 words.
+  const strippedPrimary = stripPhotoPrefix(primaryQuery).replace(/[":?!,]/g, "").trim();
+  const primaryWords = strippedPrimary.split(/\s+/).filter(Boolean);
+  if (primaryWords.length <= 4) {
+    // Short enough to use as-is — this is the ideal case after the prompt fix.
+    add(strippedPrimary);
+  } else {
+    // Long sentence (old posts / legacy prompts) — extract first 3 non-stop words.
+    const meaningful = primaryWords.filter(w => !STOP_WORDS.has(w.toLowerCase()) && w.length > 2);
+    if (meaningful.length >= 2) add(meaningful.slice(0, 3).join(" "));
+    if (meaningful.length >= 2) add(meaningful.slice(0, 2).join(" "));
   }
 
-  // 6. Fallback: first meaningful single word from the title that isn't a stop word
-  if (fallbackQuery) {
-    const titleWords = fallbackQuery.replace(/[":?!,]/g, "").split(/\s+/);
-    for (const w of titleWords) {
-      if (!STOP_WORDS.has(w.toLowerCase()) && w.length > 3) {
-        add(w);
-        break;
-      }
+  // 4. First meaningful single noun from the blog title — catches cases where
+  //    the title is like "Signs You Need an Exterminator" → "Exterminator".
+  const titleWords = titleSource.replace(/[":?!,]/g, "").split(/\s+/);
+  for (const w of titleWords) {
+    if (!STOP_WORDS.has(w.toLowerCase()) && w.length > 4) {
+      add(w);
+      break;
     }
   }
 
-  // 7. Last-resort safety net — very broad but more neutral than "business professional".
+  // 5. Last-resort safety net — very broad but more neutral than "business professional".
   for (const safe of ["family", "community", "people"]) {
     add(safe);
   }
