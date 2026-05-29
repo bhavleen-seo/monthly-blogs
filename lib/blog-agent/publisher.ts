@@ -591,13 +591,16 @@ export async function syncFeaturedImageToWordPress(
 
     if (!res || !res.ok) {
       const errText = res ? await res.text().catch(() => "") : "No response";
-      if (res?.status === 404) {
+      if (res?.status === 404 && client.wordpressAppPassword && client.wordpressUsername) {
+        // Plugin not installed but app password available — fall through to native WP REST path below
+      } else if (res?.status === 404) {
         return { success: false, message: "CS Publisher plugin not found — please re-install the updated plugin (v1.1+)" };
+      } else {
+        return { success: false, message: `CS Publisher error: ${res?.status} — ${errText.slice(0, 200)}` };
       }
-      return { success: false, message: `CS Publisher error: ${res?.status} — ${errText.slice(0, 200)}` };
+    } else {
+      return { success: true, message: `Featured image updated on WP post ${post.wordpressPostId}` };
     }
-
-    return { success: true, message: `Featured image updated on WP post ${post.wordpressPostId}` };
   }
 
   // Native WP REST API path — upload the image then PATCH the post.
