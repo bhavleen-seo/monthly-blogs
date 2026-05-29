@@ -61,6 +61,7 @@ export default function PostsTab({
   // Per-post WP sync state
   const [syncingImage, setSyncingImage] = useState(false);
   const [syncResult, setSyncResult] = useState<"ok" | "error" | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const client = clients.find((c) => c.id === clientId);
 
@@ -126,6 +127,7 @@ export default function PostsTab({
       setImagePickerOpen(false);
       setImagePickerResults([]);
       setSyncResult(null);
+      setSyncError(null);
     }
   }, [selectedPost]);
 
@@ -178,6 +180,7 @@ export default function PostsTab({
   const syncImageToWP = async (postId: string) => {
     setSyncingImage(true);
     setSyncResult(null);
+    setSyncError(null);
     try {
       const res = await fetch("/api/blog-agent/posts/sync-images", {
         method: "POST",
@@ -187,7 +190,8 @@ export default function PostsTab({
       const data = await res.json();
       const ok = data.synced > 0;
       setSyncResult(ok ? "ok" : "error");
-      setTimeout(() => setSyncResult(null), 3000);
+      if (!ok) setSyncError(data.firstError || data.error || "Unknown error");
+      setTimeout(() => { setSyncResult(null); setSyncError(null); }, 5000);
     } finally {
       setSyncingImage(false);
     }
@@ -564,19 +568,24 @@ export default function PostsTab({
                           Change image
                         </button>
                         {selectedPost.status === "published" && selectedPost.wordpressPostId && (
-                          <button
-                            onClick={() => syncImageToWP(selectedPost.id)}
-                            disabled={syncingImage}
-                            className={`text-[10px] font-medium transition-colors disabled:opacity-40 ${
-                              syncResult === "ok"
-                                ? "text-[var(--color-success)]"
-                                : syncResult === "error"
-                                  ? "text-[var(--color-destructive)]"
-                                  : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
-                            }`}
-                          >
-                            {syncingImage ? "Syncing…" : syncResult === "ok" ? "✓ Pushed to WP!" : syncResult === "error" ? "✗ Sync failed" : "Sync to WP"}
-                          </button>
+                          <div className="flex flex-col items-end gap-0.5">
+                            <button
+                              onClick={() => syncImageToWP(selectedPost.id)}
+                              disabled={syncingImage}
+                              className={`text-[10px] font-medium transition-colors disabled:opacity-40 ${
+                                syncResult === "ok"
+                                  ? "text-[var(--color-success)]"
+                                  : syncResult === "error"
+                                    ? "text-[var(--color-destructive)]"
+                                    : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
+                              }`}
+                            >
+                              {syncingImage ? "Syncing…" : syncResult === "ok" ? "✓ Pushed to WP!" : syncResult === "error" ? "✗ Sync failed" : "Sync to WP"}
+                            </button>
+                            {syncError && (
+                              <p className="text-[9px] text-[var(--color-destructive)] max-w-[200px] text-right leading-tight">{syncError.slice(0, 120)}</p>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}

@@ -539,7 +539,11 @@ export async function syncFeaturedImageToWordPress(
     return { success: false, message: "No featured image URL to sync" };
   }
 
-  if (client.csPublisherSecret) {
+  // Prefer native WP REST for sync when the client has an app password — it's a
+  // simple PATCH that only touches featured_media, no risk of wiping content.
+  // CS Publisher path is used ONLY when there is no app password available,
+  // because sending update_image_only to an old plugin version could clobber the post.
+  if (client.csPublisherSecret && !client.wordpressAppPassword) {
     // CS Publisher path — send update_image_only to the existing /publish endpoint.
     const configured = client.wordpressUrl.replace(/\/+$/, "");
     let resolvedOrigin = configured;
