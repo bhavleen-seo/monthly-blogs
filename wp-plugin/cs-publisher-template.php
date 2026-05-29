@@ -5,7 +5,7 @@
  *               Lets the dashboard publish blog posts to this WordPress site without
  *               needing an Application Password. Works even when Wordfence has
  *               Application Passwords disabled.
- * Version:      1.0.0
+ * Version:      1.1.0
  * Author:       CS Design Studios
  * Author URI:   https://csdesignstudios.com
  *
@@ -18,233 +18,246 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('CS_PUBLISHER_SECRET', '__CS_PUBLISHER_SECRET__');
-define('CS_PUBLISHER_USER_ID', 0);
+// Use a versioned class name so re-installing over an old copy never causes
+// duplicate-function fatal errors. The class registers everything on instantiation.
+if (!class_exists('CS_Publisher_v1')) :
 
-// ─── Admin settings page ─────────────────────────────────────────────────────
-add_action('admin_menu', function () {
-    add_options_page('CS Publisher', 'CS Publisher', 'manage_options', 'cs-publisher', 'cs_publisher_settings_page');
-});
+class CS_Publisher_v1 {
 
-function cs_publisher_settings_page() {
-    $secret    = defined('CS_PUBLISHER_SECRET') ? CS_PUBLISHER_SECRET : '';
-    $configured = $secret && $secret !== '__CS_PUBLISHER_SECRET__';
+    const SECRET   = '__CS_PUBLISHER_SECRET__';
+    const USER_ID  = 0;
+    const VERSION  = '1.1.0';
 
-    $user_id = (int)(defined('CS_PUBLISHER_USER_ID') ? CS_PUBLISHER_USER_ID : 0);
-    if ($user_id <= 0) {
-        $admins  = get_users(['role' => 'administrator', 'number' => 1, 'orderby' => 'ID', 'order' => 'ASC', 'fields' => 'ID']);
-        $user_id = !empty($admins) ? (int)$admins[0] : 0;
-    }
-    $user = $user_id ? get_user_by('id', $user_id) : null;
-    ?>
-    <div class="wrap">
-        <h1>CS Publisher</h1>
-        <table class="form-table" role="presentation">
-            <tr>
-                <th scope="row">Status</th>
-                <td>
-                    <?php if ($configured): ?>
-                        <span style="color:#46b450;font-weight:600;">Active — secret configured</span>
-                    <?php else: ?>
-                        <span style="color:#dc3232;font-weight:600;">Not configured — re-download installer from the dashboard</span>
-                    <?php endif; ?>
-                </td>
-            </tr>
-            <?php if ($user): ?>
-            <tr>
-                <th scope="row">Publishing as</th>
-                <td>
-                    <strong><?php echo esc_html($user->user_login); ?></strong>
-                    (User #<?php echo esc_html((string)$user_id); ?>)
-                </td>
-            </tr>
-            <?php endif; ?>
-            <tr>
-                <th scope="row">Test endpoint</th>
-                <td><code><?php echo esc_html(rest_url('cs-publisher/v1/ping')); ?></code></td>
-            </tr>
-            <tr>
-                <th scope="row">Publish endpoint</th>
-                <td><code><?php echo esc_html(rest_url('cs-publisher/v1/publish')); ?></code></td>
-            </tr>
-        </table>
-        <p style="color:#777;margin-top:20px;font-size:13px;">
-            To rotate the secret or fix a connection issue, go to the CS Design Studios dashboard,
-            click <strong>Download Installer</strong> for this site, and re-upload the zip here
-            (Plugins → Add New → Upload Plugin → check "Replace current with uploaded version").
-        </p>
-    </div>
-    <?php
-}
-
-// ─── Authentication ───────────────────────────────────────────────────────────
-add_action('rest_api_init', function () {
-    register_rest_route('cs-publisher/v1', '/publish', [
-        'methods'             => 'POST',
-        'callback'            => 'cs_publisher_handle_publish',
-        'permission_callback' => 'cs_publisher_check_secret',
-    ]);
-    register_rest_route('cs-publisher/v1', '/ping', [
-        'methods'             => 'GET',
-        'callback'            => 'cs_publisher_handle_ping',
-        'permission_callback' => 'cs_publisher_check_secret',
-    ]);
-});
-
-function cs_publisher_check_secret(WP_REST_Request $req) {
-    $secret = defined('CS_PUBLISHER_SECRET') ? CS_PUBLISHER_SECRET : '';
-    if (!$secret || $secret === '__CS_PUBLISHER_SECRET__') {
-        return new WP_Error('cs_publisher_unconfigured', 'CS_PUBLISHER_SECRET not configured — re-download installer from the dashboard', ['status' => 500]);
-    }
-    // Accept secret from the X-CS-Secret header (preferred) OR the cs_secret
-    // query/body parameter (fallback for sites where Wordfence or similar WAFs
-    // drop requests with custom auth headers).
-    $provided = (string)$req->get_header('x-cs-secret');
-    if ($provided === '') {
-        $provided = (string)$req->get_param('cs_secret');
-    }
-    if (!$provided || !hash_equals((string)$secret, $provided)) {
-        return new WP_Error('cs_publisher_unauthorized', 'Invalid or missing secret', ['status' => 401]);
+    public function __construct() {
+        add_action('admin_menu',    [$this, 'register_settings_page']);
+        add_action('rest_api_init', [$this, 'register_routes']);
     }
 
-    $user_id = (int)CS_PUBLISHER_USER_ID;
-    if ($user_id <= 0) {
-        $admins  = get_users(['role' => 'administrator', 'number' => 1, 'orderby' => 'ID', 'order' => 'ASC', 'fields' => 'ID']);
-        $user_id = !empty($admins) ? (int)$admins[0] : 0;
-    }
-    if ($user_id <= 0) {
-        return new WP_Error('cs_publisher_no_admin', 'No administrator user found on this site', ['status' => 500]);
-    }
-    wp_set_current_user($user_id);
-    return true;
-}
+    // ─── Admin settings page ─────────────────────────────────────────────────
 
-// ─── Ping ─────────────────────────────────────────────────────────────────────
-function cs_publisher_handle_ping(WP_REST_Request $req) {
-    $user = wp_get_current_user();
-    return new WP_REST_Response([
-        'ok'         => true,
-        'version'    => '1.0.0',
-        'user_id'    => (int)$user->ID,
-        'user_login' => $user->user_login,
-        'user_roles' => array_values($user->roles),
-    ], 200);
-}
+    public function register_settings_page() {
+        add_options_page('CS Publisher', 'CS Publisher', 'manage_options', 'cs-publisher', [$this, 'render_settings_page']);
+    }
 
-// ─── Shared: sideload + set featured image + alt text ────────────────────────
-function cs_publisher_set_featured_image(int $post_id, string $img_url, string $filename, string $alt_text = ''): void {
-    require_once ABSPATH . 'wp-admin/includes/file.php';
-    require_once ABSPATH . 'wp-admin/includes/media.php';
-    require_once ABSPATH . 'wp-admin/includes/image.php';
-    $tmp = download_url($img_url, 60);
-    if (is_wp_error($tmp)) return;
-    $file_array = ['name' => $filename, 'tmp_name' => $tmp];
-    $attachment_id = media_handle_sideload($file_array, $post_id);
-    if (!is_wp_error($attachment_id)) {
-        set_post_thumbnail($post_id, $attachment_id);
-        // Set alt text on the media attachment so it appears in WP media library
-        // and is output as the <img alt="…"> attribute on the frontend.
-        if ($alt_text !== '') {
-            update_post_meta($attachment_id, '_wp_attachment_image_alt', sanitize_text_field($alt_text));
+    public function render_settings_page() {
+        $secret     = self::SECRET;
+        $configured = $secret && $secret !== '__CS_PUBLISHER_SECRET__';
+        $user_id    = (int) self::USER_ID;
+        if ($user_id <= 0) {
+            $admins  = get_users(['role' => 'administrator', 'number' => 1, 'orderby' => 'ID', 'order' => 'ASC', 'fields' => 'ID']);
+            $user_id = !empty($admins) ? (int)$admins[0] : 0;
         }
-    } else {
-        @unlink($tmp);
+        $user = $user_id ? get_user_by('id', $user_id) : null;
+        ?>
+        <div class="wrap">
+            <h1>CS Publisher <span style="font-size:13px;font-weight:normal;color:#777;">v<?php echo esc_html(self::VERSION); ?></span></h1>
+            <table class="form-table" role="presentation">
+                <tr>
+                    <th scope="row">Status</th>
+                    <td>
+                        <?php if ($configured): ?>
+                            <span style="color:#46b450;font-weight:600;">Active — secret configured</span>
+                        <?php else: ?>
+                            <span style="color:#dc3232;font-weight:600;">Not configured — re-download installer from the dashboard</span>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <?php if ($user): ?>
+                <tr>
+                    <th scope="row">Publishing as</th>
+                    <td>
+                        <strong><?php echo esc_html($user->user_login); ?></strong>
+                        (User #<?php echo esc_html((string)$user_id); ?>)
+                    </td>
+                </tr>
+                <?php endif; ?>
+                <tr>
+                    <th scope="row">Test endpoint</th>
+                    <td><code><?php echo esc_html(rest_url('cs-publisher/v1/ping')); ?></code></td>
+                </tr>
+                <tr>
+                    <th scope="row">Publish endpoint</th>
+                    <td><code><?php echo esc_html(rest_url('cs-publisher/v1/publish')); ?></code></td>
+                </tr>
+            </table>
+            <p style="color:#777;margin-top:20px;font-size:13px;">
+                To rotate the secret or fix a connection issue, go to the CS Design Studios dashboard,
+                click <strong>Download Installer</strong> for this site, and re-upload the zip here
+                (Plugins → Add New → Upload Plugin → check "Replace current with uploaded version").
+            </p>
+        </div>
+        <?php
     }
-}
 
-// ─── Publish (create new post OR update existing) ─────────────────────────────
-function cs_publisher_handle_publish(WP_REST_Request $req) {
-    $data = $req->get_json_params();
-    if (!is_array($data)) {
-        return new WP_Error('cs_publisher_bad_body', 'JSON body required', ['status' => 400]);
+    // ─── REST routes ─────────────────────────────────────────────────────────
+
+    public function register_routes() {
+        register_rest_route('cs-publisher/v1', '/publish', [
+            'methods'             => 'POST',
+            'callback'            => [$this, 'handle_publish'],
+            'permission_callback' => [$this, 'check_secret'],
+        ]);
+        register_rest_route('cs-publisher/v1', '/ping', [
+            'methods'             => 'GET',
+            'callback'            => [$this, 'handle_ping'],
+            'permission_callback' => [$this, 'check_secret'],
+        ]);
     }
 
-    // If post_id + update_image_only → just swap the featured image on an
-    // existing post. Useful when the dashboard re-fetches a better image after
-    // the post is already live.
-    $existing_id      = isset($data['post_id']) ? (int)$data['post_id'] : 0;
-    $update_image_only = !empty($data['update_image_only']);
+    // ─── Authentication ───────────────────────────────────────────────────────
 
-    if ($existing_id > 0 && $update_image_only) {
-        $post = get_post($existing_id);
-        if (!$post) {
-            return new WP_Error('cs_publisher_not_found', "Post {$existing_id} not found", ['status' => 404]);
+    public function check_secret(WP_REST_Request $req) {
+        $secret = self::SECRET;
+        if (!$secret || $secret === '__CS_PUBLISHER_SECRET__') {
+            return new WP_Error('cs_publisher_unconfigured', 'CS_PUBLISHER_SECRET not configured — re-download installer from the dashboard', ['status' => 500]);
         }
-        $img_url = $data['featured_image']['url'] ?? null;
-        if (is_string($img_url) && $img_url !== '') {
-            $filename = (string)($data['featured_image']['filename'] ?? "pexels-{$existing_id}.jpg");
-            $alt_text = (string)($data['featured_image']['alt'] ?? '');
-            cs_publisher_set_featured_image($existing_id, $img_url, $filename, $alt_text);
+        $provided = (string)$req->get_header('x-cs-secret');
+        if ($provided === '') {
+            $provided = (string)$req->get_param('cs_secret');
         }
+        if (!$provided || !hash_equals((string)$secret, $provided)) {
+            return new WP_Error('cs_publisher_unauthorized', 'Invalid or missing secret', ['status' => 401]);
+        }
+        $user_id = (int) self::USER_ID;
+        if ($user_id <= 0) {
+            $admins  = get_users(['role' => 'administrator', 'number' => 1, 'orderby' => 'ID', 'order' => 'ASC', 'fields' => 'ID']);
+            $user_id = !empty($admins) ? (int)$admins[0] : 0;
+        }
+        if ($user_id <= 0) {
+            return new WP_Error('cs_publisher_no_admin', 'No administrator user found on this site', ['status' => 500]);
+        }
+        wp_set_current_user($user_id);
+        return true;
+    }
+
+    // ─── Ping ─────────────────────────────────────────────────────────────────
+
+    public function handle_ping(WP_REST_Request $req) {
+        $user = wp_get_current_user();
         return new WP_REST_Response([
-            'id'     => $existing_id,
-            'link'   => get_permalink($existing_id),
-            'status' => $post->post_status,
-            'updated' => true,
+            'ok'         => true,
+            'version'    => self::VERSION,
+            'user_id'    => (int)$user->ID,
+            'user_login' => $user->user_login,
+            'user_roles' => array_values($user->roles),
         ], 200);
     }
 
-    // Categories — create any that don't exist, collect IDs.
-    $category_ids = [];
-    foreach ((array)($data['categories'] ?? []) as $name) {
-        $name = (string)$name;
-        if ($name === '') continue;
-        $term = get_term_by('name', $name, 'category');
-        if ($term && !is_wp_error($term)) {
-            $category_ids[] = (int)$term->term_id;
-        } else {
-            $inserted = wp_insert_term($name, 'category');
-            if (!is_wp_error($inserted) && isset($inserted['term_id'])) {
-                $category_ids[] = (int)$inserted['term_id'];
+    // ─── Shared: sideload + set featured image ────────────────────────────────
+
+    private function set_featured_image($post_id, $img_url, $filename, $alt_text = '') {
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/media.php';
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+        $tmp = download_url($img_url, 60);
+        if (is_wp_error($tmp)) return;
+        $file_array    = ['name' => $filename, 'tmp_name' => $tmp];
+        $attachment_id = media_handle_sideload($file_array, $post_id);
+        if (!is_wp_error($attachment_id)) {
+            set_post_thumbnail($post_id, $attachment_id);
+            if ($alt_text !== '') {
+                update_post_meta($attachment_id, '_wp_attachment_image_alt', sanitize_text_field($alt_text));
             }
+        } else {
+            @unlink($tmp);
         }
     }
 
-    $allowed_statuses = ['publish', 'draft', 'pending', 'private'];
-    $raw_status       = (string)($data['status'] ?? 'publish');
-    $status           = in_array($raw_status, $allowed_statuses, true) ? $raw_status : 'publish';
+    // ─── Publish (create new post OR update existing OR image-only update) ────
 
-    $post_data = [
-        'post_title'    => wp_strip_all_tags((string)($data['title'] ?? '')),
-        'post_name'     => sanitize_title((string)($data['slug'] ?? '')),
-        'post_content'  => (string)($data['content'] ?? ''),
-        'post_excerpt'  => (string)($data['excerpt'] ?? ''),
-        'post_status'   => $status,
-        'post_type'     => 'post',
-        'post_author'   => get_current_user_id(),
-        'post_category' => $category_ids,
-        'tags_input'    => array_values(array_filter(array_map('strval', (array)($data['tags'] ?? [])))),
-    ];
+    public function handle_publish(WP_REST_Request $req) {
+        $data = $req->get_json_params();
+        if (!is_array($data)) {
+            return new WP_Error('cs_publisher_bad_body', 'JSON body required', ['status' => 400]);
+        }
 
-    // If post_id provided without update_image_only → update the full post.
-    if ($existing_id > 0) {
-        $post_data['ID'] = $existing_id;
+        $existing_id       = isset($data['post_id']) ? (int)$data['post_id'] : 0;
+        $update_image_only = !empty($data['update_image_only']);
+
+        // Image-only update — just swap the featured image on an existing post.
+        if ($existing_id > 0 && $update_image_only) {
+            $post = get_post($existing_id);
+            if (!$post) {
+                return new WP_Error('cs_publisher_not_found', "Post {$existing_id} not found", ['status' => 404]);
+            }
+            $img_url = isset($data['featured_image']['url']) ? $data['featured_image']['url'] : null;
+            if (is_string($img_url) && $img_url !== '') {
+                $filename = isset($data['featured_image']['filename']) ? (string)$data['featured_image']['filename'] : "pexels-{$existing_id}.jpg";
+                $alt_text = isset($data['featured_image']['alt'])      ? (string)$data['featured_image']['alt']      : '';
+                $this->set_featured_image($existing_id, $img_url, $filename, $alt_text);
+            }
+            return new WP_REST_Response([
+                'id'      => $existing_id,
+                'link'    => get_permalink($existing_id),
+                'status'  => $post->post_status,
+                'updated' => true,
+            ], 200);
+        }
+
+        // Full publish / update — categories first.
+        $category_ids = [];
+        foreach ((array)(isset($data['categories']) ? $data['categories'] : []) as $name) {
+            $name = (string)$name;
+            if ($name === '') continue;
+            $term = get_term_by('name', $name, 'category');
+            if ($term && !is_wp_error($term)) {
+                $category_ids[] = (int)$term->term_id;
+            } else {
+                $inserted = wp_insert_term($name, 'category');
+                if (!is_wp_error($inserted) && isset($inserted['term_id'])) {
+                    $category_ids[] = (int)$inserted['term_id'];
+                }
+            }
+        }
+
+        $allowed_statuses = ['publish', 'draft', 'pending', 'private'];
+        $raw_status       = isset($data['status']) ? (string)$data['status'] : 'publish';
+        $status           = in_array($raw_status, $allowed_statuses, true) ? $raw_status : 'publish';
+
+        $post_data = [
+            'post_title'    => wp_strip_all_tags(isset($data['title'])   ? (string)$data['title']   : ''),
+            'post_name'     => sanitize_title(isset($data['slug'])        ? (string)$data['slug']    : ''),
+            'post_content'  => isset($data['content'])  ? (string)$data['content']  : '',
+            'post_excerpt'  => isset($data['excerpt'])  ? (string)$data['excerpt']  : '',
+            'post_status'   => $status,
+            'post_type'     => 'post',
+            'post_author'   => get_current_user_id(),
+            'post_category' => $category_ids,
+            'tags_input'    => array_values(array_filter(array_map('strval', (array)(isset($data['tags']) ? $data['tags'] : [])))),
+        ];
+
+        if ($existing_id > 0) {
+            $post_data['ID'] = $existing_id;
+        }
+
+        $post_id = wp_insert_post($post_data, true);
+        if (is_wp_error($post_id)) {
+            return new WP_Error('cs_publisher_insert_failed', $post_id->get_error_message(), ['status' => 500]);
+        }
+
+        foreach ((array)(isset($data['meta']) ? $data['meta'] : []) as $k => $v) {
+            if (!is_string($k) || $k === '') continue;
+            update_post_meta($post_id, $k, is_string($v) ? $v : wp_json_encode($v));
+        }
+
+        $img_url = isset($data['featured_image']['url']) ? $data['featured_image']['url'] : null;
+        if (is_string($img_url) && $img_url !== '') {
+            $filename = isset($data['featured_image']['filename'])
+                ? (string)$data['featured_image']['filename']
+                : (sanitize_title(isset($data['slug']) ? (string)$data['slug'] : 'featured') . '.jpg');
+            $alt_text = isset($data['featured_image']['alt']) ? (string)$data['featured_image']['alt'] : '';
+            $this->set_featured_image($post_id, $img_url, $filename, $alt_text);
+        }
+
+        $post = get_post($post_id);
+        return new WP_REST_Response([
+            'id'     => (int)$post_id,
+            'link'   => get_permalink($post_id),
+            'status' => $post ? $post->post_status : $status,
+        ], 200);
     }
-
-    $post_id = wp_insert_post($post_data, true);
-    if (is_wp_error($post_id)) {
-        return new WP_Error('cs_publisher_insert_failed', $post_id->get_error_message(), ['status' => 500]);
-    }
-
-    // Extra SEO meta (RankMath / Yoast keys, etc.).
-    foreach ((array)($data['meta'] ?? []) as $k => $v) {
-        if (!is_string($k) || $k === '') continue;
-        update_post_meta($post_id, $k, is_string($v) ? $v : wp_json_encode($v));
-    }
-
-    // Featured image — download + sideload + set as thumbnail + set alt text.
-    $img_url = $data['featured_image']['url'] ?? null;
-    if (is_string($img_url) && $img_url !== '') {
-        $filename = (string)($data['featured_image']['filename']
-            ?? (sanitize_title((string)($data['slug'] ?? 'featured')) . '.jpg'));
-        $alt_text = (string)($data['featured_image']['alt'] ?? '');
-        cs_publisher_set_featured_image($post_id, $img_url, $filename, $alt_text);
-    }
-
-    $post = get_post($post_id);
-    return new WP_REST_Response([
-        'id'     => (int)$post_id,
-        'link'   => get_permalink($post_id),
-        'status' => $post ? $post->post_status : $status,
-    ], 200);
 }
+
+new CS_Publisher_v1();
+
+endif; // class_exists('CS_Publisher_v1')
