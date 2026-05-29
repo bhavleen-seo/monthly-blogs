@@ -26,6 +26,7 @@ export default function PostsTab({
   onRewritePost,
   onCleanupPosts,
   onBackfillImages,
+  onSyncImages,
 }: {
   clients: Client[];
   topics: Topic[];
@@ -290,7 +291,13 @@ export default function PostsTab({
               Delete Drafts ({posts.filter((p) => p.status !== "published").length})
             </button>
           )}
-          {clientId && counts.approvedTopics > 0 && (
+        </div>
+      </div>
+
+      {/* Client action row — Write Posts / Publish only shown when a client is selected */}
+      {clientId && (counts.approvedTopics > 0 || counts.ready > 0) && (
+        <div className="flex items-center gap-2">
+          {counts.approvedTopics > 0 && (
             <button
               onClick={() => onWritePosts(clientId)}
               disabled={loading}
@@ -299,7 +306,7 @@ export default function PostsTab({
               Write Posts ({counts.approvedTopics})
             </button>
           )}
-          {clientId && counts.ready > 0 && (
+          {counts.ready > 0 && (
             <button
               onClick={onPublishPosts}
               disabled={loading}
@@ -309,7 +316,7 @@ export default function PostsTab({
             </button>
           )}
         </div>
-      </div>
+      )}
 
       {/* Empty state — show clients that have posts so user can jump in */}
       {!clientId && (() => {
