@@ -72,8 +72,11 @@ export async function POST(req: NextRequest) {
         if (image) {
           post.featuredImageUrl = image.url;
           post.freepikId = image.freepikId;
-          if (!post.featuredImageAlt && post.featuredImagePrompt) {
-            post.featuredImageAlt = buildAltText(post.featuredImagePrompt);
+          // Always ensure alt text is set — fall back to title if no prompt
+          if (!post.featuredImageAlt) {
+            post.featuredImageAlt = post.featuredImagePrompt
+              ? buildAltText(post.featuredImagePrompt)
+              : post.title;
           }
           post.updatedAt = new Date().toISOString();
           await savePost(post);

@@ -131,8 +131,8 @@ function cs_publisher_handle_ping(WP_REST_Request $req) {
     ], 200);
 }
 
-// ─── Shared: sideload + set featured image ────────────────────────────────────
-function cs_publisher_set_featured_image(int $post_id, string $img_url, string $filename): void {
+// ─── Shared: sideload + set featured image + alt text ────────────────────────
+function cs_publisher_set_featured_image(int $post_id, string $img_url, string $filename, string $alt_text = ''): void {
     require_once ABSPATH . 'wp-admin/includes/file.php';
     require_once ABSPATH . 'wp-admin/includes/media.php';
     require_once ABSPATH . 'wp-admin/includes/image.php';
@@ -142,6 +142,11 @@ function cs_publisher_set_featured_image(int $post_id, string $img_url, string $
     $attachment_id = media_handle_sideload($file_array, $post_id);
     if (!is_wp_error($attachment_id)) {
         set_post_thumbnail($post_id, $attachment_id);
+        // Set alt text on the media attachment so it appears in WP media library
+        // and is output as the <img alt="…"> attribute on the frontend.
+        if ($alt_text !== '') {
+            update_post_meta($attachment_id, '_wp_attachment_image_alt', sanitize_text_field($alt_text));
+        }
     } else {
         @unlink($tmp);
     }
@@ -168,7 +173,8 @@ function cs_publisher_handle_publish(WP_REST_Request $req) {
         $img_url = $data['featured_image']['url'] ?? null;
         if (is_string($img_url) && $img_url !== '') {
             $filename = (string)($data['featured_image']['filename'] ?? "pexels-{$existing_id}.jpg");
-            cs_publisher_set_featured_image($existing_id, $img_url, $filename);
+            $alt_text = (string)($data['featured_image']['alt'] ?? '');
+            cs_publisher_set_featured_image($existing_id, $img_url, $filename, $alt_text);
         }
         return new WP_REST_Response([
             'id'     => $existing_id,
@@ -226,12 +232,13 @@ function cs_publisher_handle_publish(WP_REST_Request $req) {
         update_post_meta($post_id, $k, is_string($v) ? $v : wp_json_encode($v));
     }
 
-    // Featured image — download + sideload + set as thumbnail.
+    // Featured image — download + sideload + set as thumbnail + set alt text.
     $img_url = $data['featured_image']['url'] ?? null;
     if (is_string($img_url) && $img_url !== '') {
         $filename = (string)($data['featured_image']['filename']
             ?? (sanitize_title((string)($data['slug'] ?? 'featured')) . '.jpg'));
-        cs_publisher_set_featured_image($post_id, $img_url, $filename);
+        $alt_text = (string)($data['featured_image']['alt'] ?? '');
+        cs_publisher_set_featured_image($post_id, $img_url, $filename, $alt_text);
     }
 
     $post = get_post($post_id);

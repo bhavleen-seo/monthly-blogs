@@ -163,7 +163,8 @@ async function uploadFeaturedImage(
   client: Client,
   apiBase: string,
   imageUrl: string,
-  postSlug: string
+  postSlug: string,
+  altText?: string
 ): Promise<number | null> {
   try {
     const authHeader = await getAuthHeader(client);
@@ -195,6 +196,19 @@ async function uploadFeaturedImage(
     }
 
     const media: { id: number } = await uploadRes.json();
+
+    // Set the alt text on the media attachment so WordPress renders
+    // <img alt="…"> on the frontend automatically.
+    if (altText && media.id) {
+      try {
+        await fetch(`${apiBase}/media/${media.id}`, {
+          method: "POST",
+          headers: { Authorization: authHeader, "Content-Type": "application/json" },
+          body: JSON.stringify({ alt_text: altText }),
+        });
+      } catch { /* non-fatal — image still works without alt text */ }
+    }
+
     return media.id;
   } catch (error) {
     console.error("Featured image upload failed:", error);
@@ -339,7 +353,7 @@ async function publishViaCsPublisher(
     // as a "related tags" strip which looks cluttered and amateurish.
     tags: [],
     featured_image: post.featuredImageUrl
-      ? { url: post.featuredImageUrl, filename: `${post.slug || "featured"}.jpg` }
+      ? { url: post.featuredImageUrl, filename: `${post.slug || "featured"}.jpg`, alt: post.featuredImageAlt || post.title }
       : undefined,
     meta: {
       rank_math_title: post.title,
@@ -418,7 +432,7 @@ export async function publishToWordPress(
     getOrCreateCategories(client, apiBase, post.categories),
     getOrCreateTags(client, apiBase, post.tags),
     post.featuredImageUrl
-      ? uploadFeaturedImage(client, apiBase, post.featuredImageUrl, post.slug)
+      ? uploadFeaturedImage(client, apiBase, post.featuredImageUrl, post.slug, post.featuredImageAlt || post.title)
       : Promise.resolve(null),
   ]);
 
@@ -562,6 +576,7 @@ export async function syncFeaturedImageToWordPress(
       featured_image: {
         url: post.featuredImageUrl,
         filename: `pexels-${post.freepikId || post.id}.jpg`,
+        alt: post.featuredImageAlt || post.title,
       },
     };
 
@@ -589,7 +604,7 @@ export async function syncFeaturedImageToWordPress(
   try {
     const apiBase = await resolveCanonicalApiBase(client);
     const authHeader = await getAuthHeader(client);
-    const featuredMediaId = await uploadFeaturedImage(client, apiBase, post.featuredImageUrl, post.slug);
+    const featuredMediaId = await uploadFeaturedImage(client, apiBase, post.featuredImageUrl, post.slug, post.featuredImageAlt || post.title);
     if (!featuredMediaId) {
       return { success: false, message: "Failed to upload image to WordPress media library" };
     }
