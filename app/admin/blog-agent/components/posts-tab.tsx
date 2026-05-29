@@ -76,8 +76,8 @@ export default function PostsTab({
   };
 
   const publishedWithUrlCount = useMemo(
-    () => posts.filter((p) => p.status === "published" && p.publishedUrl).length,
-    [posts]
+    () => posts.filter((p) => p.status === "published" && p.publishedUrl && p.publishedAt?.startsWith(targetMonth)).length,
+    [posts, targetMonth]
   );
 
   const missingImageCount = useMemo(
@@ -164,11 +164,11 @@ export default function PostsTab({
         </div>
         <div className="flex gap-2 flex-wrap">
           <a
-            href="/api/blog-agent/posts/export-published"
+            href={`/api/blog-agent/posts/export-published?month=${targetMonth}`}
             className={`px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] hover:bg-[var(--color-hover)] transition-all ${
               publishedWithUrlCount === 0 ? "pointer-events-none opacity-40" : ""
             }`}
-            title="Download a CSV with Client Name and Blog URL for every published post. Open it in Google Sheets via File → Import."
+            title={`Download a CSV of all posts published this month (${targetMonth}). Open in Google Sheets via File → Import.`}
           >
             Export Published URLs ({publishedWithUrlCount})
           </a>
