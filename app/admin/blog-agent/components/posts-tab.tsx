@@ -57,6 +57,10 @@ export default function PostsTab({
   const [imagePickerLoading, setImagePickerLoading] = useState(false);
   const [savingImage, setSavingImage] = useState(false);
 
+  // Per-post WP sync state
+  const [syncingImage, setSyncingImage] = useState(false);
+  const [syncResult, setSyncResult] = useState<"ok" | "error" | null>(null);
+
   const client = clients.find((c) => c.id === clientId);
 
   const clientPosts = useMemo(
@@ -120,6 +124,7 @@ export default function PostsTab({
       setContentView("preview");
       setImagePickerOpen(false);
       setImagePickerResults([]);
+      setSyncResult(null);
     }
   }, [selectedPost]);
 
@@ -166,6 +171,24 @@ export default function PostsTab({
       setImagePickerResults(data.photos || []);
     } finally {
       setImagePickerLoading(false);
+    }
+  };
+
+  const syncImageToWP = async (postId: string) => {
+    setSyncingImage(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch("/api/blog-agent/posts/sync-images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId }),
+      });
+      const data = await res.json();
+      const ok = data.synced > 0;
+      setSyncResult(ok ? "ok" : "error");
+      setTimeout(() => setSyncResult(null), 3000);
+    } finally {
+      setSyncingImage(false);
     }
   };
 
@@ -401,7 +424,7 @@ export default function PostsTab({
                     <p className="text-[11px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">{label} ({items.length})</p>
                   </div>
                   <div className="divide-y divide-[var(--color-border)]">
-                    {items.map((post) => <PostRow key={post.id} post={post} loading={loading} onPreview={() => { setSelectedPost(post); setCopiedField(null); }} onPublish={() => onPublishPost(post.id)} onRewrite={() => onRewritePost(post.id)} onDelete={() => onDeletePost(post.id)} />)}
+                    {items.map((post) => <PostRow key={post.id} post={post} loading={loading} onPreview={() => { setSelectedPost(post); setCopiedField(null); }} onPublish={() => onPublishPost(post.id)} onRewrite={() => onRewritePost(post.id)} onDelete={() => onDeletePost(post.id)} onSync={() => onSyncImages(post.id)} />)}
                   </div>
                 </div>
               );
@@ -432,7 +455,7 @@ export default function PostsTab({
             </button>
             {publishedExpanded && (
               <div className="border-t border-[var(--color-border)] divide-y divide-[var(--color-border)]">
-                {published.map((post) => <PostRow key={post.id} post={post} loading={loading} onPreview={() => { setSelectedPost(post); setCopiedField(null); }} onPublish={() => onPublishPost(post.id)} onRewrite={() => onRewritePost(post.id)} onDelete={() => onDeletePost(post.id)} />)}
+                {published.map((post) => <PostRow key={post.id} post={post} loading={loading} onPreview={() => { setSelectedPost(post); setCopiedField(null); }} onPublish={() => onPublishPost(post.id)} onRewrite={() => onRewritePost(post.id)} onDelete={() => onDeletePost(post.id)} onSync={() => onSyncImages(post.id)} />)}
               </div>
             )}
           </div>
@@ -526,12 +549,29 @@ export default function PostsTab({
                   <div className="flex items-center justify-between">
                     <label className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">Featured image</label>
                     {selectedPost.featuredImageUrl && !editing && (
-                      <button
-                        onClick={openImagePicker}
-                        className="text-[10px] font-medium text-[var(--color-primary)] hover:underline"
-                      >
-                        Change image
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={openImagePicker}
+                          className="text-[10px] font-medium text-[var(--color-primary)] hover:underline"
+                        >
+                          Change image
+                        </button>
+                        {selectedPost.status === "published" && selectedPost.wordpressPostId && (
+                          <button
+                            onClick={() => syncImageToWP(selectedPost.id)}
+                            disabled={syncingImage}
+                            className={`text-[10px] font-medium transition-colors disabled:opacity-40 ${
+                              syncResult === "ok"
+                                ? "text-[var(--color-success)]"
+                                : syncResult === "error"
+                                  ? "text-[var(--color-destructive)]"
+                                  : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
+                            }`}
+                          >
+                            {syncingImage ? "Syncing…" : syncResult === "ok" ? "✓ Pushed to WP!" : syncResult === "error" ? "✗ Sync failed" : "Sync to WP"}
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                   {editing ? (
@@ -791,13 +831,14 @@ export default function PostsTab({
   );
 }
 
-function PostRow({ post, loading, onPreview, onPublish, onRewrite, onDelete }: {
+function PostRow({ post, loading, onPreview, onPublish, onRewrite, onDelete, onSync }: {
   post: Post;
   loading: boolean;
   onPreview: () => void;
   onPublish: () => void;
   onRewrite: () => void;
   onDelete: () => void;
+  onSync?: () => void;
 }) {
   const isGhostPublished = post.status === "published" && !post.publishedUrl;
   const canPublish = post.status === "ready" || post.status === "draft" || post.status === "failed" || isGhostPublished;
@@ -835,6 +876,16 @@ function PostRow({ post, loading, onPreview, onPublish, onRewrite, onDelete }: {
         {post.status !== "published" && (
           <button onClick={onRewrite} disabled={loading} className="text-xs font-medium px-3 py-1.5 rounded-lg text-[var(--color-warning)] hover:bg-[var(--color-warning)]/10 transition-all disabled:opacity-40">
             Rewrite
+          </button>
+        )}
+        {post.status === "published" && post.wordpressPostId && post.featuredImageUrl && onSync && (
+          <button
+            onClick={onSync}
+            disabled={loading}
+            className="text-xs font-medium px-3 py-1.5 rounded-lg text-[var(--color-muted-foreground)] border border-[var(--color-border)] hover:bg-[var(--color-hover)] hover:text-[var(--color-foreground)] transition-all disabled:opacity-40"
+            title="Push the current featured image to WordPress"
+          >
+            Sync Image
           </button>
         )}
         <button onClick={onDelete} className="text-xs font-medium px-2 py-1.5 rounded-lg text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)] transition-all" title={post.status === "published" ? "Delete from dashboard and optionally WordPress" : "Remove from dashboard"}>
