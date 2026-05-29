@@ -89,6 +89,34 @@ function stripPhotoPrefix(q: string): string {
     .trim();
 }
 
+// Common English words that make poor image search terms on their own.
+const STOP_WORDS = new Set([
+  "how", "why", "what", "when", "where", "who", "which", "will", "can", "does",
+  "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+  "for", "to", "of", "in", "on", "at", "by", "with", "that", "this", "these",
+  "and", "or", "but", "not", "your", "our", "their", "its", "my",
+  "eliminates", "helps", "makes", "gives", "gets", "needs", "want", "using",
+  "best", "top", "guide", "tips", "ways", "steps", "checklist",
+]);
+
+/**
+ * Extract meaningful 2-word pairs from text by sliding a window and skipping
+ * stop words. e.g. "How Body Donation Eliminates Funeral Costs" →
+ * ["body donation", "funeral costs"].
+ */
+function extractNounPairs(text: string): string[] {
+  const words = text.replace(/[":?!,]/g, "").split(/\s+/).filter(Boolean);
+  const pairs: string[] = [];
+  for (let i = 0; i < words.length - 1; i++) {
+    const w1 = words[i].toLowerCase();
+    const w2 = words[i + 1].toLowerCase();
+    if (!STOP_WORDS.has(w1) && !STOP_WORDS.has(w2) && w1.length > 2 && w2.length > 2) {
+      pairs.push(`${words[i]} ${words[i + 1]}`);
+    }
+  }
+  return pairs;
+}
+
 /**
  * Build a cascade of queries from most specific → most visual/generic.
  * Good Pexels queries are short concrete nouns (2-4 words), not full sentences.
@@ -109,7 +137,7 @@ function buildQueryCascade(
     }
   };
 
-  // 1. Client visual hints first (e.g. "business uniforms", "workwear")
+  // 1. Client visual hints first (e.g. "body donation", "funeral services")
   for (const hint of visualHints || []) add(hint);
 
   // 2. Stripped primary query (removes "Professional photograph of…" boilerplate)
@@ -123,17 +151,27 @@ function buildQueryCascade(
   // 4. First 2 words (broadest fallback from primary)
   if (primaryWords.length > 2) add(primaryWords.slice(0, 2).join(" "));
 
-  // 5. Fallback query (blog title) stripped
-  if (fallbackQuery) add(fallbackQuery);
-
-  // 6. First 3 words of fallback
+  // 5. Meaningful 2-word noun pairs from the blog title.
+  //    e.g. "How Body Donation Eliminates Funeral Costs for Arizona Families"
+  //    → ["body donation", "funeral costs", "arizona families"]
+  //    This is much more relevant than "business professional" as a fallback.
   if (fallbackQuery) {
-    const fw = stripPhotoPrefix(fallbackQuery).replace(/[":?!,]/g, "").split(/\s+/);
-    if (fw.length > 3) add(fw.slice(0, 3).join(" "));
+    for (const pair of extractNounPairs(fallbackQuery)) add(pair);
   }
 
-  // 7. Universal safety-net queries — always return results on Pexels.
-  for (const safe of ["business professional", "office workplace", "small business"]) {
+  // 6. Fallback: first meaningful single word from the title that isn't a stop word
+  if (fallbackQuery) {
+    const titleWords = fallbackQuery.replace(/[":?!,]/g, "").split(/\s+/);
+    for (const w of titleWords) {
+      if (!STOP_WORDS.has(w.toLowerCase()) && w.length > 3) {
+        add(w);
+        break;
+      }
+    }
+  }
+
+  // 7. Last-resort safety net — very broad but more neutral than "business professional".
+  for (const safe of ["family", "community", "people"]) {
     add(safe);
   }
 
