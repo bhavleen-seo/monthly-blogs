@@ -18,15 +18,17 @@
 
 if (!defined('ABSPATH')) exit;
 
+// These defines are injected by the dashboard installer — do not rename them.
+define('CS_PUBLISHER_SECRET', '__CS_PUBLISHER_SECRET__');
+define('CS_PUBLISHER_USER_ID', 0);
+
 // Use a versioned class name so re-installing over an old copy never causes
 // duplicate-function fatal errors. The class registers everything on instantiation.
 if (!class_exists('CS_Publisher_v1')) :
 
 class CS_Publisher_v1 {
 
-    const SECRET   = '__CS_PUBLISHER_SECRET__';
-    const USER_ID  = 0;
-    const VERSION  = '1.1.0';
+    const VERSION = '1.1.0';
 
     public function __construct() {
         add_action('admin_menu',    [$this, 'register_settings_page']);
@@ -40,9 +42,9 @@ class CS_Publisher_v1 {
     }
 
     public function render_settings_page() {
-        $secret     = self::SECRET;
+        $secret     = CS_PUBLISHER_SECRET;
         $configured = $secret && $secret !== '__CS_PUBLISHER_SECRET__';
-        $user_id    = (int) self::USER_ID;
+        $user_id    = (int) CS_PUBLISHER_USER_ID;
         if ($user_id <= 0) {
             $admins  = get_users(['role' => 'administrator', 'number' => 1, 'orderby' => 'ID', 'order' => 'ASC', 'fields' => 'ID']);
             $user_id = !empty($admins) ? (int)$admins[0] : 0;
@@ -107,7 +109,7 @@ class CS_Publisher_v1 {
     // ─── Authentication ───────────────────────────────────────────────────────
 
     public function check_secret(WP_REST_Request $req) {
-        $secret = self::SECRET;
+        $secret = CS_PUBLISHER_SECRET;
         if (!$secret || $secret === '__CS_PUBLISHER_SECRET__') {
             return new WP_Error('cs_publisher_unconfigured', 'CS_PUBLISHER_SECRET not configured — re-download installer from the dashboard', ['status' => 500]);
         }
@@ -118,7 +120,7 @@ class CS_Publisher_v1 {
         if (!$provided || !hash_equals((string)$secret, $provided)) {
             return new WP_Error('cs_publisher_unauthorized', 'Invalid or missing secret', ['status' => 401]);
         }
-        $user_id = (int) self::USER_ID;
+        $user_id = (int) CS_PUBLISHER_USER_ID;
         if ($user_id <= 0) {
             $admins  = get_users(['role' => 'administrator', 'number' => 1, 'orderby' => 'ID', 'order' => 'ASC', 'fields' => 'ID']);
             $user_id = !empty($admins) ? (int)$admins[0] : 0;
