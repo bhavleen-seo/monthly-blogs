@@ -507,6 +507,107 @@ export async function publishToWordPress(
   };
 }
 
+/**
+ * Update the featured image on an already-published WordPress post.
+ * Uses the CS Publisher plugin's update_image_only mode (requires the updated
+ * plugin v1.1+). Falls back gracefully on older plugin versions.
+ *
+ * Returns { success, message } — never throws, so callers can batch safely.
+ */
+export async function syncFeaturedImageToWordPress(
+  client: Client,
+  post: BlogPost
+): Promise<{ success: boolean; message: string }> {
+  if (!post.wordpressPostId) {
+    return { success: false, message: "No WordPress post ID — post may not have been published yet" };
+  }
+  if (!post.featuredImageUrl) {
+    return { success: false, message: "No featured image URL to sync" };
+  }
+
+  if (client.csPublisherSecret) {
+    // CS Publisher path — send update_image_only to the existing /publish endpoint.
+    const configured = client.wordpressUrl.replace(/\/+$/, "");
+    let resolvedOrigin = configured;
+    try {
+      const canonical = await resolveCanonicalApiBase(client);
+      resolvedOrigin = new URL(canonical).origin;
+    } catch { /* fall back */ }
+
+    const toggleWww = (u: string): string => {
+      try {
+        const url = new URL(u);
+        url.hostname = url.hostname.startsWith("www.")
+          ? url.hostname.slice(4)
+          : `www.${url.hostname}`;
+        return url.origin;
+      } catch { return u; }
+    };
+
+    const origins = Array.from(new Set([resolvedOrigin, configured, toggleWww(configured), toggleWww(resolvedOrigin)]));
+    const encodedSecret = encodeURIComponent(client.csPublisherSecret);
+    const attempts: { url: string; useHeader: boolean }[] = [];
+    for (const origin of origins) {
+      attempts.push(
+        { url: `${origin}/wp-json/cs-publisher/v1/publish`, useHeader: true },
+        { url: `${origin}/wp-json/cs-publisher/v1/publish?cs_secret=${encodedSecret}`, useHeader: false },
+        { url: `${origin}/?rest_route=/cs-publisher/v1/publish`, useHeader: true },
+        { url: `${origin}/?rest_route=/cs-publisher/v1/publish&cs_secret=${encodedSecret}`, useHeader: false },
+      );
+    }
+
+    const body = {
+      post_id: post.wordpressPostId,
+      update_image_only: true,
+      featured_image: {
+        url: post.featuredImageUrl,
+        filename: `pexels-${post.freepikId || post.id}.jpg`,
+      },
+    };
+
+    let res!: Response;
+    for (const { url, useHeader } of attempts) {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (useHeader) headers["X-CS-Secret"] = client.csPublisherSecret;
+      res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), redirect: "manual" });
+      if (res.status === 404) continue;
+      break;
+    }
+
+    if (!res || !res.ok) {
+      const errText = res ? await res.text().catch(() => "") : "No response";
+      if (res?.status === 404) {
+        return { success: false, message: "CS Publisher plugin not found — please re-install the updated plugin (v1.1+)" };
+      }
+      return { success: false, message: `CS Publisher error: ${res?.status} — ${errText.slice(0, 200)}` };
+    }
+
+    return { success: true, message: `Featured image updated on WP post ${post.wordpressPostId}` };
+  }
+
+  // Native WP REST API path — upload the image then PATCH the post.
+  try {
+    const apiBase = await resolveCanonicalApiBase(client);
+    const authHeader = await getAuthHeader(client);
+    const featuredMediaId = await uploadFeaturedImage(client, apiBase, post.featuredImageUrl, post.slug);
+    if (!featuredMediaId) {
+      return { success: false, message: "Failed to upload image to WordPress media library" };
+    }
+    const res = await fetch(`${apiBase}/posts/${post.wordpressPostId}`, {
+      method: "POST",
+      headers: { Authorization: authHeader, "Content-Type": "application/json" },
+      body: JSON.stringify({ featured_media: featuredMediaId }),
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      return { success: false, message: `WP REST error: ${res.status} — ${errText.slice(0, 200)}` };
+    }
+    return { success: true, message: `Featured image updated on WP post ${post.wordpressPostId}` };
+  } catch (err) {
+    return { success: false, message: err instanceof Error ? err.message : "Unknown error" };
+  }
+}
+
 export async function testWordPressConnection(
   client: Client
 ): Promise<{ success: boolean; message: string }> {

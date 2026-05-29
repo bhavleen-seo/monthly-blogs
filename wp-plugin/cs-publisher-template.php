@@ -131,11 +131,51 @@ function cs_publisher_handle_ping(WP_REST_Request $req) {
     ], 200);
 }
 
-// ─── Publish ──────────────────────────────────────────────────────────────────
+// ─── Shared: sideload + set featured image ────────────────────────────────────
+function cs_publisher_set_featured_image(int $post_id, string $img_url, string $filename): void {
+    require_once ABSPATH . 'wp-admin/includes/file.php';
+    require_once ABSPATH . 'wp-admin/includes/media.php';
+    require_once ABSPATH . 'wp-admin/includes/image.php';
+    $tmp = download_url($img_url, 60);
+    if (is_wp_error($tmp)) return;
+    $file_array = ['name' => $filename, 'tmp_name' => $tmp];
+    $attachment_id = media_handle_sideload($file_array, $post_id);
+    if (!is_wp_error($attachment_id)) {
+        set_post_thumbnail($post_id, $attachment_id);
+    } else {
+        @unlink($tmp);
+    }
+}
+
+// ─── Publish (create new post OR update existing) ─────────────────────────────
 function cs_publisher_handle_publish(WP_REST_Request $req) {
     $data = $req->get_json_params();
     if (!is_array($data)) {
         return new WP_Error('cs_publisher_bad_body', 'JSON body required', ['status' => 400]);
+    }
+
+    // If post_id + update_image_only → just swap the featured image on an
+    // existing post. Useful when the dashboard re-fetches a better image after
+    // the post is already live.
+    $existing_id      = isset($data['post_id']) ? (int)$data['post_id'] : 0;
+    $update_image_only = !empty($data['update_image_only']);
+
+    if ($existing_id > 0 && $update_image_only) {
+        $post = get_post($existing_id);
+        if (!$post) {
+            return new WP_Error('cs_publisher_not_found', "Post {$existing_id} not found", ['status' => 404]);
+        }
+        $img_url = $data['featured_image']['url'] ?? null;
+        if (is_string($img_url) && $img_url !== '') {
+            $filename = (string)($data['featured_image']['filename'] ?? "pexels-{$existing_id}.jpg");
+            cs_publisher_set_featured_image($existing_id, $img_url, $filename);
+        }
+        return new WP_REST_Response([
+            'id'     => $existing_id,
+            'link'   => get_permalink($existing_id),
+            'status' => $post->post_status,
+            'updated' => true,
+        ], 200);
     }
 
     // Categories — create any that don't exist, collect IDs.
@@ -170,6 +210,11 @@ function cs_publisher_handle_publish(WP_REST_Request $req) {
         'tags_input'    => array_values(array_filter(array_map('strval', (array)($data['tags'] ?? [])))),
     ];
 
+    // If post_id provided without update_image_only → update the full post.
+    if ($existing_id > 0) {
+        $post_data['ID'] = $existing_id;
+    }
+
     $post_id = wp_insert_post($post_data, true);
     if (is_wp_error($post_id)) {
         return new WP_Error('cs_publisher_insert_failed', $post_id->get_error_message(), ['status' => 500]);
@@ -184,21 +229,9 @@ function cs_publisher_handle_publish(WP_REST_Request $req) {
     // Featured image — download + sideload + set as thumbnail.
     $img_url = $data['featured_image']['url'] ?? null;
     if (is_string($img_url) && $img_url !== '') {
-        require_once ABSPATH . 'wp-admin/includes/file.php';
-        require_once ABSPATH . 'wp-admin/includes/media.php';
-        require_once ABSPATH . 'wp-admin/includes/image.php';
-        $tmp = download_url($img_url, 60);
-        if (!is_wp_error($tmp)) {
-            $filename   = (string)($data['featured_image']['filename']
-                ?? (sanitize_title((string)($data['slug'] ?? 'featured')) . '.jpg'));
-            $file_array = ['name' => $filename, 'tmp_name' => $tmp];
-            $attachment_id = media_handle_sideload($file_array, $post_id);
-            if (!is_wp_error($attachment_id)) {
-                set_post_thumbnail($post_id, $attachment_id);
-            } else {
-                @unlink($tmp);
-            }
-        }
+        $filename = (string)($data['featured_image']['filename']
+            ?? (sanitize_title((string)($data['slug'] ?? 'featured')) . '.jpg'));
+        cs_publisher_set_featured_image($post_id, $img_url, $filename);
     }
 
     $post = get_post($post_id);

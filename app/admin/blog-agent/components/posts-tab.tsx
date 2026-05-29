@@ -38,7 +38,8 @@ export default function PostsTab({
   onDeletePost: (id: string) => void;
   onRewritePost: (postId: string) => void;
   onCleanupPosts: () => void;
-  onBackfillImages: (postId?: string) => void;
+  onBackfillImages: (postId?: string, force?: boolean) => void;
+  onSyncImages: (postId?: string) => void;
 }) {
   const [clientId, setClientId] = useState("");
   const [publishedExpanded, setPublishedExpanded] = useState(false);
@@ -180,12 +181,28 @@ export default function PostsTab({
             <button
               onClick={() => onBackfillImages()}
               disabled={loading}
-              title="Search Freepik for featured images on all posts that don't have one yet"
+              title="Search Pexels for featured images on all posts that don't have one yet"
               className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] hover:bg-[var(--color-hover)] transition-all disabled:opacity-40"
             >
               Fetch Missing Images ({missingImageCount})
             </button>
           )}
+          <button
+            onClick={() => onBackfillImages(undefined, true)}
+            disabled={loading}
+            title="Re-fetch better images from Pexels for ALL posts, replacing existing ones"
+            className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] hover:bg-[var(--color-hover)] transition-all disabled:opacity-40"
+          >
+            Refresh All Images
+          </button>
+          <button
+            onClick={() => onSyncImages()}
+            disabled={loading}
+            title="Push updated featured images to WordPress for all already-published posts. Requires CS Publisher plugin v1.1+ (re-install from Clients tab)."
+            className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] hover:bg-[var(--color-hover)] transition-all disabled:opacity-40"
+          >
+            Sync Images to WP
+          </button>
           {posts.some((p) => p.status !== "published") && (
             <button
               onClick={onCleanupPosts}

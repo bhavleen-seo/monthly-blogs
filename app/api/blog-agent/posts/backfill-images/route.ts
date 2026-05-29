@@ -20,11 +20,15 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const postId: string | undefined = body.postId;
+    // force=true re-fetches images even for posts that already have one
+    const force: boolean = body.force === true;
 
     const all = await getPosts();
     const targets: BlogPost[] = postId
       ? all.filter((p) => p.id === postId)
-      : all.filter((p) => !p.featuredImageUrl);
+      : force
+        ? all                                    // force=true → re-fetch every post
+        : all.filter((p) => !p.featuredImageUrl); // default → only posts with no image yet
 
     if (targets.length === 0) {
       return NextResponse.json({ updated: 0, failed: 0, message: "No posts need images" });

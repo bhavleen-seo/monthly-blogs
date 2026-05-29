@@ -434,30 +434,63 @@ export default function BlogAgentDashboard() {
     setLoading(false);
   };
 
-  const handleBackfillImages = async (postId?: string) => {
+  const handleBackfillImages = async (postId?: string, force?: boolean) => {
     setLoading(true);
-    const label = postId ? "Fetching image for post…" : "Fetching missing Freepik images for all posts…";
+    const label = force
+      ? "Re-fetching images for all posts from Pexels…"
+      : postId ? "Fetching image for post…" : "Fetching missing Pexels images for all posts…";
     setActiveOp({ kind: "publish", label, expected: "usually 5-15 seconds per post", startedAt: Date.now() });
     try {
       const res = await fetch("/api/blog-agent/posts/backfill-images", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ postId }),
+        body: JSON.stringify({ postId, force: force === true }),
       });
       const data = await res.json();
       if (res.ok) {
         if (data.updated > 0) {
           showToast(`Found ${data.updated} image(s)${data.failed > 0 ? ` — ${data.failed} still missing` : " — all done!"}`, data.failed === 0 ? "success" : "info");
         } else if (data.firstError) {
-          showToast(`Freepik returned nothing — ${data.firstError.slice(0, 150)}`, "error");
+          showToast(`Pexels returned nothing — ${data.firstError.slice(0, 150)}`, "error");
         } else {
-          showToast(data.message || "No images found — check FREEPIK_API_KEY in Vercel settings", "error");
+          showToast(data.message || "No images found — check PEXELS_API_KEY in Vercel settings", "error");
         }
         fetchPosts();
       } else {
         showToast(`Error: ${data.error}`, "error");
       }
     } catch { showToast("Failed to fetch images", "error"); }
+    setActiveOp(null);
+    setLoading(false);
+  };
+
+  const handleSyncImages = async (postId?: string) => {
+    const publishedWithWp = posts.filter((p) => p.status === "published" && p.wordpressPostId && p.featuredImageUrl);
+    if (!postId && publishedWithWp.length === 0) {
+      showToast("No published posts with WordPress IDs found", "info");
+      return;
+    }
+    setLoading(true);
+    setActiveOp({ kind: "publish", label: "Pushing updated images to WordPress…", expected: "5-10 seconds per site", startedAt: Date.now() });
+    try {
+      const res = await fetch("/api/blog-agent/posts/sync-images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (data.synced > 0) {
+          showToast(`Updated images on ${data.synced} WordPress post(s)${data.failed > 0 ? ` — ${data.failed} failed (may need plugin update)` : ""}`, data.failed === 0 ? "success" : "info");
+        } else if (data.firstError) {
+          showToast(`Sync failed — ${data.firstError.slice(0, 200)}`, "error");
+        } else {
+          showToast(data.message || "Nothing to sync", "info");
+        }
+      } else {
+        showToast(`Error: ${data.error}`, "error");
+      }
+    } catch { showToast("Failed to sync images", "error"); }
     setActiveOp(null);
     setLoading(false);
   };
@@ -653,6 +686,7 @@ export default function BlogAgentDashboard() {
               onRewritePost={handleRewritePost}
               onCleanupPosts={handleCleanupPosts}
               onBackfillImages={handleBackfillImages}
+              onSyncImages={handleSyncImages}
             />
           )}
 
