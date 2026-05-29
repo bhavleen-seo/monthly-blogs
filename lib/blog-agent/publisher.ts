@@ -546,6 +546,7 @@ export async function syncFeaturedImageToWordPress(
   // CS Publisher is the fallback ONLY for clients that have no app password.
   if (client.wordpressAppPassword && client.wordpressUsername) {
     // Native WP REST path — upload image then PATCH featured_media on the post.
+    let nativeError: string | null = null;
     try {
       const apiBase = await resolveCanonicalApiBase(client);
       const authHeader = await getAuthHeader(client);
@@ -564,7 +565,13 @@ export async function syncFeaturedImageToWordPress(
       }
       return { success: true, message: `Featured image updated on WP post ${post.wordpressPostId}` };
     } catch (err) {
-      return { success: false, message: err instanceof Error ? err.message : "Unknown error" };
+      nativeError = err instanceof Error ? err.message : "Unknown error";
+      // If it's a permission error (401/403) and CS Publisher is available, fall through to try that
+      const isPermissionError = nativeError.includes("(401)") || nativeError.includes("(403)");
+      if (!isPermissionError || !client.csPublisherSecret) {
+        return { success: false, message: nativeError };
+      }
+      // Fall through to CS Publisher below
     }
   }
 
