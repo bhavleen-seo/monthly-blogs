@@ -225,95 +225,95 @@ export default function PostsTab({
 
   return (
     <div className="space-y-5 animate-fade-in">
-      {/* Client picker */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          {clientId && (
-            <button
-              onClick={() => { setClientId(""); setSelectedPost(null); }}
-              className="flex items-center gap-1 text-sm text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors shrink-0"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-              </svg>
-              All clients
-            </button>
-          )}
-          <select
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-            className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] min-w-[260px]"
-          >
-            <option value="">Select a client…</option>
-            {[...clients].sort((a, b) => a.businessName.localeCompare(b.businessName)).map((c) => (
-              <option key={c.id} value={c.id}>{c.businessName}</option>
-            ))}
-          </select>
-          {clientId && counts.approvedTopics > 0 && (
-            <button
-              onClick={() => onWritePosts(clientId)}
-              disabled={loading}
-              className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] hover:bg-[var(--color-hover)] transition-all disabled:opacity-40 shrink-0"
-            >
-              Write Posts ({counts.approvedTopics})
-            </button>
-          )}
-          {clientId && counts.ready > 0 && (
-            <button
-              onClick={onPublishPosts}
-              disabled={loading}
-              className="px-4 py-2 rounded-lg text-sm font-medium bg-[var(--color-success)] text-white hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
-            >
-              Publish ({counts.ready})
-            </button>
-          )}
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          <a
-            href={`/api/blog-agent/posts/export-published?month=${targetMonth}`}
-            className={`px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] hover:bg-[var(--color-hover)] transition-all ${
-              publishedWithUrlCount === 0 ? "pointer-events-none opacity-40" : ""
-            }`}
-            title={`Download a CSV of all posts published this month (${targetMonth}). Open in Google Sheets via File → Import.`}
-          >
-            Export Published URLs ({publishedWithUrlCount})
-          </a>
-          {missingImageCount > 0 && (
-            <button
-              onClick={() => onBackfillImages()}
-              disabled={loading}
-              title="Search Pexels for featured images on all posts that don't have one yet"
-              className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] hover:bg-[var(--color-hover)] transition-all disabled:opacity-40"
-            >
-              Fetch Missing Images ({missingImageCount})
-            </button>
-          )}
+      {/* Row 1: Client picker + client-specific actions */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {clientId && (
           <button
-            onClick={() => onBackfillImages(undefined, true)}
+            onClick={() => { setClientId(""); setSelectedPost(null); }}
+            className="flex items-center gap-1 text-sm text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors shrink-0"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+            All clients
+          </button>
+        )}
+        <select
+          value={clientId}
+          onChange={(e) => setClientId(e.target.value)}
+          className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] min-w-[220px]"
+        >
+          <option value="">Select a client…</option>
+          {[...clients].sort((a, b) => a.businessName.localeCompare(b.businessName)).map((c) => (
+            <option key={c.id} value={c.id}>{c.businessName}</option>
+          ))}
+        </select>
+        {clientId && counts.approvedTopics > 0 && (
+          <button
+            onClick={() => onWritePosts(clientId)}
             disabled={loading}
-            title="Re-fetch better images from Pexels for ALL posts, replacing existing ones"
+            className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] hover:bg-[var(--color-hover)] transition-all disabled:opacity-40 shrink-0"
+          >
+            Write Posts ({counts.approvedTopics})
+          </button>
+        )}
+        {clientId && counts.ready > 0 && (
+          <button
+            onClick={onPublishPosts}
+            disabled={loading}
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-[var(--color-success)] text-white hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
+          >
+            Publish ({counts.ready})
+          </button>
+        )}
+      </div>
+
+      {/* Row 2: Global utility buttons */}
+      <div className="flex gap-2 flex-wrap">
+        <a
+          href={`/api/blog-agent/posts/export-published?month=${targetMonth}`}
+          className={`px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] hover:bg-[var(--color-hover)] transition-all ${
+            publishedWithUrlCount === 0 ? "pointer-events-none opacity-40" : ""
+          }`}
+          title={`Download a CSV of all posts published this month (${targetMonth}). Open in Google Sheets via File → Import.`}
+        >
+          Export Published URLs ({publishedWithUrlCount})
+        </a>
+        {missingImageCount > 0 && (
+          <button
+            onClick={() => onBackfillImages()}
+            disabled={loading}
+            title="Search Pexels for featured images on all posts that don't have one yet"
             className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] hover:bg-[var(--color-hover)] transition-all disabled:opacity-40"
           >
-            Refresh All Images
+            Fetch Missing Images ({missingImageCount})
           </button>
+        )}
+        <button
+          onClick={() => onBackfillImages(undefined, true)}
+          disabled={loading}
+          title="Re-fetch better images from Pexels for ALL posts, replacing existing ones"
+          className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] hover:bg-[var(--color-hover)] transition-all disabled:opacity-40"
+        >
+          Refresh All Images
+        </button>
+        <button
+          onClick={() => onSyncImages()}
+          disabled={loading}
+          title="Push updated featured images to WordPress for all already-published posts. Requires CS Publisher plugin v1.1+ (re-install from Clients tab)."
+          className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] hover:bg-[var(--color-hover)] transition-all disabled:opacity-40"
+        >
+          Sync Images to WP
+        </button>
+        {posts.some((p) => p.status !== "published") && (
           <button
-            onClick={() => onSyncImages()}
-            disabled={loading}
-            title="Push updated featured images to WordPress for all already-published posts. Requires CS Publisher plugin v1.1+ (re-install from Clients tab)."
-            className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] hover:bg-[var(--color-hover)] transition-all disabled:opacity-40"
+            onClick={onCleanupPosts}
+            title="Delete all draft and ready posts — only published posts are kept"
+            className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-destructive)]/40 text-[var(--color-destructive)] hover:bg-[var(--color-destructive)]/10 transition-all"
           >
-            Sync Images to WP
+            Delete Drafts ({posts.filter((p) => p.status !== "published").length})
           </button>
-          {posts.some((p) => p.status !== "published") && (
-            <button
-              onClick={onCleanupPosts}
-              title="Delete all draft and ready posts — only published posts are kept"
-              className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-destructive)]/40 text-[var(--color-destructive)] hover:bg-[var(--color-destructive)]/10 transition-all"
-            >
-              Delete Drafts ({posts.filter((p) => p.status !== "published").length})
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Empty state — show clients that have posts so user can jump in */}
