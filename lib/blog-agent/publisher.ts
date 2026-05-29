@@ -539,12 +539,37 @@ export async function syncFeaturedImageToWordPress(
     return { success: false, message: "No featured image URL to sync" };
   }
 
-  // Prefer native WP REST for sync when the client has an app password — it's a
+  // ── Routing ────────────────────────────────────────────────────────────────
+  // Always prefer native WP REST when an app password is available — it's a
   // simple PATCH that only touches featured_media, no risk of wiping content.
-  // CS Publisher path is used ONLY when there is no app password available,
-  // because sending update_image_only to an old plugin version could clobber the post.
-  if (client.csPublisherSecret && !client.wordpressAppPassword) {
-    // CS Publisher path — send update_image_only to the existing /publish endpoint.
+  // CS Publisher is the fallback ONLY for clients that have no app password.
+  if (client.wordpressAppPassword && client.wordpressUsername) {
+    // Native WP REST path — upload image then PATCH featured_media on the post.
+    try {
+      const apiBase = await resolveCanonicalApiBase(client);
+      const authHeader = await getAuthHeader(client);
+      const featuredMediaId = await uploadFeaturedImage(client, apiBase, post.featuredImageUrl, post.slug, post.featuredImageAlt || post.title);
+      if (!featuredMediaId) {
+        return { success: false, message: "Failed to upload image to WordPress media library" };
+      }
+      const res = await fetch(`${apiBase}/posts/${post.wordpressPostId}`, {
+        method: "POST",
+        headers: { Authorization: authHeader, "Content-Type": "application/json" },
+        body: JSON.stringify({ featured_media: featuredMediaId }),
+      });
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        return { success: false, message: `WP REST error: ${res.status} — ${errText.slice(0, 200)}` };
+      }
+      return { success: true, message: `Featured image updated on WP post ${post.wordpressPostId}` };
+    } catch (err) {
+      return { success: false, message: err instanceof Error ? err.message : "Unknown error" };
+    }
+  }
+
+  // CS Publisher path — only reached when the client has NO app password.
+  // Sends update_image_only so only the featured image is updated (requires plugin v1.1+).
+  if (client.csPublisherSecret) {
     const configured = client.wordpressUrl.replace(/\/+$/, "");
     let resolvedOrigin = configured;
     try {
@@ -595,39 +620,19 @@ export async function syncFeaturedImageToWordPress(
 
     if (!res || !res.ok) {
       const errText = res ? await res.text().catch(() => "") : "No response";
-      if (res?.status === 404 && client.wordpressAppPassword && client.wordpressUsername) {
-        // Plugin not installed but app password available — fall through to native WP REST path below
-      } else if (res?.status === 404) {
-        return { success: false, message: "CS Publisher plugin not found — please re-install the updated plugin (v1.1+)" };
-      } else {
-        return { success: false, message: `CS Publisher error: ${res?.status} — ${errText.slice(0, 200)}` };
+      // Detect old plugin versions that try to insert instead of updating image only
+      if (errText.includes("cs_publisher_insert_failed")) {
+        return { success: false, message: "CS Publisher plugin needs updating — please download the latest version from the Clients tab and reinstall" };
       }
-    } else {
-      return { success: true, message: `Featured image updated on WP post ${post.wordpressPostId}` };
-    }
-  }
-
-  // Native WP REST API path — upload the image then PATCH the post.
-  try {
-    const apiBase = await resolveCanonicalApiBase(client);
-    const authHeader = await getAuthHeader(client);
-    const featuredMediaId = await uploadFeaturedImage(client, apiBase, post.featuredImageUrl, post.slug, post.featuredImageAlt || post.title);
-    if (!featuredMediaId) {
-      return { success: false, message: "Failed to upload image to WordPress media library" };
-    }
-    const res = await fetch(`${apiBase}/posts/${post.wordpressPostId}`, {
-      method: "POST",
-      headers: { Authorization: authHeader, "Content-Type": "application/json" },
-      body: JSON.stringify({ featured_media: featuredMediaId }),
-    });
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      return { success: false, message: `WP REST error: ${res.status} — ${errText.slice(0, 200)}` };
+      if (!res || res.status === 404) {
+        return { success: false, message: "CS Publisher plugin not found — please install the updated plugin (v1.1+) from the Clients tab" };
+      }
+      return { success: false, message: `CS Publisher error: ${res.status} — ${errText.slice(0, 200)}` };
     }
     return { success: true, message: `Featured image updated on WP post ${post.wordpressPostId}` };
-  } catch (err) {
-    return { success: false, message: err instanceof Error ? err.message : "Unknown error" };
   }
+
+  return { success: false, message: "No WordPress credentials configured — add an app password in the Clients tab to enable image sync" };
 }
 
 export async function testWordPressConnection(

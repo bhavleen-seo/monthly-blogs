@@ -249,6 +249,24 @@ export default function PostsTab({
               <option key={c.id} value={c.id}>{c.businessName}</option>
             ))}
           </select>
+          {clientId && counts.approvedTopics > 0 && (
+            <button
+              onClick={() => onWritePosts(clientId)}
+              disabled={loading}
+              className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] hover:bg-[var(--color-hover)] transition-all disabled:opacity-40 shrink-0"
+            >
+              Write Posts ({counts.approvedTopics})
+            </button>
+          )}
+          {clientId && counts.ready > 0 && (
+            <button
+              onClick={onPublishPosts}
+              disabled={loading}
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-[var(--color-success)] text-white hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
+            >
+              Publish ({counts.ready})
+            </button>
+          )}
         </div>
         <div className="flex gap-2 flex-wrap">
           <a
@@ -293,24 +311,6 @@ export default function PostsTab({
               className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-destructive)]/40 text-[var(--color-destructive)] hover:bg-[var(--color-destructive)]/10 transition-all"
             >
               Delete Drafts ({posts.filter((p) => p.status !== "published").length})
-            </button>
-          )}
-          {clientId && counts.approvedTopics > 0 && (
-            <button
-              onClick={() => onWritePosts(clientId)}
-              disabled={loading}
-              className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] hover:bg-[var(--color-hover)] transition-all disabled:opacity-40"
-            >
-              Write Posts ({counts.approvedTopics})
-            </button>
-          )}
-          {clientId && counts.ready > 0 && (
-            <button
-              onClick={onPublishPosts}
-              disabled={loading}
-              className="px-4 py-2 rounded-lg text-sm font-medium bg-[var(--color-success)] text-white hover:opacity-90 transition-all disabled:opacity-40"
-            >
-              Publish ({counts.ready})
             </button>
           )}
         </div>
