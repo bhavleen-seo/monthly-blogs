@@ -76,7 +76,11 @@ export default function PostsTab({
   };
 
   const publishedWithUrlCount = useMemo(
-    () => posts.filter((p) => p.status === "published" && p.publishedUrl && p.publishedAt?.startsWith(targetMonth)).length,
+    () => posts.filter((p) => {
+      if (p.status !== "published" || !p.publishedUrl) return false;
+      const postMonth = p.month || p.publishedAt?.slice(0, 7);
+      return postMonth === targetMonth;
+    }).length,
     [posts, targetMonth]
   );
 

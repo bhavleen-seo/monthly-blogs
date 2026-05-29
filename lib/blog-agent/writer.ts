@@ -419,6 +419,7 @@ Return ONLY the JSON object, no other text.`;
     excerpt: cleanExcerpt,
     metaDescription: cleanMeta,
     targetKeywords: topic.targetKeywords,
+    month: topic.month,
     categories: client.blogCategories,
     tags: [],
     featuredImagePrompt: parsed.featuredImagePrompt,

@@ -50,8 +50,11 @@ export interface Post {
   h1?: string;
   slug?: string;
   wordCount: number;
+  /** Content-cycle month (YYYY-MM) — which month's writing run produced this post */
+  month?: string;
   status: string;
   publishedUrl?: string;
+  publishedAt?: string;
   wordpressPostId?: number;
   content: string;
   excerpt: string;

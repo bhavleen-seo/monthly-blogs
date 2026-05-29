@@ -82,6 +82,10 @@ export interface BlogPost {
   /** SEO-friendly alt text for the featured image. Stored on the post for reference; not pushed to WordPress (the current plugin doesn't support attachment alt). Manually copy into WP admin if needed. */
   featuredImageAlt?: string;
   wordCount: number;
+  /** Content-cycle month this post belongs to (YYYY-MM). Inherited from the
+   *  topic's month at write time. Used to filter exports and counts by cycle
+   *  rather than by published date (which can differ if publishing is delayed). */
+  month?: string;
   status: "draft" | "ready" | "published" | "failed";
   wordpressPostId?: number;
   publishedUrl?: string;

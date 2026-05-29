@@ -23,7 +23,13 @@ export async function GET(req: NextRequest) {
     const clientMap = new Map(clients.map((c) => [c.id, c]));
 
     const rows = posts
-      .filter((p) => p.status === "published" && p.publishedUrl && p.publishedAt?.startsWith(month))
+      .filter((p) => {
+        if (p.status !== "published" || !p.publishedUrl) return false;
+        // Use the content-cycle month stamp if present (set on posts written
+        // after this field was added). Fall back to publishedAt for older posts.
+        const postMonth = p.month || p.publishedAt?.slice(0, 7);
+        return postMonth === month;
+      })
       .map((p) => ({
         clientName: clientMap.get(p.clientId)?.businessName || "Unknown",
         url: p.publishedUrl!,
