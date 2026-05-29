@@ -50,6 +50,13 @@ export default function PostsTab({
   const [saving, setSaving] = useState(false);
   const [contentView, setContentView] = useState<"preview" | "html">("preview");
 
+  // Image picker state
+  const [imagePickerOpen, setImagePickerOpen] = useState(false);
+  const [imagePickerQuery, setImagePickerQuery] = useState("");
+  const [imagePickerResults, setImagePickerResults] = useState<Array<{ id: number; url: string; thumbnail: string; alt: string }>>([]);
+  const [imagePickerLoading, setImagePickerLoading] = useState(false);
+  const [savingImage, setSavingImage] = useState(false);
+
   const client = clients.find((c) => c.id === clientId);
 
   const clientPosts = useMemo(
@@ -111,6 +118,8 @@ export default function PostsTab({
       });
       setEditing(false);
       setContentView("preview");
+      setImagePickerOpen(false);
+      setImagePickerResults([]);
     }
   }, [selectedPost]);
 
@@ -137,6 +146,52 @@ export default function PostsTab({
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ── Image picker helpers ────────────────────────────────────────────────────
+  const openImagePicker = () => {
+    const q = selectedPost?.featuredImagePrompt || selectedPost?.title || "";
+    setImagePickerQuery(q);
+    setImagePickerResults([]);
+    setImagePickerOpen(true);
+  };
+
+  const searchImages = async (query: string) => {
+    if (!query.trim()) return;
+    setImagePickerLoading(true);
+    try {
+      const res = await fetch(`/api/blog-agent/posts/image-search?q=${encodeURIComponent(query.trim())}`);
+      const data = await res.json();
+      setImagePickerResults(data.photos || []);
+    } finally {
+      setImagePickerLoading(false);
+    }
+  };
+
+  const selectImage = async (photo: { id: number; url: string; alt: string }) => {
+    if (!selectedPost) return;
+    setSavingImage(true);
+    try {
+      const res = await fetch("/api/blog-agent/posts", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selectedPost.id,
+          featuredImageUrl: photo.url,
+          freepikId: String(photo.id),
+          featuredImageAlt: photo.alt || selectedPost.featuredImageAlt || selectedPost.title,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedPost({ ...selectedPost, ...data.post });
+        setImagePickerOpen(false);
+        setImagePickerResults([]);
+        onPostUpdated();
+      }
+    } finally {
+      setSavingImage(false);
     }
   };
 
@@ -471,7 +526,12 @@ export default function PostsTab({
                   <div className="flex items-center justify-between">
                     <label className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">Featured image</label>
                     {selectedPost.featuredImageUrl && !editing && (
-                      <span className="text-[10px] text-[var(--color-success)]">auto-found from Freepik</span>
+                      <button
+                        onClick={openImagePicker}
+                        className="text-[10px] font-medium text-[var(--color-primary)] hover:underline"
+                      >
+                        Change image
+                      </button>
                     )}
                   </div>
                   {editing ? (
@@ -497,13 +557,74 @@ export default function PostsTab({
                       )}
                     </div>
                   ) : selectedPost.featuredImageUrl ? (
-                    /* Read mode — image found, show it */
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      src={selectedPost.featuredImageUrl}
-                      alt="Featured"
-                      className="w-full max-h-64 object-cover rounded-lg border border-[var(--color-border)]"
-                    />
+                    /* Read mode — image found, show it + picker */
+                    <div className="space-y-2">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={selectedPost.featuredImageUrl}
+                        alt="Featured"
+                        className="w-full max-h-64 object-cover rounded-lg border border-[var(--color-border)]"
+                      />
+                      {/* Image picker panel */}
+                      {imagePickerOpen && (
+                        <div className="border border-[var(--color-border)] rounded-lg p-3 space-y-3 bg-[var(--color-card)]">
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={imagePickerQuery}
+                              onChange={(e) => setImagePickerQuery(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === "Enter") searchImages(imagePickerQuery); }}
+                              placeholder="e.g. dumpster rental truck, pest control technician…"
+                              className="flex-1 bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted-foreground)]"
+                            />
+                            <button
+                              onClick={() => searchImages(imagePickerQuery)}
+                              disabled={imagePickerLoading || !imagePickerQuery.trim()}
+                              className="px-3 py-2 text-xs font-medium bg-[var(--color-primary)] text-[var(--color-primary-foreground)] rounded-lg disabled:opacity-40 hover:opacity-90 transition-opacity whitespace-nowrap"
+                            >
+                              {imagePickerLoading ? "Searching…" : "Search"}
+                            </button>
+                            <button
+                              onClick={() => { setImagePickerOpen(false); setImagePickerResults([]); }}
+                              className="px-2 py-2 text-sm text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
+                              title="Close"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                          {imagePickerResults.length > 0 && (
+                            <div className="grid grid-cols-3 gap-2">
+                              {imagePickerResults.map((photo) => (
+                                <button
+                                  key={photo.id}
+                                  onClick={() => selectImage(photo)}
+                                  disabled={savingImage}
+                                  title="Click to use this image"
+                                  className="relative aspect-video overflow-hidden rounded-md border-2 border-transparent hover:border-[var(--color-primary)] focus:border-[var(--color-primary)] transition-all disabled:opacity-50"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={photo.thumbnail}
+                                    alt={photo.alt}
+                                    className="w-full h-full object-cover"
+                                  />
+                                  {savingImage && (
+                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                      <span className="text-white text-xs">Saving…</span>
+                                    </div>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {!imagePickerLoading && imagePickerResults.length === 0 && (
+                            <p className="text-xs text-[var(--color-muted-foreground)] text-center py-1">
+                              Enter a short search term (e.g. &ldquo;dumpster truck&rdquo;) and press Search
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     /* Read mode — no image found */
                     <div className="flex items-center justify-between px-4 py-3 bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/30 rounded-lg">
