@@ -191,8 +191,8 @@ async function uploadFeaturedImage(
     });
 
     if (!uploadRes.ok) {
-      const errText = await uploadRes.text();
-      throw new Error(`Failed to upload image: ${uploadRes.status} ${errText.slice(0, 200)}`);
+      const errText = await uploadRes.text().catch(() => "");
+      throw new Error(`WP media upload failed (${uploadRes.status}): ${errText.slice(0, 300)}`);
     }
 
     const media: { id: number } = await uploadRes.json();
@@ -211,8 +211,9 @@ async function uploadFeaturedImage(
 
     return media.id;
   } catch (error) {
+    // Re-throw so the caller can surface the real error message in the UI
     console.error("Featured image upload failed:", error);
-    return null;
+    throw error;
   }
 }
 
