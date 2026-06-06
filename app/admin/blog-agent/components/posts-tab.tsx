@@ -57,6 +57,7 @@ export default function PostsTab({
   const [imagePickerResults, setImagePickerResults] = useState<Array<{ id: number; url: string; thumbnail: string; alt: string }>>([]);
   const [imagePickerLoading, setImagePickerLoading] = useState(false);
   const [savingImage, setSavingImage] = useState(false);
+  const [pastedImageUrl, setPastedImageUrl] = useState("");
 
   // Per-post WP sync state
   const [syncingImage, setSyncingImage] = useState(false);
@@ -126,6 +127,7 @@ export default function PostsTab({
       setContentView("preview");
       setImagePickerOpen(false);
       setImagePickerResults([]);
+      setPastedImageUrl("");
       setSyncResult(null);
       setSyncError(null);
     }
@@ -635,7 +637,7 @@ export default function PostsTab({
                               {imagePickerLoading ? "Searching…" : "Search"}
                             </button>
                             <button
-                              onClick={() => { setImagePickerOpen(false); setImagePickerResults([]); }}
+                              onClick={() => { setImagePickerOpen(false); setImagePickerResults([]); setPastedImageUrl(""); }}
                               className="px-2 py-2 text-sm text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
                               title="Close"
                             >
@@ -672,6 +674,44 @@ export default function PostsTab({
                               Enter a short search term (e.g. &ldquo;dumpster truck&rdquo;) and press Search
                             </p>
                           )}
+
+                          {/* Paste URL section */}
+                          <div className="pt-2 border-t border-[var(--color-border)]">
+                            <p className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider mb-2">Or paste an image URL</p>
+                            <div className="flex gap-2">
+                              <input
+                                type="url"
+                                value={pastedImageUrl}
+                                onChange={(e) => setPastedImageUrl(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && pastedImageUrl.trim()) {
+                                    selectImage({ id: 0, url: pastedImageUrl.trim(), alt: selectedPost?.title || "" });
+                                  }
+                                }}
+                                placeholder="https://img.freepik.com/... or any image URL"
+                                className="flex-1 bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted-foreground)]"
+                              />
+                              <button
+                                onClick={() => {
+                                  if (pastedImageUrl.trim()) selectImage({ id: 0, url: pastedImageUrl.trim(), alt: selectedPost?.title || "" });
+                                }}
+                                disabled={savingImage || !pastedImageUrl.trim()}
+                                className="px-3 py-2 text-xs font-medium bg-[var(--color-primary)] text-[var(--color-primary-foreground)] rounded-lg disabled:opacity-40 hover:opacity-90 transition-opacity whitespace-nowrap"
+                              >
+                                {savingImage ? "Saving…" : "Use this URL"}
+                              </button>
+                            </div>
+                            {pastedImageUrl.trim() && (
+                              /* eslint-disable-next-line @next/next/no-img-element */
+                              <img
+                                src={pastedImageUrl.trim()}
+                                alt="Preview"
+                                className="mt-2 w-full max-h-40 object-cover rounded-lg border border-[var(--color-border)]"
+                                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                                onLoad={(e) => { (e.target as HTMLImageElement).style.display = "block"; }}
+                              />
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
