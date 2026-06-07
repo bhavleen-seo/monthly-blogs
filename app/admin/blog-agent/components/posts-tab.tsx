@@ -58,6 +58,7 @@ export default function PostsTab({
   const [imagePickerLoading, setImagePickerLoading] = useState(false);
   const [savingImage, setSavingImage] = useState(false);
   const [pastedImageUrl, setPastedImageUrl] = useState("");
+  const [pastedImageAlt, setPastedImageAlt] = useState("");
 
   // Per-post WP sync state
   const [syncingImage, setSyncingImage] = useState(false);
@@ -128,6 +129,7 @@ export default function PostsTab({
       setImagePickerOpen(false);
       setImagePickerResults([]);
       setPastedImageUrl("");
+      setPastedImageAlt("");
       setSyncResult(null);
       setSyncError(null);
     }
@@ -637,7 +639,7 @@ export default function PostsTab({
                               {imagePickerLoading ? "Searching…" : "Search"}
                             </button>
                             <button
-                              onClick={() => { setImagePickerOpen(false); setImagePickerResults([]); setPastedImageUrl(""); }}
+                              onClick={() => { setImagePickerOpen(false); setImagePickerResults([]); setPastedImageUrl(""); setPastedImageAlt(""); }}
                               className="px-2 py-2 text-sm text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
                               title="Close"
                             >
@@ -676,40 +678,56 @@ export default function PostsTab({
                           )}
 
                           {/* Paste URL section */}
-                          <div className="pt-2 border-t border-[var(--color-border)]">
-                            <p className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider mb-2">Or paste an image URL</p>
-                            <div className="flex gap-2">
-                              <input
-                                type="url"
-                                value={pastedImageUrl}
-                                onChange={(e) => setPastedImageUrl(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter" && pastedImageUrl.trim()) {
-                                    selectImage({ id: 0, url: pastedImageUrl.trim(), alt: selectedPost?.title || "" });
-                                  }
-                                }}
-                                placeholder="https://img.freepik.com/... or any image URL"
-                                className="flex-1 bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted-foreground)]"
-                              />
-                              <button
-                                onClick={() => {
-                                  if (pastedImageUrl.trim()) selectImage({ id: 0, url: pastedImageUrl.trim(), alt: selectedPost?.title || "" });
-                                }}
-                                disabled={savingImage || !pastedImageUrl.trim()}
-                                className="px-3 py-2 text-xs font-medium bg-[var(--color-primary)] text-[var(--color-primary-foreground)] rounded-lg disabled:opacity-40 hover:opacity-90 transition-opacity whitespace-nowrap"
-                              >
-                                {savingImage ? "Saving…" : "Use this URL"}
-                              </button>
+                          <div className="pt-2 border-t border-[var(--color-border)] space-y-2">
+                            <div>
+                              <p className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider mb-1">Or paste a direct image URL</p>
+                              <p className="text-[10px] text-[var(--color-muted-foreground)]">
+                                Must be a direct <code>.jpg</code>/<code>.png</code> link — not a webpage.<br />
+                                On Magnific/Freepik: right-click the image → <strong>Copy Image Address</strong>.
+                              </p>
                             </div>
+                            <input
+                              type="url"
+                              value={pastedImageUrl}
+                              onChange={(e) => {
+                                setPastedImageUrl(e.target.value);
+                                if (!pastedImageAlt && selectedPost?.title) setPastedImageAlt(selectedPost.title);
+                              }}
+                              placeholder="https://img.freepik.com/premium-photo/....jpg"
+                              className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted-foreground)]"
+                            />
                             {pastedImageUrl.trim() && (
-                              /* eslint-disable-next-line @next/next/no-img-element */
-                              <img
-                                src={pastedImageUrl.trim()}
-                                alt="Preview"
-                                className="mt-2 w-full max-h-40 object-cover rounded-lg border border-[var(--color-border)]"
-                                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                                onLoad={(e) => { (e.target as HTMLImageElement).style.display = "block"; }}
-                              />
+                              <>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={pastedImageUrl.trim()}
+                                  alt="Preview"
+                                  className="w-full max-h-40 object-cover rounded-lg border border-[var(--color-border)]"
+                                  onError={(e) => {
+                                    const el = e.target as HTMLImageElement;
+                                    el.style.display = "none";
+                                    el.nextElementSibling?.classList.remove("hidden");
+                                  }}
+                                  onLoad={(e) => { (e.target as HTMLImageElement).style.display = "block"; }}
+                                />
+                                <p className="hidden text-xs text-[var(--color-destructive)]">
+                                  ⚠ Can&apos;t load this URL — make sure it&apos;s a direct image link, not a webpage URL.
+                                </p>
+                                <input
+                                  type="text"
+                                  value={pastedImageAlt}
+                                  onChange={(e) => setPastedImageAlt(e.target.value)}
+                                  placeholder="Alt text (describe the image for SEO)"
+                                  className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted-foreground)]"
+                                />
+                                <button
+                                  onClick={() => selectImage({ id: 0, url: pastedImageUrl.trim(), alt: pastedImageAlt.trim() || selectedPost?.title || "" })}
+                                  disabled={savingImage || !pastedImageUrl.trim()}
+                                  className="w-full px-3 py-2 text-xs font-medium bg-[var(--color-primary)] text-[var(--color-primary-foreground)] rounded-lg disabled:opacity-40 hover:opacity-90 transition-opacity"
+                                >
+                                  {savingImage ? "Saving…" : "Use this image"}
+                                </button>
+                              </>
                             )}
                           </div>
                         </div>
