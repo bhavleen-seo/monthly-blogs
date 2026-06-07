@@ -59,6 +59,8 @@ export default function PostsTab({
   const [savingImage, setSavingImage] = useState(false);
   const [pastedImageUrl, setPastedImageUrl] = useState("");
   const [pastedImageAlt, setPastedImageAlt] = useState("");
+  const [extractingImage, setExtractingImage] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
 
   // Per-post WP sync state
   const [syncingImage, setSyncingImage] = useState(false);
@@ -130,6 +132,8 @@ export default function PostsTab({
       setImagePickerResults([]);
       setPastedImageUrl("");
       setPastedImageAlt("");
+      setExtractingImage(false);
+      setExtractError(null);
       setSyncResult(null);
       setSyncError(null);
     }
@@ -639,7 +643,7 @@ export default function PostsTab({
                               {imagePickerLoading ? "Searching…" : "Search"}
                             </button>
                             <button
-                              onClick={() => { setImagePickerOpen(false); setImagePickerResults([]); setPastedImageUrl(""); setPastedImageAlt(""); }}
+                              onClick={() => { setImagePickerOpen(false); setImagePickerResults([]); setPastedImageUrl(""); setPastedImageAlt(""); setExtractError(null); }}
                               className="px-2 py-2 text-sm text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
                               title="Close"
                             >
@@ -680,49 +684,81 @@ export default function PostsTab({
                           {/* Paste URL section */}
                           <div className="pt-2 border-t border-[var(--color-border)] space-y-2">
                             <div>
-                              <p className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider mb-1">Or paste a direct image URL</p>
+                              <p className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider mb-1">Or paste any image URL</p>
                               <p className="text-[10px] text-[var(--color-muted-foreground)]">
-                                Must be a direct <code>.jpg</code>/<code>.png</code> link — not a webpage.<br />
-                                On Magnific/Freepik: right-click the image → <strong>Copy Image Address</strong>.
+                                Paste a <strong>webpage URL</strong> (Magnific, Freepik, Getty…) or a direct image link — we&apos;ll extract the image automatically.
                               </p>
                             </div>
-                            <input
-                              type="url"
-                              value={pastedImageUrl}
-                              onChange={(e) => {
-                                setPastedImageUrl(e.target.value);
-                                if (!pastedImageAlt && selectedPost?.title) setPastedImageAlt(selectedPost.title);
-                              }}
-                              placeholder="https://img.freepik.com/premium-photo/....jpg"
-                              className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted-foreground)]"
-                            />
-                            {pastedImageUrl.trim() && (
+                            <div className="flex gap-2">
+                              <input
+                                type="url"
+                                value={pastedImageUrl}
+                                onChange={(e) => {
+                                  setPastedImageUrl(e.target.value);
+                                  setExtractError(null);
+                                  if (!pastedImageAlt && selectedPost?.title) setPastedImageAlt(selectedPost.title);
+                                }}
+                                onKeyDown={async (e) => {
+                                  if (e.key !== "Enter" || !pastedImageUrl.trim()) return;
+                                  const u = pastedImageUrl.trim();
+                                  const isDirect = /\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(u);
+                                  if (!isDirect) {
+                                    setExtractingImage(true);
+                                    setExtractError(null);
+                                    try {
+                                      const r = await fetch(`/api/blog-agent/posts/extract-image?url=${encodeURIComponent(u)}`);
+                                      const d = await r.json();
+                                      if (d.imageUrl) { setPastedImageUrl(d.imageUrl); if (!pastedImageAlt) setPastedImageAlt(d.altText || selectedPost?.title || ""); }
+                                      else setExtractError(d.error || "No image found on that page");
+                                    } finally { setExtractingImage(false); }
+                                  }
+                                }}
+                                placeholder="https://www.magnific.com/... or https://img.freepik.com/....jpg"
+                                className="flex-1 bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted-foreground)]"
+                              />
+                              {pastedImageUrl.trim() && !/\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(pastedImageUrl.trim()) && (
+                                <button
+                                  disabled={extractingImage}
+                                  onClick={async () => {
+                                    const u = pastedImageUrl.trim();
+                                    setExtractingImage(true);
+                                    setExtractError(null);
+                                    try {
+                                      const r = await fetch(`/api/blog-agent/posts/extract-image?url=${encodeURIComponent(u)}`);
+                                      const d = await r.json();
+                                      if (d.imageUrl) { setPastedImageUrl(d.imageUrl); if (!pastedImageAlt) setPastedImageAlt(d.altText || selectedPost?.title || ""); }
+                                      else setExtractError(d.error || "No image found on that page");
+                                    } finally { setExtractingImage(false); }
+                                  }}
+                                  className="px-3 py-2 text-xs font-medium bg-[var(--color-primary)] text-[var(--color-primary-foreground)] rounded-lg disabled:opacity-40 hover:opacity-90 transition-opacity whitespace-nowrap"
+                                >
+                                  {extractingImage ? "Extracting…" : "Get image"}
+                                </button>
+                              )}
+                            </div>
+                            {extractError && (
+                              <p className="text-xs text-[var(--color-destructive)]">⚠ {extractError}</p>
+                            )}
+                            {pastedImageUrl.trim() && /\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(pastedImageUrl.trim()) && (
                               <>
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                   src={pastedImageUrl.trim()}
                                   alt="Preview"
                                   className="w-full max-h-40 object-cover rounded-lg border border-[var(--color-border)]"
-                                  onError={(e) => {
-                                    const el = e.target as HTMLImageElement;
-                                    el.style.display = "none";
-                                    el.nextElementSibling?.classList.remove("hidden");
-                                  }}
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; setExtractError("Can't load this image URL — it may require login or be blocked."); }}
                                   onLoad={(e) => { (e.target as HTMLImageElement).style.display = "block"; }}
                                 />
-                                <p className="hidden text-xs text-[var(--color-destructive)]">
-                                  ⚠ Can&apos;t load this URL — make sure it&apos;s a direct image link, not a webpage URL.
-                                </p>
                                 <input
                                   type="text"
                                   value={pastedImageAlt}
                                   onChange={(e) => setPastedImageAlt(e.target.value)}
-                                  placeholder="Alt text (describe the image for SEO)"
+                                  placeholder="Alt text — describe the image for SEO"
                                   className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted-foreground)]"
                                 />
                                 <button
                                   onClick={() => selectImage({ id: 0, url: pastedImageUrl.trim(), alt: pastedImageAlt.trim() || selectedPost?.title || "" })}
-                                  disabled={savingImage || !pastedImageUrl.trim()}
+                                  disabled={savingImage}
                                   className="w-full px-3 py-2 text-xs font-medium bg-[var(--color-primary)] text-[var(--color-primary-foreground)] rounded-lg disabled:opacity-40 hover:opacity-90 transition-opacity"
                                 >
                                   {savingImage ? "Saving…" : "Use this image"}
