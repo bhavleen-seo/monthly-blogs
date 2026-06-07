@@ -159,6 +159,45 @@ export async function getPublishedPostTitles(client: Client): Promise<string[]> 
   }
 }
 
+// Exported so the upload-image API route can reuse it without re-downloading
+export async function uploadFeaturedImageBuffer(
+  client: Client,
+  apiBase: string,
+  buffer: Buffer,
+  contentType: string,
+  filename: string,
+  altText?: string
+): Promise<number | null> {
+  const authHeader = await getAuthHeader(client);
+  const uploadRes = await fetch(`${apiBase}/media`, {
+    method: "POST",
+    headers: {
+      Authorization: authHeader,
+      "Content-Type": contentType,
+      "Content-Disposition": `attachment; filename="${filename}"`,
+    },
+    body: buffer as unknown as BodyInit,
+  });
+  if (!uploadRes.ok) {
+    const errText = await uploadRes.text().catch(() => "");
+    throw new Error(`WP media upload failed (${uploadRes.status}): ${errText.slice(0, 300)}`);
+  }
+  const media: { id: number } = await uploadRes.json();
+  if (altText && media.id) {
+    try {
+      await fetch(`${apiBase}/media/${media.id}`, {
+        method: "POST",
+        headers: { Authorization: authHeader, "Content-Type": "application/json" },
+        body: JSON.stringify({ alt_text: altText }),
+      });
+    } catch { /* non-fatal */ }
+  }
+  return media.id;
+}
+
+// Also export auth helpers used by the upload-image route
+export { getAuthHeader, resolveCanonicalApiBase };
+
 async function uploadFeaturedImage(
   client: Client,
   apiBase: string,

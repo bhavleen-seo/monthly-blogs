@@ -61,6 +61,9 @@ export default function PostsTab({
   const [pastedImageAlt, setPastedImageAlt] = useState("");
   const [extractingImage, setExtractingImage] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [urlPickerTab, setUrlPickerTab] = useState<"url" | "upload">("url");
 
   // Per-post WP sync state
   const [syncingImage, setSyncingImage] = useState(false);
@@ -134,6 +137,9 @@ export default function PostsTab({
       setPastedImageAlt("");
       setExtractingImage(false);
       setExtractError(null);
+      setUploadingFile(false);
+      setUploadError(null);
+      setUrlPickerTab("url");
       setSyncResult(null);
       setSyncError(null);
     }
@@ -681,14 +687,67 @@ export default function PostsTab({
                             </p>
                           )}
 
-                          {/* Paste URL section */}
+                          {/* Paste URL / Upload section */}
                           <div className="pt-2 border-t border-[var(--color-border)] space-y-2">
-                            <div>
-                              <p className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider mb-1">Or paste any image URL</p>
-                              <p className="text-[10px] text-[var(--color-muted-foreground)]">
-                                Paste a <strong>webpage URL</strong> (Magnific, Freepik, Getty…) or a direct image link — we&apos;ll extract the image automatically.
-                              </p>
+                            {/* Tab switcher */}
+                            <div className="flex gap-3 text-[10px] font-semibold uppercase tracking-wider">
+                              <button
+                                onClick={() => setUrlPickerTab("url")}
+                                className={urlPickerTab === "url" ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"}
+                              >
+                                Paste URL
+                              </button>
+                              <button
+                                onClick={() => setUrlPickerTab("upload")}
+                                className={urlPickerTab === "upload" ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"}
+                              >
+                                Upload from computer
+                              </button>
                             </div>
+
+                            {/* Upload from computer tab */}
+                            {urlPickerTab === "upload" && (
+                              <div className="space-y-2">
+                                <p className="text-[10px] text-[var(--color-muted-foreground)]">
+                                  Download the image from Magnific/Freepik to your computer, then upload it here — it goes straight to WordPress.
+                                </p>
+                                <input
+                                  type="file"
+                                  accept="image/jpeg,image/png,image/webp,image/gif"
+                                  disabled={uploadingFile}
+                                  onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file || !selectedPost) return;
+                                    setUploadingFile(true);
+                                    setUploadError(null);
+                                    try {
+                                      const fd = new FormData();
+                                      fd.append("postId", selectedPost.id);
+                                      fd.append("image", file);
+                                      const res = await fetch("/api/blog-agent/posts/upload-image", { method: "POST", body: fd });
+                                      const data = await res.json();
+                                      if (data.success && data.post) {
+                                        setSelectedPost({ ...selectedPost, ...data.post });
+                                        setImagePickerOpen(false);
+                                        onPostUpdated();
+                                      } else {
+                                        setUploadError(data.error || "Upload failed");
+                                      }
+                                    } catch (err) {
+                                      setUploadError(err instanceof Error ? err.message : "Upload failed");
+                                    } finally {
+                                      setUploadingFile(false);
+                                    }
+                                  }}
+                                  className="w-full text-sm text-[var(--color-foreground)] file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-[var(--color-primary)] file:text-[var(--color-primary-foreground)] hover:file:opacity-90 cursor-pointer disabled:opacity-40"
+                                />
+                                {uploadingFile && <p className="text-xs text-[var(--color-muted-foreground)]">Uploading to WordPress…</p>}
+                                {uploadError && <p className="text-xs text-[var(--color-destructive)]">⚠ {uploadError}</p>}
+                              </div>
+                            )}
+
+                            {/* Paste URL tab */}
+                            {urlPickerTab === "url" && <div className="space-y-2">
                             <div className="flex gap-2">
                               <input
                                 type="url"
@@ -765,6 +824,7 @@ export default function PostsTab({
                                 </button>
                               </>
                             )}
+                            </div>}
                           </div>
                         </div>
                       )}
