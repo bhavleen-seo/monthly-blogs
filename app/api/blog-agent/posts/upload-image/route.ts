@@ -1,31 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPost, getClient } from "@/lib/blog-agent";
+import { getPost } from "@/lib/blog-agent";
 import { savePost } from "@/lib/blog-agent/store";
-import { resolveCanonicalApiBase, getAuthHeader, uploadFeaturedImageBuffer } from "@/lib/blog-agent/publisher";
-
-/** Store image bytes in KV with a 1-hour TTL, return a public URL CS Publisher can download from. */
-async function storeTempImage(buffer: Buffer, contentType: string, filename: string, origin: string): Promise<string> {
-  const { kv } = await import("@vercel/kv");
-  const id  = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const key = `temp-image:${id}`;
-  await kv.set(key, { base64: buffer.toString("base64"), contentType, filename }, { ex: 3600 });
-  return `${origin}/api/blog-agent/posts/temp-image?id=${id}`;
-}
 
 export const dynamic = "force-dynamic";
 
 /**
  * POST /api/blog-agent/posts/upload-image
- * Body: multipart/form-data with fields:
- *   - postId (string)
- *   - image  (File)  — already resized to ≤1920px by the browser
+ * Body: multipart/form-data  →  postId (string) + image (File, pre-resized by browser)
  *
- * Path 1 (preferred): upload directly to WP media library via REST API.
- * Path 2 (fallback):  if WP REST returns 401/403 (e.g. Wordfence blocks app
- *   passwords), store the image in KV temporarily and tell CS Publisher to
- *   sideload it via its update_image_only endpoint.
+ * Stores the image in KV (14-day TTL) and saves the resulting URL as
+ * the post's featuredImageUrl. No WordPress connection needed at this
+ * stage — the publisher will upload the image to WP when the post is
+ * published, the same way it handles Pexels image URLs.
  *
- * Returns { success, featuredImageUrl, post }.
+ * For already-published posts, use the "Sync to WP" button afterwards
+ * to push the new image to the live WordPress post.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -40,96 +29,25 @@ export async function POST(req: NextRequest) {
     const post = await getPost(postId);
     if (!post) return NextResponse.json({ error: "Post not found" }, { status: 404 });
 
-    const client = await getClient(post.clientId);
-    if (!client) return NextResponse.json({ error: "Client not found" }, { status: 404 });
-
     const buffer      = Buffer.from(await file.arrayBuffer());
     const contentType = file.type || "image/jpeg";
     const filename    = file.name || `${post.slug || post.id}.jpg`;
 
-    // ── Path 1: Native WP REST (preferred) ──────────────────────────────────
-    if (client.wordpressAppPassword && client.wordpressUsername) {
-      try {
-        const apiBase = await resolveCanonicalApiBase(client);
-        const mediaId = await uploadFeaturedImageBuffer(
-          client, apiBase, buffer, contentType, filename, post.featuredImageAlt || post.title
-        );
+    // Store in KV for 14 days — long enough to review, edit, and publish
+    const { kv } = await import("@vercel/kv");
+    const id  = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    await kv.set(
+      `temp-image:${id}`,
+      { base64: buffer.toString("base64"), contentType, filename },
+      { ex: 14 * 24 * 60 * 60 }   // 14 days
+    );
+    const imageUrl = `${req.nextUrl.origin}/api/blog-agent/posts/temp-image?id=${id}`;
 
-        // Get the WP-hosted URL for the uploaded image
-        const authHeader = await getAuthHeader(client);
-        const mediaRes   = await fetch(`${apiBase}/media/${mediaId}`, { headers: { Authorization: authHeader } });
-        let wpImageUrl   = "";
-        if (mediaRes.ok) {
-          const mediaData: { source_url?: string } = await mediaRes.json();
-          wpImageUrl = mediaData.source_url || "";
-        }
-
-        const updatedPost = { ...post, featuredImageUrl: wpImageUrl || `${apiBase}/media/${mediaId}`, freepikId: String(mediaId) };
-        await savePost(updatedPost);
-        return NextResponse.json({ success: true, featuredImageUrl: wpImageUrl, post: updatedPost });
-
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "";
-        const isPermissionError = msg.includes("(401)") || msg.includes("(403)");
-        // If it's not a permission error, surface it directly
-        if (!isPermissionError || !client.csPublisherSecret) {
-          return NextResponse.json({ error: msg || "WP media upload failed" }, { status: 502 });
-        }
-        // Permission error + CS Publisher available → fall through to Path 2
-        console.warn("[upload-image] WP REST blocked (401/403) — falling back to CS Publisher");
-      }
-    }
-
-    // ── Path 2: CS Publisher fallback (for Wordfence-hardened sites) ─────────
-    if (!client.csPublisherSecret) {
-      return NextResponse.json(
-        { error: "No WordPress credentials configured — add an app password or install CS Publisher in the Clients tab" },
-        { status: 400 }
-      );
-    }
-
-    if (!post.wordpressPostId) {
-      return NextResponse.json(
-        { error: "This post doesn't have a WordPress Post ID saved. Open it in WP Admin, copy the ID from the URL (?post=123), then add it in Edit Post → WordPress Post ID field in the dashboard." },
-        { status: 400 }
-      );
-    }
-
-    // Store the image directly in KV so CS Publisher can download it via URL
-    const origin  = req.nextUrl.origin;
-    const tempUrl = await storeTempImage(buffer, contentType, filename, origin);
-
-    // Ask CS Publisher to sideload the image onto the existing WP post
-    const configured = client.wordpressUrl.replace(/\/+$/, "");
-    const encodedSecret = encodeURIComponent(client.csPublisherSecret);
-    const attempts = [
-      { url: `${configured}/wp-json/cs-publisher/v1/publish`, useHeader: true },
-      { url: `${configured}/wp-json/cs-publisher/v1/publish?cs_secret=${encodedSecret}`, useHeader: false },
-      { url: `${configured}/?rest_route=/cs-publisher/v1/publish`, useHeader: true },
-      { url: `${configured}/?rest_route=/cs-publisher/v1/publish&cs_secret=${encodedSecret}`, useHeader: false },
-    ];
-    const body = {
-      post_id: post.wordpressPostId || 0,
-      update_image_only: true,
-      featured_image: { url: tempUrl, filename, alt: post.featuredImageAlt || post.title },
-    };
-    let csRes: Response | null = null;
-    for (const { url, useHeader } of attempts) {
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (useHeader) headers["X-CS-Secret"] = client.csPublisherSecret;
-      csRes = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), redirect: "manual" });
-      if (csRes.status !== 404) break;
-    }
-
-    if (!csRes || !csRes.ok) {
-      const errText = csRes ? await csRes.text().catch(() => "") : "No response";
-      return NextResponse.json({ error: `CS Publisher upload failed: ${csRes?.status} — ${errText.slice(0, 200)}` }, { status: 502 });
-    }
-
-    // Save the temp URL as the featuredImageUrl (CS Publisher now hosts it on WP)
-    const updatedPost = { ...post, featuredImageUrl: tempUrl, freepikId: "0" };
+    // Save the URL as the post's featured image
+    const updatedPost = { ...post, featuredImageUrl: imageUrl, freepikId: id };
     await savePost(updatedPost);
-    return NextResponse.json({ success: true, featuredImageUrl: tempUrl, post: updatedPost });
+
+    return NextResponse.json({ success: true, featuredImageUrl: imageUrl, post: updatedPost });
 
   } catch (err) {
     return NextResponse.json(
