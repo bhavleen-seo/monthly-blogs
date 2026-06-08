@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import type { Client, Topic, Post } from "./types";
 
 function generateSlugPreview(title: string): string {
@@ -64,6 +64,18 @@ export default function PostsTab({
   const [uploadingFile, setUploadingFile] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [urlPickerTab, setUrlPickerTab] = useState<"url" | "upload">("url");
+
+  const imagePickerRef = useRef<HTMLDivElement>(null);
+  const modalScrollRef = useRef<HTMLDivElement>(null);
+
+  // Scroll picker into view whenever it opens so it's never hidden below the fold
+  useEffect(() => {
+    if (imagePickerOpen && imagePickerRef.current) {
+      setTimeout(() => {
+        imagePickerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 50);
+    }
+  }, [imagePickerOpen]);
 
   // Per-post WP sync state
   const [syncingImage, setSyncingImage] = useState(false);
@@ -503,7 +515,7 @@ export default function PostsTab({
 
         return (
           <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setSelectedPost(null)}>
-            <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl max-w-3xl w-full max-h-[90vh] flex flex-col animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl max-w-3xl w-full max-h-[95vh] flex flex-col animate-slide-up" onClick={(e) => e.stopPropagation()}>
               {/* Header */}
               <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--color-border)]">
                 <div className="flex items-center gap-3 min-w-0">
@@ -545,7 +557,7 @@ export default function PostsTab({
               </div>
 
               {/* Body */}
-              <div className="overflow-y-auto px-6 py-5 space-y-5 flex-1">
+              <div ref={modalScrollRef} className="overflow-y-auto px-6 py-5 space-y-5 flex-1">
                 {/* AI tells warning */}
                 {selectedPost.aiTellsDetected && selectedPost.aiTellsDetected.length > 0 && (
                   <div className="bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/40 rounded-lg px-4 py-3">
@@ -631,7 +643,7 @@ export default function PostsTab({
                       />
                       {/* Image picker panel */}
                       {imagePickerOpen && (
-                        <div className="border border-[var(--color-border)] rounded-lg p-3 space-y-3 bg-[var(--color-card)]">
+                        <div ref={imagePickerRef} className="border border-[var(--color-border)] rounded-lg p-3 space-y-3 bg-[var(--color-card)]">
                           <div className="flex gap-2">
                             <input
                               type="text"
