@@ -223,6 +223,29 @@ export default function PostsTab({
     }
   };
 
+  // Resize an image file to max 1920px wide (WordPress featured image standard)
+  // and compress to JPEG at 85% quality. Keeps file well under Vercel's 4.5MB limit.
+  const resizeImageForUpload = (file: File): Promise<File> =>
+    new Promise((resolve) => {
+      const img = new window.Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const MAX_W = 1920;
+        let { width, height } = img;
+        if (width > MAX_W) { height = Math.round(height * MAX_W / width); width = MAX_W; }
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => resolve(new File([blob!], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" })),
+          "image/jpeg", 0.85
+        );
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(file); }; // fallback: use original
+      img.src = url;
+    });
+
   const selectImage = async (photo: { id: number; url: string; alt: string }) => {
     if (!selectedPost) return;
     setSavingImage(true);
@@ -733,9 +756,10 @@ export default function PostsTab({
                                     setUploadingFile(true);
                                     setUploadError(null);
                                     try {
+                                      const resized = await resizeImageForUpload(file);
                                       const fd = new FormData();
                                       fd.append("postId", selectedPost.id);
-                                      fd.append("image", file);
+                                      fd.append("image", resized);
                                       const res = await fetch("/api/blog-agent/posts/upload-image", { method: "POST", body: fd });
                                       const data = await res.json();
                                       if (data.success && data.post) {
@@ -753,7 +777,7 @@ export default function PostsTab({
                                   }}
                                   className="w-full text-sm text-[var(--color-foreground)] file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-[var(--color-primary)] file:text-[var(--color-primary-foreground)] hover:file:opacity-90 cursor-pointer disabled:opacity-40"
                                 />
-                                {uploadingFile && <p className="text-xs text-[var(--color-muted-foreground)]">Uploading to WordPress…</p>}
+                                {uploadingFile && <p className="text-xs text-[var(--color-muted-foreground)]">Resizing &amp; uploading to WordPress…</p>}
                                 {uploadError && <p className="text-xs text-[var(--color-destructive)]">⚠ {uploadError}</p>}
                               </div>
                             )}
