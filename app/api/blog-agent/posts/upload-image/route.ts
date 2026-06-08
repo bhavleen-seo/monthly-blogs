@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPost, getClient } from "@/lib/blog-agent";
+import { savePost } from "@/lib/blog-agent/store";
 import { resolveCanonicalApiBase, getAuthHeader, uploadFeaturedImageBuffer } from "@/lib/blog-agent/publisher";
 
 export const dynamic = "force-dynamic";
@@ -57,24 +58,19 @@ export async function POST(req: NextRequest) {
       wpImageUrl = mediaData.source_url || "";
     }
 
-    // Save to post record
-    const updateRes = await fetch(`${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"}/api/blog-agent/posts`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: postId,
-        featuredImageUrl: wpImageUrl || `${apiBase}/media/${mediaId}`,
-        freepikId: String(mediaId),
-      }),
-    });
-
-    const updateData = updateRes.ok ? await updateRes.json() : null;
+    // Save the WP-hosted URL directly to the post record via store
+    const updatedPost = {
+      ...post,
+      featuredImageUrl: wpImageUrl || `${apiBase}/media/${mediaId}`,
+      freepikId: String(mediaId),
+    };
+    await savePost(updatedPost);
 
     return NextResponse.json({
       success: true,
       featuredImageUrl: wpImageUrl,
       wordpressMediaId: mediaId,
-      post: updateData?.post || null,
+      post: updatedPost,
     });
 
   } catch (err) {
