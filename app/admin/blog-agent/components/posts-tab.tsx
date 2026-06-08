@@ -140,6 +140,7 @@ export default function PostsTab({
         content: selectedPost.content,
         metaDescription: selectedPost.metaDescription,
         featuredImageUrl: selectedPost.featuredImageUrl || "",
+        wordpressPostId: selectedPost.wordpressPostId,
       });
       setEditing(false);
       setContentView("preview");
@@ -960,6 +961,19 @@ export default function PostsTab({
                     counterTone={metaLen >= 140 && metaLen <= 160 ? "ok" : "muted"}
                     multiline
                   />
+                  {editing && (
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">WordPress Post ID</label>
+                      <input
+                        type="number"
+                        value={draft.wordpressPostId ?? selectedPost.wordpressPostId ?? ""}
+                        onChange={(e) => setDraft({ ...draft, wordpressPostId: e.target.value ? Number(e.target.value) : undefined })}
+                        placeholder="e.g. 123 — find in WP Admin URL (?post=123)"
+                        className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted-foreground)]"
+                      />
+                      <p className="text-[10px] text-[var(--color-muted-foreground)]">Only needed if the post was published directly in WordPress (not via this dashboard).</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Content */}
