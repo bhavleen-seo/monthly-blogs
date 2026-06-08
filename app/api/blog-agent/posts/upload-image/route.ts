@@ -3,6 +3,15 @@ import { getPost, getClient } from "@/lib/blog-agent";
 import { savePost } from "@/lib/blog-agent/store";
 import { resolveCanonicalApiBase, getAuthHeader, uploadFeaturedImageBuffer } from "@/lib/blog-agent/publisher";
 
+/** Store image bytes in KV with a 1-hour TTL, return a public URL CS Publisher can download from. */
+async function storeTempImage(buffer: Buffer, contentType: string, filename: string, origin: string): Promise<string> {
+  const { kv } = await import("@vercel/kv");
+  const id  = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const key = `temp-image:${id}`;
+  await kv.set(key, { base64: buffer.toString("base64"), contentType, filename }, { ex: 3600 });
+  return `${origin}/api/blog-agent/posts/temp-image?id=${id}`;
+}
+
 export const dynamic = "force-dynamic";
 
 /**
@@ -79,15 +88,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Store the image in KV temporarily so CS Publisher can download it via URL
+    // Store the image directly in KV so CS Publisher can download it via URL
     const origin  = req.nextUrl.origin;
-    const storeFd = new FormData();
-    storeFd.append("image", new Blob([buffer], { type: contentType }), filename);
-    const storeRes  = await fetch(`${origin}/api/blog-agent/posts/temp-image`, { method: "POST", body: storeFd });
-    if (!storeRes.ok) {
-      return NextResponse.json({ error: "Failed to create temporary image URL for CS Publisher" }, { status: 502 });
-    }
-    const { tempUrl } = await storeRes.json() as { tempUrl: string };
+    const tempUrl = await storeTempImage(buffer, contentType, filename, origin);
 
     // Ask CS Publisher to sideload the image onto the existing WP post
     const configured = client.wordpressUrl.replace(/\/+$/, "");
