@@ -88,6 +88,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!post.wordpressPostId) {
+      return NextResponse.json(
+        { error: "This post doesn't have a WordPress Post ID saved. Open it in WP Admin, copy the ID from the URL (?post=123), then add it in Edit Post → WordPress Post ID field in the dashboard." },
+        { status: 400 }
+      );
+    }
+
     // Store the image directly in KV so CS Publisher can download it via URL
     const origin  = req.nextUrl.origin;
     const tempUrl = await storeTempImage(buffer, contentType, filename, origin);
