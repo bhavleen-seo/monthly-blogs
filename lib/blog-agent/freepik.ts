@@ -1,66 +1,53 @@
 /**
- * Freepik stock image search + download + resize.
+ * Pixabay stock image search.
  *
- * Used by the writer to attach a featured image URL to every new post.
+ * Completely free API (no approval, no per-image cost, no credits).
+ * Larger library than Pexels (6M+ photos + illustrations), better coverage
+ * for niche trades/local-service industries.
+ *
  * Pipeline:
- *   1. Search Freepik for a horizontal photo matching the post's keyword.
- *   2. Call Freepik's download endpoint for the top result to get the
- *      full-resolution original (uses 1 Premium download credit per post).
- *   3. Wrap that URL with images.weserv.nl to resize to 1200×800 at JPEG q90,
- *      producing a clean, fast-loading version. weserv caches the result,
- *      so once fetched it stays available even after Freepik's signed URL
- *      expires.
- *   4. Pre-fetch the wrapped URL (HEAD request) to trigger weserv's cache
- *      before Freepik's signed URL expires.
+ *   1. Build a cascade of queries from most specific → most generic.
+ *   2. Try each query against the Pixabay API until one returns a usable
+ *      landscape photo not already used for this client.
+ *   3. Return largeImageURL (1280px wide) directly — no resize proxy needed.
  *
- * If ANY step fails, we degrade gracefully: full-res fails → use preview
- * URL; weserv fails → use the raw Freepik URL as-is. The post always gets
- * *something*, or nothing and the user pastes manually.
- *
- * API migration note:
- *   Freepik rebranded its developer API as "Magnific". We try the original
- *   api.freepik.com endpoint with x-freepik-api-key first (backward compat),
- *   then fall back to api.magnific.com with x-magnific-api-key if needed.
- *   Both use the same FREEPIK_API_KEY environment variable.
+ * Exported function signatures are identical to the old Freepik/Pexels modules
+ * so writer.ts and the backfill route need no changes.
  */
 
-const FREEPIK_API  = "https://api.freepik.com/v1/resources";
-const MAGNIFIC_API = "https://api.magnific.com/v1/resources";
-
-// Target output dimensions and quality for the resized featured image.
-const IMG_W       = 1200;
-const IMG_H       = 800;
-const IMG_QUALITY = 90;
+const PIXABAY_API = "https://pixabay.com/api/";
 
 export interface FreepikImage {
-  /** Direct URL to the image (for upload to WordPress via the publisher) */
+  /** Direct CDN URL to the image */
   url: string;
-  /** Suggested filename when uploading */
+  /** Suggested filename when uploading to WordPress */
   filename: string;
-  /** Freepik resource id for logging/debugging */
+  /** Pixabay photo id — stored in freepikId field for backward compatibility */
   freepikId: string | number;
 }
 
-interface FreepikResource {
-  id?: string | number;
-  image?: { source?: { url?: string }; type?: string };
-  url?: string;
-  preview?: { url?: string };
+interface PixabayHit {
+  id: number;
+  tags: string;
+  largeImageURL: string;
+  webformatURL: string;
+  imageWidth: number;
+  imageHeight: number;
 }
 
-interface FreepikSearchResponse {
-  data?: FreepikResource[];
-  meta?: unknown;
-  message?: string;
+interface PixabayResponse {
+  totalHits?: number;
+  hits?: PixabayHit[];
+  error?: string;
 }
 
 /**
- * Search Freepik for a stock photo.
+ * Search Pixabay for a landscape stock photo matching the query cascade.
  *
  * @param primaryQuery   The most specific query (e.g. the post's featuredImagePrompt)
  * @param fallbackQuery  Secondary query (e.g. the blog title)
- * @param excludedIds    Freepik IDs to skip (already used by this client)
- * @param visualHints    Short visual terms to try first (e.g. ["business uniforms", "workwear"])
+ * @param excludedIds    Pixabay photo IDs to skip (already used by this client)
+ * @param visualHints    Short visual terms to try first (e.g. ["pest control", "exterminator"])
  */
 export async function searchStockImage(
   primaryQuery: string,
@@ -68,9 +55,9 @@ export async function searchStockImage(
   excludedIds?: Set<string | number>,
   visualHints?: string[]
 ): Promise<FreepikImage | null> {
-  const apiKey = process.env.FREEPIK_API_KEY;
+  const apiKey = process.env.PIXABAY_API_KEY;
   if (!apiKey) {
-    console.warn("[freepik] FREEPIK_API_KEY env var not set — skipping image search");
+    console.warn("[pixabay] PIXABAY_API_KEY env var not set — skipping image search");
     return null;
   }
 
@@ -79,12 +66,12 @@ export async function searchStockImage(
   for (const query of queries) {
     const result = await trySearch(query, apiKey, excludedIds);
     if (result) {
-      console.log(`[freepik] Found image with query: "${query}"`);
+      console.log(`[pixabay] Found image with query: "${query}"`);
       return result;
     }
   }
 
-  console.warn("[freepik] All queries exhausted — no image found");
+  console.warn("[pixabay] All queries exhausted — no image found");
   return null;
 }
 
@@ -136,12 +123,12 @@ function extractNounPairs(text: string): string[] {
 
 /**
  * Build a cascade of queries from most specific → most visual/generic.
- * Good Freepik queries are short concrete nouns (2-4 words), not full sentences.
+ * Good Pixabay queries are short concrete nouns (2-4 words), not full sentences.
  *
- * Order of priority:
- *  1. Noun pairs from blog title  — most content-specific signal we have
+ * Order:
+ *  1. Noun pairs from blog title  — most content-specific signal
  *  2. Client visual hints         — industry-specific keywords
- *  3. featuredImagePrompt         — short if AI followed instructions, long = truncated
+ *  3. featuredImagePrompt         — short if AI followed instructions
  *  4. Single key noun from title  — last content-specific attempt
  *  5. Generic safety net
  */
@@ -161,17 +148,16 @@ function buildQueryCascade(
     }
   };
 
-  // 1. Noun pairs from the blog title
+  // 1. Noun pairs from blog title
   const titleSource = fallbackQuery || primaryQuery;
-  const titlePairs = extractNounPairs(titleSource);
-  for (const pair of titlePairs.slice(0, 4)) add(pair);
+  for (const pair of extractNounPairs(titleSource).slice(0, 4)) add(pair);
 
-  // 2. Client visual hints (e.g. ["pest control", "exterminator service"])
+  // 2. Client visual hints
   for (const hint of visualHints || []) add(hint);
 
-  // 3. The featuredImagePrompt — short phrase preferred; truncate if long
+  // 3. featuredImagePrompt (short phrase preferred)
   const strippedPrimary = stripPhotoPrefix(primaryQuery).replace(/[":?!,]/g, "").trim();
-  const primaryWords = strippedPrimary.split(/\s+/).filter(Boolean);
+  const primaryWords    = strippedPrimary.split(/\s+/).filter(Boolean);
   if (primaryWords.length <= 4) {
     add(strippedPrimary);
   } else {
@@ -180,164 +166,80 @@ function buildQueryCascade(
     if (meaningful.length >= 2) add(meaningful.slice(0, 2).join(" "));
   }
 
-  // 4. First meaningful single noun from the blog title
-  const titleWords = titleSource.replace(/[":?!,]/g, "").split(/\s+/);
-  for (const w of titleWords) {
-    if (!STOP_WORDS.has(w.toLowerCase()) && w.length > 4) {
-      add(w);
-      break;
-    }
+  // 4. First meaningful noun from blog title
+  for (const w of titleSource.replace(/[":?!,]/g, "").split(/\s+/)) {
+    if (!STOP_WORDS.has(w.toLowerCase()) && w.length > 4) { add(w); break; }
   }
 
-  // 5. Generic safety-net queries — always return results on Freepik
-  for (const safe of ["business professional", "office workplace", "small business"]) {
-    add(safe);
-  }
+  // 5. Generic safety net
+  for (const safe of ["business professional", "office workplace", "small business"]) add(safe);
 
   return out;
 }
 
-/**
- * Try the search with a given API base URL and auth header name.
- * Returns the first usable image, or null on failure.
- */
-async function trySearchVariant(
-  query: string,
-  apiKey: string,
-  baseUrl: string,
-  headerName: string,
-  excludedIds?: Set<string | number>
-): Promise<FreepikImage | null> {
-  try {
-    const params = new URLSearchParams();
-    params.append("term", query);
-    params.append("filters[content_type][photo]", "1");
-    params.append("filters[orientation][]", "horizontal");
-    params.append("limit", "10");
-    params.append("order", "relevance");
-
-    const res = await fetch(`${baseUrl}?${params.toString()}`, {
-      headers: {
-        [headerName]: apiKey,
-        "Accept": "application/json",
-        "Accept-Language": "en-US",
-      },
-    });
-
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      console.warn(`[freepik] ${headerName} search "${query}" → ${res.status}: ${body.slice(0, 200)}`);
-      return null;
-    }
-
-    const data: FreepikSearchResponse = await res.json();
-    const items = data.data || [];
-    if (items.length === 0) {
-      console.warn(`[freepik] No results for query "${query}"`);
-      return null;
-    }
-
-    let chosen: { id: string | number; previewUrl: string } | null = null;
-    for (const item of items) {
-      const id = item?.id ?? "img";
-      if (excludedIds && id !== "img" && excludedIds.has(id)) continue;
-      const url = item?.image?.source?.url || item?.preview?.url || item?.url;
-      if (typeof url === "string" && url.startsWith("http")) {
-        chosen = { id, previewUrl: url };
-        break;
-      }
-    }
-    if (!chosen) {
-      console.warn(`[freepik] No usable image URL in ${items.length} results for "${query}" (${excludedIds?.size ?? 0} excluded)`);
-      return null;
-    }
-
-    // Try to get full-res download URL (uses 1 credit); fall back to preview
-    const fullResUrl = await getDownloadUrl(chosen.id, apiKey, baseUrl, headerName);
-    const sourceUrl  = fullResUrl || chosen.previewUrl;
-    const resizedUrl = wrapWithResizer(sourceUrl);
-
-    // Warm weserv's cache before Freepik's signed URL expires
-    try { await fetch(resizedUrl, { method: "HEAD" }); } catch { /* best-effort */ }
-
-    return {
-      url: resizedUrl,
-      filename: `freepik-${chosen.id}.jpg`,
-      freepikId: chosen.id,
-    };
-  } catch (err) {
-    console.warn(`[freepik] Network error for "${query}":`, err instanceof Error ? err.message : err);
-    return null;
-  }
-}
-
-/**
- * Try the search using original Freepik header first, then Magnific header as fallback.
- */
 async function trySearch(
   query: string,
   apiKey: string,
   excludedIds?: Set<string | number>
 ): Promise<FreepikImage | null> {
-  // Try original Freepik endpoint first (backward compatible)
-  const freepikResult = await trySearchVariant(query, apiKey, FREEPIK_API, "x-freepik-api-key", excludedIds);
-  if (freepikResult) return freepikResult;
-
-  // If that returned nothing (e.g. 401 due to API migration), try Magnific endpoint
-  const magResult = await trySearchVariant(query, apiKey, MAGNIFIC_API, "x-magnific-api-key", excludedIds);
-  return magResult;
-}
-
-/**
- * Call Freepik's download endpoint for a specific resource. Returns a signed
- * URL to the full-resolution original, or null on any failure.
- * Uses 1 Premium download credit per successful call.
- */
-async function getDownloadUrl(
-  resourceId: string | number,
-  apiKey: string,
-  baseUrl: string,
-  headerName: string
-): Promise<string | null> {
   try {
-    const res = await fetch(`${baseUrl}/${resourceId}/download`, {
-      headers: {
-        [headerName]: apiKey,
-        "Accept": "application/json",
-        "Accept-Language": "en-US",
-      },
+    const params = new URLSearchParams({
+      key:          apiKey,
+      q:            query,
+      image_type:   "photo",
+      orientation:  "horizontal",
+      safesearch:   "true",
+      order:        "relevance",
+      per_page:     "10",
     });
+
+    const res = await fetch(`${PIXABAY_API}?${params.toString()}`);
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      console.warn(`[freepik] Download failed for ${resourceId}: ${res.status} — ${body.slice(0, 200)}`);
+      console.warn(`[pixabay] Search "${query}" failed: ${res.status} — ${body.slice(0, 200)}`);
       return null;
     }
 
-    const data: { data?: { url?: string } } = await res.json();
-    const url = data?.data?.url;
-    if (typeof url === "string" && url.startsWith("http")) return url;
+    const data: PixabayResponse = await res.json();
+    const hits = data.hits || [];
 
-    console.warn(`[freepik] Download returned no URL for ${resourceId}`);
-    return null;
+    if (hits.length === 0) {
+      console.warn(`[pixabay] No results for query "${query}"`);
+      return null;
+    }
+
+    // Find first photo not already used by this client.
+    let chosen: PixabayHit | null = null;
+    for (const hit of hits) {
+      if (excludedIds && excludedIds.has(hit.id)) continue;
+      chosen = hit;
+      break;
+    }
+
+    if (!chosen) {
+      console.warn(`[pixabay] All ${hits.length} results excluded for "${query}"`);
+      return null;
+    }
+
+    // largeImageURL is 1280px wide — good quality for WordPress featured images.
+    // Fall back to webformatURL (640px) if large isn't available.
+    const url = chosen.largeImageURL || chosen.webformatURL;
+
+    return {
+      url,
+      filename: `pixabay-${chosen.id}.jpg`,
+      freepikId: chosen.id,
+    };
   } catch (err) {
-    console.warn(`[freepik] Download error for ${resourceId}:`, err instanceof Error ? err.message : err);
+    console.warn(`[pixabay] Network error for "${query}":`, err instanceof Error ? err.message : err);
     return null;
   }
 }
 
 /**
- * Wrap a source image URL with images.weserv.nl resize parameters.
- * Produces a 1200×800 JPEG at quality 90, cropped to fit.
- */
-function wrapWithResizer(sourceUrl: string): string {
-  const encoded = encodeURIComponent(sourceUrl.replace(/^https?:\/\//, ""));
-  return `https://images.weserv.nl/?url=${encoded}&w=${IMG_W}&h=${IMG_H}&fit=cover&output=jpg&q=${IMG_QUALITY}`;
-}
-
-/**
  * Build short alt text from the writer's featuredImagePrompt. Trims to ~125
- * chars at a word boundary, since that's the sweet spot for SEO and screen readers.
+ * chars at a word boundary — the sweet spot for SEO and screen readers.
  */
 export function buildAltText(featuredImagePrompt: string, primaryKeyword?: string): string {
   let text = (featuredImagePrompt || "").trim();
