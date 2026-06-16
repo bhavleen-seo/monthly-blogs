@@ -61,13 +61,29 @@ export async function searchStockImage(
     return null;
   }
 
-  const queries = buildQueryCascade(primaryQuery, fallbackQuery, visualHints);
+  const { specific, generic } = buildQueryCascade(primaryQuery, fallbackQuery, visualHints);
 
-  for (const query of queries) {
-    const result = await trySearch(query, apiKey, excludedIds);
+  // Try specific queries first (larger result pool, more niche coverage)
+  for (const query of specific) {
+    const result = await trySearch(query, apiKey, excludedIds, false);
     if (result) {
       console.log(`[pixabay] Found image with query: "${query}"`);
       return result;
+    }
+  }
+
+  // Fall back to generic queries using editors_choice for higher quality results
+  for (const query of generic) {
+    const result = await trySearch(query, apiKey, excludedIds, true);
+    if (result) {
+      console.log(`[pixabay] Found image with generic editors_choice query: "${query}"`);
+      return result;
+    }
+    // If editors_choice returned nothing, try the same query without it
+    const fallback = await trySearch(query, apiKey, excludedIds, false);
+    if (fallback) {
+      console.log(`[pixabay] Found image with generic query: "${query}"`);
+      return fallback;
     }
   }
 
@@ -88,18 +104,34 @@ function stripPhotoPrefix(q: string): string {
 
 // Common English words that make poor image search terms on their own.
 const STOP_WORDS = new Set([
+  // question words
   "how", "why", "what", "when", "where", "who", "which",
-  "will", "can", "does", "did", "do", "don't", "doesn't", "didn't",
+  // auxiliaries / linking verbs
+  "will", "can", "could", "would", "should", "must", "may", "might",
+  "does", "did", "do", "don't", "doesn't", "didn't",
   "is", "are", "was", "were", "be", "been", "being", "have", "has", "had",
+  // articles / prepositions / conjunctions
   "the", "a", "an", "for", "to", "of", "in", "on", "at", "by", "with",
   "that", "this", "these", "those", "than", "then", "from", "into", "about",
-  "and", "or", "but", "not", "nor",
+  "and", "or", "but", "not", "nor", "also", "just", "even", "still",
+  // pronouns
   "you", "your", "we", "our", "they", "their", "its", "my", "me", "us",
   "i", "he", "she", "it", "him", "her", "them",
+  // generic action verbs (not visual subjects)
   "eliminates", "helps", "makes", "gives", "gets", "needs", "need", "want",
-  "using", "use", "know", "keep", "find", "avoid", "choose", "should", "must",
-  "best", "top", "guide", "tips", "ways", "steps", "checklist", "signs",
-  "things", "reasons", "mistakes", "questions", "answers", "facts",
+  "using", "use", "know", "keep", "find", "avoid", "choose", "hire", "get",
+  "work", "works", "working", "run", "runs", "running", "save", "saves",
+  "shows", "showing", "explain", "explains", "learn", "understand",
+  // SEO blog title boilerplate — these appear in titles but aren't visual
+  "professional", "professionals", "services", "service", "company", "companies",
+  "business", "businesses", "signs", "benefits", "reasons", "tips", "ways",
+  "guide", "guides", "best", "top", "right", "perfect", "ultimate", "complete",
+  "things", "mistakes", "questions", "answers", "facts", "checklist", "steps",
+  "type", "types", "kind", "kinds", "size", "sizes", "cost", "costs", "price",
+  "local", "home", "new", "old", "good", "great", "important", "common",
+  // photography description words (stripped from prompts but may survive)
+  "photo", "photograph", "image", "picture", "illustration", "rendering",
+  // numbers
   "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
 ]);
 
@@ -122,75 +154,80 @@ function extractNounPairs(text: string): string[] {
 }
 
 /**
- * Build a cascade of queries from most specific → most visual/generic.
- * Good Pixabay queries are short concrete nouns (2-4 words), not full sentences.
- *
- * Order:
- *  1. Noun pairs from blog title  — most content-specific signal
- *  2. Client visual hints         — industry-specific keywords
- *  3. featuredImagePrompt         — short if AI followed instructions
- *  4. Single key noun from title  — last content-specific attempt
- *  5. Generic safety net
+ * Build two buckets of queries: specific (content-driven) and generic (safety net).
+ * Specific queries are tried without editors_choice for broader pool.
+ * Generic queries use editors_choice=true for higher quality images.
  */
 function buildQueryCascade(
   primaryQuery: string,
   fallbackQuery?: string,
   visualHints?: string[]
-): string[] {
+): { specific: string[]; generic: string[] } {
   const seen = new Set<string>();
-  const out: string[] = [];
+  const specific: string[] = [];
+  const generic: string[]  = [];
 
-  const add = (q: string) => {
+  const addSpecific = (q: string) => {
     const t = stripPhotoPrefix(q).replace(/[":?!,]/g, "").trim();
     if (t.length > 2 && !seen.has(t.toLowerCase())) {
       seen.add(t.toLowerCase());
-      out.push(t);
+      specific.push(t);
+    }
+  };
+  const addGeneric = (q: string) => {
+    const t = q.trim();
+    if (t.length > 2 && !seen.has(t.toLowerCase())) {
+      seen.add(t.toLowerCase());
+      generic.push(t);
     }
   };
 
-  // 1. Noun pairs from blog title
+  // 1. Noun pairs from blog title — most content-specific signal
   const titleSource = fallbackQuery || primaryQuery;
-  for (const pair of extractNounPairs(titleSource).slice(0, 4)) add(pair);
+  for (const pair of extractNounPairs(titleSource).slice(0, 4)) addSpecific(pair);
 
-  // 2. Client visual hints
-  for (const hint of visualHints || []) add(hint);
+  // 2. Client visual hints (industry-specific keywords set per client)
+  for (const hint of visualHints || []) addSpecific(hint);
 
-  // 3. featuredImagePrompt (short phrase preferred)
+  // 3. featuredImagePrompt — short phrase preferred; strip long descriptions
   const strippedPrimary = stripPhotoPrefix(primaryQuery).replace(/[":?!,]/g, "").trim();
   const primaryWords    = strippedPrimary.split(/\s+/).filter(Boolean);
   if (primaryWords.length <= 4) {
-    add(strippedPrimary);
+    addSpecific(strippedPrimary);
   } else {
     const meaningful = primaryWords.filter(w => !STOP_WORDS.has(w.toLowerCase()) && w.length > 2);
-    if (meaningful.length >= 2) add(meaningful.slice(0, 3).join(" "));
-    if (meaningful.length >= 2) add(meaningful.slice(0, 2).join(" "));
+    if (meaningful.length >= 2) addSpecific(meaningful.slice(0, 3).join(" "));
+    if (meaningful.length >= 2) addSpecific(meaningful.slice(0, 2).join(" "));
   }
 
-  // 4. First meaningful noun from blog title
+  // 4. First meaningful single noun from the blog title
   for (const w of titleSource.replace(/[":?!,]/g, "").split(/\s+/)) {
-    if (!STOP_WORDS.has(w.toLowerCase()) && w.length > 4) { add(w); break; }
+    if (!STOP_WORDS.has(w.toLowerCase()) && w.length > 4) { addSpecific(w); break; }
   }
 
-  // 5. Generic safety net
-  for (const safe of ["business professional", "office workplace", "small business"]) add(safe);
+  // 5. Generic safety net — tried last with editors_choice for quality
+  for (const safe of ["business professional", "office worker", "small business team"]) addGeneric(safe);
 
-  return out;
+  return { specific, generic };
 }
 
 async function trySearch(
   query: string,
   apiKey: string,
-  excludedIds?: Set<string | number>
+  excludedIds?: Set<string | number>,
+  editorsChoice = false
 ): Promise<FreepikImage | null> {
   try {
     const params = new URLSearchParams({
-      key:          apiKey,
-      q:            query,
-      image_type:   "photo",
-      orientation:  "horizontal",
-      safesearch:   "true",
-      order:        "relevance",
-      per_page:     "10",
+      key:            apiKey,
+      q:              query,
+      image_type:     "photo",
+      orientation:    "horizontal",
+      safesearch:     "true",
+      order:          "relevance",
+      per_page:       "15",
+      min_width:      "1280",
+      ...(editorsChoice ? { editors_choice: "true" } : {}),
     });
 
     const res = await fetch(`${PIXABAY_API}?${params.toString()}`);
@@ -205,7 +242,7 @@ async function trySearch(
     const hits = data.hits || [];
 
     if (hits.length === 0) {
-      console.warn(`[pixabay] No results for query "${query}"`);
+      console.warn(`[pixabay] No results for query "${query}"${editorsChoice ? " (editors_choice)" : ""}`);
       return null;
     }
 
@@ -222,15 +259,8 @@ async function trySearch(
       return null;
     }
 
-    // largeImageURL is 1280px wide — good quality for WordPress featured images.
-    // Fall back to webformatURL (640px) if large isn't available.
     const url = chosen.largeImageURL || chosen.webformatURL;
-
-    return {
-      url,
-      filename: `pixabay-${chosen.id}.jpg`,
-      freepikId: chosen.id,
-    };
+    return { url, filename: `pixabay-${chosen.id}.jpg`, freepikId: chosen.id };
   } catch (err) {
     console.warn(`[pixabay] Network error for "${query}":`, err instanceof Error ? err.message : err);
     return null;
