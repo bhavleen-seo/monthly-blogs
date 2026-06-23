@@ -77,6 +77,43 @@ export default function PostsTab({
     }
   }, [imagePickerOpen]);
 
+  // Global paste listener — active whenever the Upload tab is open so user
+  // doesn't need to click/focus the paste zone first. Ctrl+V anywhere works.
+  useEffect(() => {
+    if (!imagePickerOpen || urlPickerTab !== "upload") return;
+    const handleGlobalPaste = async (e: ClipboardEvent) => {
+      const items = Array.from(e.clipboardData?.items ?? []);
+      const imgItem = items.find((it) => it.type.startsWith("image/"));
+      if (!imgItem || !selectedPost) return;
+      const file = imgItem.getAsFile();
+      if (!file) return;
+      e.preventDefault();
+      setUploadingFile(true);
+      setUploadError(null);
+      try {
+        const resized = await resizeImageForUpload(file, `freepik-paste-${Date.now()}.jpg`);
+        const fd = new FormData();
+        fd.append("postId", selectedPost.id);
+        fd.append("image", resized);
+        const res = await fetch("/api/blog-agent/posts/upload-image", { method: "POST", body: fd });
+        const data = await res.json();
+        if (data.success && data.post) {
+          setSelectedPost((prev) => prev ? { ...prev, ...data.post } : prev);
+          setImagePickerOpen(false);
+          onPostUpdated();
+        } else {
+          setUploadError(data.error || "Upload failed");
+        }
+      } catch (err) {
+        setUploadError(err instanceof Error ? err.message : "Upload failed");
+      } finally {
+        setUploadingFile(false);
+      }
+    };
+    document.addEventListener("paste", handleGlobalPaste);
+    return () => document.removeEventListener("paste", handleGlobalPaste);
+  }, [imagePickerOpen, urlPickerTab, selectedPost]);
+
   // Per-post WP sync state
   const [syncingImage, setSyncingImage] = useState(false);
   const [syncResult, setSyncResult] = useState<"ok" | "error" | null>(null);
@@ -746,46 +783,15 @@ export default function PostsTab({
                             {/* Upload / Paste tab */}
                             {urlPickerTab === "upload" && (
                               <div className="space-y-3">
-                                {/* Paste zone — right-click image on Freepik → Copy image → Ctrl+V here */}
-                                <div
-                                  className="border-2 border-dashed border-[var(--color-border)] rounded-lg p-4 text-center focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]"
-                                  tabIndex={0}
-                                  onPaste={async (e) => {
-                                    const items = Array.from(e.clipboardData.items);
-                                    const imgItem = items.find((it) => it.type.startsWith("image/"));
-                                    if (!imgItem || !selectedPost) return;
-                                    const file = imgItem.getAsFile();
-                                    if (!file) return;
-                                    setUploadingFile(true);
-                                    setUploadError(null);
-                                    try {
-                                      const resized = await resizeImageForUpload(file, `freepik-paste-${Date.now()}.jpg`);
-                                      const fd = new FormData();
-                                      fd.append("postId", selectedPost.id);
-                                      fd.append("image", resized);
-                                      const res = await fetch("/api/blog-agent/posts/upload-image", { method: "POST", body: fd });
-                                      const data = await res.json();
-                                      if (data.success && data.post) {
-                                        setSelectedPost({ ...selectedPost, ...data.post });
-                                        setImagePickerOpen(false);
-                                        onPostUpdated();
-                                      } else {
-                                        setUploadError(data.error || "Upload failed");
-                                      }
-                                    } catch (err) {
-                                      setUploadError(err instanceof Error ? err.message : "Upload failed");
-                                    } finally {
-                                      setUploadingFile(false);
-                                    }
-                                  }}
-                                >
+                                {/* Paste zone — global listener active, no click needed */}
+                                <div className="border-2 border-dashed border-[var(--color-border)] rounded-lg p-4 text-center">
                                   {uploadingFile ? (
                                     <p className="text-xs text-[var(--color-muted-foreground)]">Resizing &amp; saving…</p>
                                   ) : (
                                     <>
-                                      <p className="text-sm font-medium text-[var(--color-foreground)]">Paste image here</p>
+                                      <p className="text-sm font-medium text-[var(--color-foreground)]">Press Ctrl+V to paste</p>
                                       <p className="text-[10px] text-[var(--color-muted-foreground)] mt-1">
-                                        On Freepik: right-click image → <strong>Copy image</strong> → click here → <strong>Ctrl+V</strong>
+                                        On Freepik: right-click image → <strong>Copy image</strong> → come back here → press <strong>Ctrl+V</strong>
                                       </p>
                                     </>
                                   )}
