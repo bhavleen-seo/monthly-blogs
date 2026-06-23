@@ -226,24 +226,26 @@ export default function PostsTab({
 
   // Resize an image file to max 1920px wide (WordPress featured image standard)
   // and compress to JPEG at 85% quality. Keeps file well under Vercel's 4.5MB limit.
-  const resizeImageForUpload = (file: File): Promise<File> =>
+  // Resize to max 1200px wide at JPEG 75% — reliably produces <150KB for stock photos.
+  const resizeImageForUpload = (file: File, name?: string): Promise<File> =>
     new Promise((resolve) => {
       const img = new window.Image();
       const url = URL.createObjectURL(file);
       img.onload = () => {
         URL.revokeObjectURL(url);
-        const MAX_W = 1920;
+        const MAX_W = 1200;
         let { width, height } = img;
         if (width > MAX_W) { height = Math.round(height * MAX_W / width); width = MAX_W; }
         const canvas = document.createElement("canvas");
         canvas.width = width; canvas.height = height;
         canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+        const filename = (name || file.name || "image.jpg").replace(/\.[^.]+$/, ".jpg");
         canvas.toBlob(
-          (blob) => resolve(new File([blob!], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" })),
-          "image/jpeg", 0.85
+          (blob) => resolve(new File([blob!], filename, { type: "image/jpeg" })),
+          "image/jpeg", 0.75
         );
       };
-      img.onerror = () => { URL.revokeObjectURL(url); resolve(file); }; // fallback: use original
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
       img.src = url;
     });
 
@@ -741,12 +743,56 @@ export default function PostsTab({
                               </button>
                             </div>
 
-                            {/* Upload from computer tab */}
+                            {/* Upload / Paste tab */}
                             {urlPickerTab === "upload" && (
-                              <div className="space-y-2">
-                                <p className="text-[10px] text-[var(--color-muted-foreground)]">
-                                  Download the image from Magnific/Freepik to your computer, then upload it here — it goes straight to WordPress.
-                                </p>
+                              <div className="space-y-3">
+                                {/* Paste zone — right-click image on Freepik → Copy image → Ctrl+V here */}
+                                <div
+                                  className="border-2 border-dashed border-[var(--color-border)] rounded-lg p-4 text-center focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]"
+                                  tabIndex={0}
+                                  onPaste={async (e) => {
+                                    const items = Array.from(e.clipboardData.items);
+                                    const imgItem = items.find((it) => it.type.startsWith("image/"));
+                                    if (!imgItem || !selectedPost) return;
+                                    const file = imgItem.getAsFile();
+                                    if (!file) return;
+                                    setUploadingFile(true);
+                                    setUploadError(null);
+                                    try {
+                                      const resized = await resizeImageForUpload(file, `freepik-paste-${Date.now()}.jpg`);
+                                      const fd = new FormData();
+                                      fd.append("postId", selectedPost.id);
+                                      fd.append("image", resized);
+                                      const res = await fetch("/api/blog-agent/posts/upload-image", { method: "POST", body: fd });
+                                      const data = await res.json();
+                                      if (data.success && data.post) {
+                                        setSelectedPost({ ...selectedPost, ...data.post });
+                                        setImagePickerOpen(false);
+                                        onPostUpdated();
+                                      } else {
+                                        setUploadError(data.error || "Upload failed");
+                                      }
+                                    } catch (err) {
+                                      setUploadError(err instanceof Error ? err.message : "Upload failed");
+                                    } finally {
+                                      setUploadingFile(false);
+                                    }
+                                  }}
+                                >
+                                  {uploadingFile ? (
+                                    <p className="text-xs text-[var(--color-muted-foreground)]">Resizing &amp; saving…</p>
+                                  ) : (
+                                    <>
+                                      <p className="text-sm font-medium text-[var(--color-foreground)]">Paste image here</p>
+                                      <p className="text-[10px] text-[var(--color-muted-foreground)] mt-1">
+                                        On Freepik: right-click image → <strong>Copy image</strong> → click here → <strong>Ctrl+V</strong>
+                                      </p>
+                                    </>
+                                  )}
+                                </div>
+
+                                <p className="text-[10px] text-[var(--color-muted-foreground)] text-center">or upload a file</p>
+
                                 <input
                                   type="file"
                                   accept="image/jpeg,image/png,image/webp,image/gif"
@@ -778,7 +824,6 @@ export default function PostsTab({
                                   }}
                                   className="w-full text-sm text-[var(--color-foreground)] file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-[var(--color-primary)] file:text-[var(--color-primary-foreground)] hover:file:opacity-90 cursor-pointer disabled:opacity-40"
                                 />
-                                {uploadingFile && <p className="text-xs text-[var(--color-muted-foreground)]">Resizing &amp; uploading to WordPress…</p>}
                                 {uploadError && <p className="text-xs text-[var(--color-destructive)]">⚠ {uploadError}</p>}
                               </div>
                             )}
