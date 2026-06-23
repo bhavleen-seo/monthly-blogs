@@ -589,7 +589,24 @@ export async function syncFeaturedImageToWordPress(
     try {
       const apiBase = await resolveCanonicalApiBase(client);
       const authHeader = await getAuthHeader(client);
-      const featuredMediaId = await uploadFeaturedImage(client, apiBase, post.featuredImageUrl, post.slug, post.featuredImageAlt || post.title);
+
+      // Detect temp-image URLs (pasted/uploaded via dashboard) — Vercel can't
+      // fetch its own endpoints (loopback fails), so read directly from KV.
+      let featuredMediaId: number | null = null;
+      const tempImageMatch = post.featuredImageUrl.match(/\/api\/blog-agent\/posts\/temp-image\?id=([^&]+)/);
+      if (tempImageMatch) {
+        const tempId = tempImageMatch[1];
+        const { kv } = await import("@vercel/kv");
+        const stored = await kv.get<{ base64: string; contentType: string; filename: string }>(`temp-image:${tempId}`);
+        if (!stored) {
+          return { success: false, message: "Uploaded image has expired or was not found. Please re-upload the image." };
+        }
+        const buffer = Buffer.from(stored.base64, "base64");
+        const filename = stored.filename || `${post.slug || post.id}.jpg`;
+        featuredMediaId = await uploadFeaturedImageBuffer(client, apiBase, buffer, stored.contentType, filename, post.featuredImageAlt || post.title);
+      } else {
+        featuredMediaId = await uploadFeaturedImage(client, apiBase, post.featuredImageUrl, post.slug, post.featuredImageAlt || post.title);
+      }
       if (!featuredMediaId) {
         return { success: false, message: "Failed to upload image to WordPress media library" };
       }
