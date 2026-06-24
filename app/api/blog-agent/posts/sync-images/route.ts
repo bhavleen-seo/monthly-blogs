@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
     let synced = 0;
     let failed = 0;
     const errors: string[] = [];
+    const messages: string[] = [];
 
     for (const post of targets) {
       try {
@@ -45,7 +46,8 @@ export async function POST(req: NextRequest) {
 
         if (result.success) {
           synced++;
-          console.log(`[sync-images] ✓ ${client.businessName} — "${post.title.slice(0, 50)}"`);
+          messages.push(result.message);
+          console.log(`[sync-images] ✓ ${client.businessName} — "${post.title.slice(0, 50)}" — ${result.message}`);
         } else {
           failed++;
           errors.push(`${client.businessName}: ${result.message}`);
@@ -64,6 +66,7 @@ export async function POST(req: NextRequest) {
       failed,
       total: targets.length,
       firstError: errors[0] || null,
+      firstMessage: messages[0] || null,
     });
   } catch (error) {
     return NextResponse.json(
