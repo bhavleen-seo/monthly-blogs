@@ -254,8 +254,9 @@ export default function PostsTab({
       const data = await res.json();
       const ok = data.synced > 0;
       setSyncResult(ok ? "ok" : "error");
-      if (!ok) setSyncError(data.firstError || data.error || "Unknown error");
-      setTimeout(() => { setSyncResult(null); setSyncError(null); }, 5000);
+      if (ok) setSyncError(data.firstMessage || null);
+      else setSyncError(data.firstError || data.error || "Unknown error");
+      setTimeout(() => { setSyncResult(null); setSyncError(null); }, 12000);
     } finally {
       setSyncingImage(false);
     }
@@ -666,7 +667,7 @@ export default function PostsTab({
                               {syncingImage ? "Syncing…" : syncResult === "ok" ? "✓ Pushed to WP!" : syncResult === "error" ? "✗ Sync failed" : "Sync to WP"}
                             </button>
                             {syncError && (
-                              <p className="text-[9px] text-[var(--color-destructive)] max-w-[200px] text-right leading-tight">{syncError.slice(0, 120)}</p>
+                              <p className={`text-[9px] max-w-[200px] text-right leading-tight ${syncResult === "ok" ? "text-[var(--color-muted-foreground)]" : "text-[var(--color-destructive)]"}`}>{syncError.slice(0, 160)}</p>
                             )}
                           </div>
                         )}
