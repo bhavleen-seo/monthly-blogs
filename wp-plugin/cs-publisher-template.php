@@ -5,7 +5,7 @@
  *               Lets the dashboard publish blog posts to this WordPress site without
  *               needing an Application Password. Works even when Wordfence has
  *               Application Passwords disabled.
- * Version:      1.1.0
+ * Version:      1.2.0
  * Author:       CS Design Studios
  * Author URI:   https://csdesignstudios.com
  *
@@ -28,7 +28,7 @@ if (!class_exists('CS_Publisher_v1')) :
 
 class CS_Publisher_v1 {
 
-    const VERSION = '1.1.0';
+    const VERSION = '1.2.0';
 
     public function __construct() {
         add_action('admin_menu',    [$this, 'register_settings_page']);
@@ -147,22 +147,50 @@ class CS_Publisher_v1 {
 
     // ─── Shared: sideload + set featured image ────────────────────────────────
 
-    private function set_featured_image($post_id, $img_url, $filename, $alt_text = '') {
+    /**
+     * Download (or decode) an image and set it as the post's featured image.
+     *
+     * @param int    $post_id   WordPress post ID to attach the image to.
+     * @param string $filename  Desired filename for the media attachment.
+     * @param string $alt_text  Image alt text (written to _wp_attachment_image_alt).
+     * @param string $img_url   URL to download the image from (used when $img_b64 is empty).
+     * @param string $img_b64   Base64-encoded image bytes (preferred — skips the HTTP download).
+     *
+     * Returns true on success, a WP_Error on failure.
+     */
+    private function set_featured_image($post_id, $filename, $alt_text = '', $img_url = '', $img_b64 = '') {
         require_once ABSPATH . 'wp-admin/includes/file.php';
         require_once ABSPATH . 'wp-admin/includes/media.php';
         require_once ABSPATH . 'wp-admin/includes/image.php';
-        $tmp = download_url($img_url, 60);
-        if (is_wp_error($tmp)) return;
-        $file_array    = ['name' => $filename, 'tmp_name' => $tmp];
-        $attachment_id = media_handle_sideload($file_array, $post_id);
-        if (!is_wp_error($attachment_id)) {
-            set_post_thumbnail($post_id, $attachment_id);
-            if ($alt_text !== '') {
-                update_post_meta($attachment_id, '_wp_attachment_image_alt', sanitize_text_field($alt_text));
+
+        if ($img_b64 !== '') {
+            $decoded = base64_decode($img_b64, true);
+            if ($decoded === false) {
+                return new WP_Error('cs_publisher_bad_base64', 'featured_image.data is not valid base64');
+            }
+            $tmp = wp_tempnam($filename);
+            if (file_put_contents($tmp, $decoded) === false) {
+                return new WP_Error('cs_publisher_tmp_write', 'Could not write temp file for image');
             }
         } else {
-            @unlink($tmp);
+            if ($img_url === '') {
+                return new WP_Error('cs_publisher_no_image_source', 'No image URL or base64 data provided');
+            }
+            $tmp = download_url($img_url, 60);
+            if (is_wp_error($tmp)) return $tmp;
         }
+
+        $file_array    = ['name' => $filename, 'tmp_name' => $tmp];
+        $attachment_id = media_handle_sideload($file_array, $post_id);
+        if (is_wp_error($attachment_id)) {
+            @unlink($tmp);
+            return $attachment_id;
+        }
+        set_post_thumbnail($post_id, $attachment_id);
+        if ($alt_text !== '') {
+            update_post_meta($attachment_id, '_wp_attachment_image_alt', sanitize_text_field($alt_text));
+        }
+        return true;
     }
 
     // ─── Publish (create new post OR update existing OR image-only update) ────
@@ -182,12 +210,25 @@ class CS_Publisher_v1 {
             if (!$post) {
                 return new WP_Error('cs_publisher_not_found', "Post {$existing_id} not found", ['status' => 404]);
             }
-            $img_url = isset($data['featured_image']['url']) ? $data['featured_image']['url'] : null;
-            if (is_string($img_url) && $img_url !== '') {
-                $filename = isset($data['featured_image']['filename']) ? (string)$data['featured_image']['filename'] : "pexels-{$existing_id}.jpg";
-                $alt_text = isset($data['featured_image']['alt'])      ? (string)$data['featured_image']['alt']      : '';
-                $this->set_featured_image($existing_id, $img_url, $filename, $alt_text);
+            $img      = isset($data['featured_image']) && is_array($data['featured_image']) ? $data['featured_image'] : [];
+            $img_url  = isset($img['url'])  && is_string($img['url'])  ? (string)$img['url']  : '';
+            $img_b64  = isset($img['data']) && is_string($img['data']) ? (string)$img['data'] : '';
+            $filename = isset($img['filename']) ? (string)$img['filename'] : "featured-{$existing_id}.jpg";
+            $alt_text = isset($img['alt'])      ? (string)$img['alt']      : '';
+
+            if ($img_url !== '' || $img_b64 !== '') {
+                $result = $this->set_featured_image($existing_id, $filename, $alt_text, $img_url, $img_b64);
+                if (is_wp_error($result)) {
+                    return new WP_Error(
+                        'cs_publisher_image_failed',
+                        $result->get_error_message(),
+                        ['status' => 500]
+                    );
+                }
+            } else {
+                return new WP_Error('cs_publisher_no_image', 'featured_image.url or featured_image.data is required', ['status' => 400]);
             }
+
             return new WP_REST_Response([
                 'id'      => $existing_id,
                 'link'    => get_permalink($existing_id),
@@ -242,13 +283,15 @@ class CS_Publisher_v1 {
             update_post_meta($post_id, $k, is_string($v) ? $v : wp_json_encode($v));
         }
 
-        $img_url = isset($data['featured_image']['url']) ? $data['featured_image']['url'] : null;
-        if (is_string($img_url) && $img_url !== '') {
-            $filename = isset($data['featured_image']['filename'])
-                ? (string)$data['featured_image']['filename']
-                : (sanitize_title(isset($data['slug']) ? (string)$data['slug'] : 'featured') . '.jpg');
-            $alt_text = isset($data['featured_image']['alt']) ? (string)$data['featured_image']['alt'] : '';
-            $this->set_featured_image($post_id, $img_url, $filename, $alt_text);
+        $img      = isset($data['featured_image']) && is_array($data['featured_image']) ? $data['featured_image'] : [];
+        $img_url  = isset($img['url'])  && is_string($img['url'])  ? (string)$img['url']  : '';
+        $img_b64  = isset($img['data']) && is_string($img['data']) ? (string)$img['data'] : '';
+        $filename = isset($img['filename']) && $img['filename'] !== ''
+            ? (string)$img['filename']
+            : (sanitize_title(isset($data['slug']) ? (string)$data['slug'] : 'featured') . '.jpg');
+        $alt_text = isset($img['alt']) ? (string)$img['alt'] : '';
+        if ($img_url !== '' || $img_b64 !== '') {
+            $this->set_featured_image($post_id, $filename, $alt_text, $img_url, $img_b64);
         }
 
         $post = get_post($post_id);
