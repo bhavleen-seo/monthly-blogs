@@ -423,8 +423,10 @@ async function publishViaCsPublisher(
       throw new Error(`CS Publisher redirected to ${location} — update wordpressUrl to canonical origin.`);
     }
 
-    // 404 rest_no_route — try next variant
-    if (res.status === 404) {
+    // 404 = path not registered; 403 = external WAF/Cloudflare block (CS Publisher
+    // returns 401 for wrong secret, so 403 here is NOT a secret mismatch).
+    // Try the next URL variant for both.
+    if (res.status === 404 || res.status === 403) {
       lastErrText = await res.text();
       continue;
     }
@@ -433,7 +435,7 @@ async function publishViaCsPublisher(
   }
 
   if (!res.ok) {
-    const errText = res.status === 404 ? lastErrText : await res.text();
+    const errText = (res.status === 404 || res.status === 403) ? lastErrText : await res.text();
     throw new Error(
       `CS Publisher failed: ${res.status} ${res.statusText} — ${errText.slice(0, 500)}`
     );
@@ -708,7 +710,9 @@ export async function syncFeaturedImageToWordPress(
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (useHeader) headers["X-CS-Secret"] = client.csPublisherSecret;
       res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), redirect: "manual" });
-      if (res.status === 404) continue;
+      // 404 = path not registered; 403 = external WAF/Cloudflare block.
+      // CS Publisher returns 401 for wrong secret, so 403 = not a secret mismatch.
+      if (res.status === 404 || res.status === 403) continue;
       break;
     }
 
@@ -718,8 +722,8 @@ export async function syncFeaturedImageToWordPress(
       if (errText.includes("cs_publisher_insert_failed")) {
         return { success: false, message: "CS Publisher plugin needs updating — please download the latest version from the Clients tab and reinstall" };
       }
-      if (!res || res.status === 404) {
-        return { success: false, message: "CS Publisher plugin not found — please install the updated plugin (v1.1+) from the Clients tab" };
+      if (!res || res.status === 404 || res.status === 403) {
+        return { success: false, message: "CS Publisher plugin not reachable — Cloudflare or a WAF may be blocking all URL variants. Try adding a Cloudflare bypass rule for cs-publisher/v1/publish, or set up a WP App Password instead." };
       }
       return { success: false, message: `CS Publisher error: ${res.status} — ${errText.slice(0, 200)}` };
     }
