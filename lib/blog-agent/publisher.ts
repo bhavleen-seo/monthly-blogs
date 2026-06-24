@@ -619,7 +619,9 @@ export async function syncFeaturedImageToWordPress(
         const errText = await res.text().catch(() => "");
         return { success: false, message: `WP REST error: ${res.status} — ${errText.slice(0, 200)}` };
       }
-      return { success: true, message: `Featured image updated on WP post ${post.wordpressPostId}` };
+      const wpBody = await res.json().catch(() => ({})) as Record<string, unknown>;
+      console.log(`[sync-images] WP PATCH response for post ${post.wordpressPostId}:`, JSON.stringify(wpBody).slice(0, 300));
+      return { success: true, message: `Featured image (media ${featuredMediaId}) set on WP post ${post.wordpressPostId}` };
     } catch (err) {
       nativeError = err instanceof Error ? err.message : "Unknown error";
       // If it's a permission error (401/403) and CS Publisher is available, fall through to try that
@@ -663,14 +665,42 @@ export async function syncFeaturedImageToWordPress(
       );
     }
 
+    // Build the featured_image payload.
+    // For temp-image URLs (pasted images stored in KV): also send the raw bytes
+    // as base64 so the plugin v1.2+ can sideload without an extra HTTP roundtrip
+    // and older plugin versions (v1.1) can fall back to the absolute URL.
+    type FeaturedImagePayload = {
+      url: string;
+      data?: string;
+      content_type?: string;
+      filename: string;
+      alt: string;
+    };
+    let featuredImagePayload: FeaturedImagePayload = {
+      url: post.featuredImageUrl,
+      filename: `pixabay-${post.freepikId || post.id}.jpg`,
+      alt: post.featuredImageAlt || post.title,
+    };
+    const tempMatchCS = post.featuredImageUrl.match(/\/api\/blog-agent\/posts\/temp-image\?id=([^&]+)/);
+    if (tempMatchCS) {
+      const { kv } = await import("@vercel/kv");
+      const stored = await kv.get<{ base64: string; contentType: string; filename: string }>(`temp-image:${tempMatchCS[1]}`);
+      if (!stored) {
+        return { success: false, message: "Uploaded image has expired or was not found. Please re-upload the image." };
+      }
+      featuredImagePayload = {
+        url: post.featuredImageUrl,   // absolute URL — v1.1 plugin can download from this
+        data: stored.base64,          // base64 — v1.2+ plugin prefers this (no extra HTTP)
+        content_type: stored.contentType,
+        filename: stored.filename || `${post.slug || post.id}.jpg`,
+        alt: post.featuredImageAlt || post.title,
+      };
+    }
+
     const body = {
       post_id: post.wordpressPostId,
       update_image_only: true,
-      featured_image: {
-        url: post.featuredImageUrl,
-        filename: `pexels-${post.freepikId || post.id}.jpg`,
-        alt: post.featuredImageAlt || post.title,
-      },
+      featured_image: featuredImagePayload,
     };
 
     let res!: Response;
