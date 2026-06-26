@@ -196,8 +196,8 @@ export default function ClientsTab({
             <Input name="location" label="Location" placeholder="Arizona" />
             <Input name="websiteUrl" label="Website URL" placeholder="https://example.com" />
             <Input name="wordpressUrl" label="WordPress URL" placeholder="https://example.com" required />
-            <Input name="wordpressUsername" label="WP Username" placeholder="admin" required />
-            <Input name="wordpressAppPassword" label="WP App Password" placeholder="xxxx xxxx xxxx" required type="password" />
+            <Input name="wordpressUsername" label="WP Username" placeholder="admin (not needed for CS Publisher)" />
+            <Input name="wordpressAppPassword" label="WP App Password" placeholder="Leave blank if using CS Publisher" type="password" />
             <Input name="csPublisherSecret" label="CS Publisher Secret (optional)" placeholder="Only if the cs-publisher mu-plugin is installed" type="password" />
             <div>
               <label className="block text-xs font-medium text-[var(--color-muted-foreground)] mb-1.5">Tone</label>
