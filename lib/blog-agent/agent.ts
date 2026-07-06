@@ -182,9 +182,25 @@ export async function runWriting(
     }
 
     if (approvedTopics.length === 0) {
+      let detail: string;
+      if (topicIds && topicIds.length > 0) {
+        // Topic IDs were provided but none matched an approved topic in KV.
+        // This usually means the topic was auto-rejected by a previous write run,
+        // or the approval didn't save correctly. Re-approve the topic and try again.
+        const allTopics = await getTopics();
+        const found = allTopics.filter((t) => topicIds.includes(t.id));
+        if (found.length > 0) {
+          detail = `Topic "${found[0].title}" has status "${found[0].status}" in the database — only "approved" topics can be written. Re-approve it in the Topics tab and try again.`;
+        } else {
+          detail = `Topic ID(s) not found in the database: ${topicIds.join(", ")}. Try re-researching this client.`;
+        }
+      } else {
+        detail = "No approved topics found for this month. Approve topics in the Topics tab first.";
+      }
       await updateRun(run.id, {
         status: "completed",
         message: "No approved topics to write",
+        details: detail,
         completedAt: new Date().toISOString(),
       });
       return { run, posts };
