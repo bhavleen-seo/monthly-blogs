@@ -197,12 +197,11 @@ export async function runWriting(
       } else {
         detail = "No approved topics found for this month. Approve topics in the Topics tab first.";
       }
-      await updateRun(run.id, {
-        status: "completed",
-        message: "No approved topics to write",
-        details: detail,
-        completedAt: new Date().toISOString(),
-      });
+      run.details = detail;
+      run.status = "completed";
+      run.message = "No approved topics to write";
+      run.completedAt = new Date().toISOString();
+      await updateRun(run.id, { status: run.status, message: run.message, details: run.details, completedAt: run.completedAt });
       return { run, posts };
     }
 
@@ -221,9 +220,8 @@ export async function runWriting(
         posts.push(post);
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : "Unknown error";
-        await updateRun(run.id, {
-          details: `Error writing "${topic.title}": ${errMsg}`,
-        });
+        run.details = run.details ? `${run.details}\n${errMsg}` : `Error writing "${topic.title}": ${errMsg}`;
+        await updateRun(run.id, { details: run.details });
       }
     }
 
