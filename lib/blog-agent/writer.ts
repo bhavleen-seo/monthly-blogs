@@ -8,6 +8,31 @@ import { searchStockImage, buildAltText } from "./freepik";
 import { fetchSiteContext } from "./site-context";
 import { fetchRecentPosts } from "./wp-posts";
 
+function resolveCategories(client: Client): string[] {
+  // Handle legacy string values stored before the form parsed correctly
+  const raw = client.blogCategories as unknown;
+  if (typeof raw === "string" && raw.trim()) {
+    return (raw as string).split(",").map((s) => s.trim()).filter(Boolean);
+  }
+  if (Array.isArray(raw) && raw.length > 0) return raw as string[];
+  // Derive a sensible default from industry when none is set
+  const ind = (client.industry || "").toLowerCase();
+  if (ind.includes("paint")) return ["Painting Tips", "Home Improvement"];
+  if (ind.includes("fence") || ind.includes("metal fab")) return ["Fencing Tips", "Home Improvement"];
+  if (ind.includes("pest")) return ["Pest Control", "Prevention Tips"];
+  if (ind.includes("restaurant") || ind.includes("grill") || ind.includes("bbq") || ind.includes("food")) return ["Food & Dining", "Local Eats"];
+  if (ind.includes("roof")) return ["Roofing Tips", "Home Maintenance"];
+  if (ind.includes("landscap") || ind.includes("tree") || ind.includes("yard")) return ["Landscaping Tips", "Outdoor Living"];
+  if (ind.includes("pool")) return ["Pool Care", "Maintenance Tips"];
+  if (ind.includes("hvac") || ind.includes("air") || ind.includes("breez")) return ["HVAC Tips", "Home Comfort"];
+  if (ind.includes("loan") || ind.includes("mortgage")) return ["Mortgage Tips", "Home Buying"];
+  if (ind.includes("remodel")) return ["Remodeling", "Home Improvement"];
+  if (ind.includes("vet") || ind.includes("pet")) return ["Pet Health", "Pet Care Tips"];
+  if (ind.includes("security")) return ["Security Tips", "Home Safety"];
+  if (ind.includes("collision") || ind.includes("auto")) return ["Auto Repair", "Car Care Tips"];
+  return ["Blog"];
+}
+
 function generateSlug(title: string): string {
   return title
     .toLowerCase()
@@ -420,7 +445,7 @@ Return ONLY the JSON object, no other text.`;
     metaDescription: cleanMeta,
     targetKeywords: topic.targetKeywords,
     month: topic.month,
-    categories: client.blogCategories,
+    categories: resolveCategories(client),
     tags: [],
     featuredImagePrompt: parsed.featuredImagePrompt,
     featuredImageUrl: stockImage?.url,
