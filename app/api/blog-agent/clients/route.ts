@@ -3,6 +3,14 @@ import { v4 as uuidv4 } from "uuid";
 import { getClients, saveClient, deleteClient, getClient } from "@/lib/blog-agent";
 import type { Client } from "@/lib/blog-agent";
 
+function parseBlogCategories(raw: unknown): string[] {
+  if (typeof raw === "string" && raw.trim()) {
+    return raw.split(",").map((s) => s.trim()).filter(Boolean);
+  }
+  if (Array.isArray(raw)) return raw.filter((s) => typeof s === "string" && s.trim());
+  return [];
+}
+
 export async function GET() {
   try {
     const clients = await getClients();
@@ -39,7 +47,7 @@ export async function POST(req: NextRequest) {
       tone: body.tone || "professional",
       keywords: body.keywords || [],
       seoNotes: body.seoNotes || "",
-      blogCategories: body.blogCategories || [],
+      blogCategories: parseBlogCategories(body.blogCategories),
       postsPerMonth: body.postsPerMonth || 2,
       isActive: true,
       createdAt: new Date().toISOString(),
@@ -73,6 +81,7 @@ export async function PUT(req: NextRequest) {
     if (body.csPublisherSecret === undefined || body.csPublisherSecret === "") {
       body.csPublisherSecret = existing.csPublisherSecret;
     }
+    if (body.blogCategories !== undefined) body.blogCategories = parseBlogCategories(body.blogCategories);
     const updated: Client = { ...existing, ...body, updatedAt: new Date().toISOString() };
     await saveClient(updated);
     return NextResponse.json({ client: updated });
