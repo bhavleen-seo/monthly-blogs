@@ -25,7 +25,6 @@ export default function PostsTab({
   onDeletePost,
   onRewritePost,
   onCleanupPosts,
-  onBackfillImages,
   onSyncImages,
 }: {
   clients: Client[];
@@ -39,7 +38,6 @@ export default function PostsTab({
   onDeletePost: (id: string) => void;
   onRewritePost: (postId: string) => void;
   onCleanupPosts: () => void;
-  onBackfillImages: (postId?: string, force?: boolean) => void;
   onSyncImages: (postId?: string) => void;
 }) {
   const [clientId, setClientId] = useState("");
@@ -51,19 +49,11 @@ export default function PostsTab({
   const [saving, setSaving] = useState(false);
   const [contentView, setContentView] = useState<"preview" | "html">("preview");
 
-  // Image picker state
+  // Image picker state — single flow: paste/upload a Freepik image, auto-resized to 750x500.
   const [imagePickerOpen, setImagePickerOpen] = useState(false);
-  const [imagePickerQuery, setImagePickerQuery] = useState("");
-  const [imagePickerResults, setImagePickerResults] = useState<Array<{ id: number; url: string; thumbnail: string; alt: string }>>([]);
-  const [imagePickerLoading, setImagePickerLoading] = useState(false);
-  const [savingImage, setSavingImage] = useState(false);
-  const [pastedImageUrl, setPastedImageUrl] = useState("");
-  const [pastedImageAlt, setPastedImageAlt] = useState("");
-  const [extractingImage, setExtractingImage] = useState(false);
-  const [extractError, setExtractError] = useState<string | null>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [urlPickerTab, setUrlPickerTab] = useState<"url" | "upload">("url");
+  const [uploadNotice, setUploadNotice] = useState<string | null>(null);
 
   const imagePickerRef = useRef<HTMLDivElement>(null);
   const modalScrollRef = useRef<HTMLDivElement>(null);
@@ -77,10 +67,10 @@ export default function PostsTab({
     }
   }, [imagePickerOpen]);
 
-  // Global paste listener — active whenever the Upload tab is open so user
-  // doesn't need to click/focus the paste zone first. Ctrl+V anywhere works.
+  // Global paste listener — active whenever the image picker is open, so the SEO
+  // can just press Ctrl+V after copying an image from Freepik. No click needed.
   useEffect(() => {
-    if (!imagePickerOpen || urlPickerTab !== "upload") return;
+    if (!imagePickerOpen) return;
     const handleGlobalPaste = async (e: ClipboardEvent) => {
       const items = Array.from(e.clipboardData?.items ?? []);
       const imgItem = items.find((it) => it.type.startsWith("image/"));
@@ -88,31 +78,12 @@ export default function PostsTab({
       const file = imgItem.getAsFile();
       if (!file) return;
       e.preventDefault();
-      setUploadingFile(true);
-      setUploadError(null);
-      try {
-        const resized = await resizeImageForUpload(file, `freepik-paste-${Date.now()}.jpg`);
-        const fd = new FormData();
-        fd.append("postId", selectedPost.id);
-        fd.append("image", resized);
-        const res = await fetch("/api/blog-agent/posts/upload-image", { method: "POST", body: fd });
-        const data = await res.json();
-        if (data.success && data.post) {
-          setSelectedPost((prev) => prev ? { ...prev, ...data.post } : prev);
-          setImagePickerOpen(false);
-          onPostUpdated();
-        } else {
-          setUploadError(data.error || "Upload failed");
-        }
-      } catch (err) {
-        setUploadError(err instanceof Error ? err.message : "Upload failed");
-      } finally {
-        setUploadingFile(false);
-      }
+      await uploadFeaturedImage(file);
     };
     document.addEventListener("paste", handleGlobalPaste);
     return () => document.removeEventListener("paste", handleGlobalPaste);
-  }, [imagePickerOpen, urlPickerTab, selectedPost]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imagePickerOpen, selectedPost]);
 
   // Per-post WP sync state
   const [syncingImage, setSyncingImage] = useState(false);
@@ -154,10 +125,6 @@ export default function PostsTab({
     [posts, targetMonth]
   );
 
-  const missingImageCount = useMemo(
-    () => posts.filter((p) => !p.featuredImageUrl).length,
-    [posts]
-  );
 
   // When the posts prop refreshes (e.g. after a backfill), sync selectedPost
   // so the modal reflects the latest data without needing to close and reopen.
@@ -182,14 +149,9 @@ export default function PostsTab({
       setEditing(false);
       setContentView("preview");
       setImagePickerOpen(false);
-      setImagePickerResults([]);
-      setPastedImageUrl("");
-      setPastedImageAlt("");
-      setExtractingImage(false);
-      setExtractError(null);
       setUploadingFile(false);
       setUploadError(null);
-      setUrlPickerTab("url");
+      setUploadNotice(null);
       setSyncResult(null);
       setSyncError(null);
     }
@@ -223,22 +185,9 @@ export default function PostsTab({
 
   // ── Image picker helpers ────────────────────────────────────────────────────
   const openImagePicker = () => {
-    const q = selectedPost?.featuredImagePrompt || selectedPost?.title || "";
-    setImagePickerQuery(q);
-    setImagePickerResults([]);
+    setUploadError(null);
+    setUploadNotice(null);
     setImagePickerOpen(true);
-  };
-
-  const searchImages = async (query: string) => {
-    if (!query.trim()) return;
-    setImagePickerLoading(true);
-    try {
-      const res = await fetch(`/api/blog-agent/posts/image-search?q=${encodeURIComponent(query.trim())}`);
-      const data = await res.json();
-      setImagePickerResults(data.photos || []);
-    } finally {
-      setImagePickerLoading(false);
-    }
   };
 
   const syncImageToWP = async (postId: string) => {
@@ -262,56 +211,107 @@ export default function PostsTab({
     }
   };
 
-  // Resize an image file to max 1920px wide (WordPress featured image standard)
-  // and compress to JPEG at 85% quality. Keeps file well under Vercel's 4.5MB limit.
-  // Resize to max 1200px wide at JPEG 75% — reliably produces <150KB for stock photos.
+  // Resize/crop the image to exactly 750x500 (cover: fill the frame, center-crop
+  // the overflow) and compress to JPEG. Keeps featured images small and uniform.
   const resizeImageForUpload = (file: File, name?: string): Promise<File> =>
     new Promise((resolve) => {
       const img = new window.Image();
       const url = URL.createObjectURL(file);
       img.onload = () => {
         URL.revokeObjectURL(url);
-        const MAX_W = 1200;
-        let { width, height } = img;
-        if (width > MAX_W) { height = Math.round(height * MAX_W / width); width = MAX_W; }
+        const TARGET_W = 750, TARGET_H = 500;
         const canvas = document.createElement("canvas");
-        canvas.width = width; canvas.height = height;
-        canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+        canvas.width = TARGET_W; canvas.height = TARGET_H;
+        const ctx = canvas.getContext("2d")!;
+        // cover: scale so the image fills 750x500, then center-crop the overflow
+        const scale = Math.max(TARGET_W / img.width, TARGET_H / img.height);
+        const drawW = img.width * scale, drawH = img.height * scale;
+        ctx.drawImage(img, (TARGET_W - drawW) / 2, (TARGET_H - drawH) / 2, drawW, drawH);
         const filename = (name || file.name || "image.jpg").replace(/\.[^.]+$/, ".jpg");
         canvas.toBlob(
           (blob) => resolve(new File([blob!], filename, { type: "image/jpeg" })),
-          "image/jpeg", 0.75
+          "image/jpeg", 0.82
         );
       };
       img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
       img.src = url;
     });
 
-  const selectImage = async (photo: { id: number; url: string; alt: string }) => {
+  // Paste/upload a Freepik image: resize to 750x500, store it, and — if the post
+  // is already published — push it straight to the live WordPress post (the
+  // upload-image route does the auto-sync). No separate "Sync image" click.
+  const uploadFeaturedImage = async (file: File) => {
     if (!selectedPost) return;
-    setSavingImage(true);
+    setUploadingFile(true);
+    setUploadError(null);
+    setUploadNotice(null);
     try {
-      const res = await fetch("/api/blog-agent/posts", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: selectedPost.id,
-          featuredImageUrl: photo.url,
-          freepikId: String(photo.id),
-          featuredImageAlt: photo.alt || selectedPost.featuredImageAlt || selectedPost.title,
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSelectedPost({ ...selectedPost, ...data.post });
-        setImagePickerOpen(false);
-        setImagePickerResults([]);
+      const resized = await resizeImageForUpload(file, `freepik-${Date.now()}.jpg`);
+      const fd = new FormData();
+      fd.append("postId", selectedPost.id);
+      fd.append("image", resized);
+      const res = await fetch("/api/blog-agent/posts/upload-image", { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.success && data.post) {
+        setSelectedPost((prev) => (prev ? { ...prev, ...data.post } : prev));
         onPostUpdated();
+        if (data.sync) {
+          setUploadNotice(
+            data.sync.success
+              ? "Image resized to 750×500 and pushed to the live post. ✓"
+              : `Image saved, but pushing to WordPress failed: ${data.sync.message}`
+          );
+        } else {
+          setUploadNotice("Image resized to 750×500 and saved. It uploads when the post is published.");
+        }
+      } else {
+        setUploadError(data.error || "Upload failed");
       }
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
     } finally {
-      setSavingImage(false);
+      setUploadingFile(false);
     }
   };
+
+  // The paste/upload panel, shared by the has-image and no-image states.
+  const imagePickerPanel = imagePickerOpen ? (
+    <div ref={imagePickerRef} className="border border-[var(--color-border)] rounded-lg p-3 space-y-3 bg-[var(--color-card)]">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider">Add image from Freepik</p>
+        <button
+          onClick={() => { setImagePickerOpen(false); setUploadError(null); setUploadNotice(null); }}
+          className="text-sm text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
+          title="Close"
+        >✕</button>
+      </div>
+      <div className="border-2 border-dashed border-[var(--color-border)] rounded-lg p-4 text-center">
+        {uploadingFile ? (
+          <p className="text-xs text-[var(--color-muted-foreground)]">Resizing to 750×500 &amp; uploading…</p>
+        ) : (
+          <>
+            <p className="text-sm font-medium text-[var(--color-foreground)]">Press Ctrl+V to paste</p>
+            <p className="text-[10px] text-[var(--color-muted-foreground)] mt-1">
+              On Freepik: right-click the image → <strong>Copy image</strong> → come back here → press <strong>Ctrl+V</strong>.
+              {selectedPost?.status === "published"
+                ? " It resizes to 750×500 and updates the live post automatically."
+                : " It resizes to 750×500 and uploads when the post is published."}
+            </p>
+          </>
+        )}
+      </div>
+      <p className="text-[10px] text-[var(--color-muted-foreground)] text-center">or upload a file</p>
+      <input
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        disabled={uploadingFile}
+        onChange={async (e) => { const file = e.target.files?.[0]; if (file) await uploadFeaturedImage(file); }}
+        className="w-full text-sm text-[var(--color-foreground)] file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-[var(--color-primary)] file:text-[var(--color-primary-foreground)] hover:file:opacity-90 cursor-pointer disabled:opacity-40"
+      />
+      {uploadError && <p className="text-xs text-[var(--color-destructive)]">⚠ {uploadError}</p>}
+      {uploadNotice && <p className="text-xs text-[var(--color-success)]">{uploadNotice}</p>}
+    </div>
+  ) : null;
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -369,24 +369,6 @@ export default function PostsTab({
         >
           Export Published URLs ({publishedWithUrlCount})
         </a>
-        {missingImageCount > 0 && (
-          <button
-            onClick={() => onBackfillImages()}
-            disabled={loading}
-            title="Search Pexels for featured images on all posts that don't have one yet"
-            className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] hover:bg-[var(--color-hover)] transition-all disabled:opacity-40"
-          >
-            Fetch Missing Images ({missingImageCount})
-          </button>
-        )}
-        <button
-          onClick={() => onBackfillImages(undefined, true)}
-          disabled={loading}
-          title="Re-fetch better images from Pexels for ALL posts, replacing existing ones"
-          className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] hover:bg-[var(--color-hover)] transition-all disabled:opacity-40"
-        >
-          Refresh All Images
-        </button>
         <button
           onClick={() => onSyncImages()}
           disabled={loading}
@@ -696,254 +678,29 @@ export default function PostsTab({
                         />
                       )}
                     </div>
-                  ) : selectedPost.featuredImageUrl ? (
-                    /* Read mode — image found, show it + picker */
+                  ) : (
+                    /* Read mode — show the image if present, plus the Freepik paste picker */
                     <div className="space-y-2">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={selectedPost.featuredImageUrl}
-                        alt="Featured"
-                        className="w-full max-h-64 object-cover rounded-lg border border-[var(--color-border)]"
-                      />
-                      {/* Image picker panel */}
-                      {imagePickerOpen && (
-                        <div ref={imagePickerRef} className="border border-[var(--color-border)] rounded-lg p-3 space-y-3 bg-[var(--color-card)]">
-                          <div className="flex gap-2">
-                            <input
-                              type="text"
-                              value={imagePickerQuery}
-                              onChange={(e) => setImagePickerQuery(e.target.value)}
-                              onKeyDown={(e) => { if (e.key === "Enter") searchImages(imagePickerQuery); }}
-                              placeholder="e.g. dumpster rental truck, pest control technician…"
-                              className="flex-1 bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted-foreground)]"
-                            />
-                            <button
-                              onClick={() => searchImages(imagePickerQuery)}
-                              disabled={imagePickerLoading || !imagePickerQuery.trim()}
-                              className="px-3 py-2 text-xs font-medium bg-[var(--color-primary)] text-[var(--color-primary-foreground)] rounded-lg disabled:opacity-40 hover:opacity-90 transition-opacity whitespace-nowrap"
-                            >
-                              {imagePickerLoading ? "Searching…" : "Search"}
-                            </button>
-                            <button
-                              onClick={() => { setImagePickerOpen(false); setImagePickerResults([]); setPastedImageUrl(""); setPastedImageAlt(""); setExtractError(null); }}
-                              className="px-2 py-2 text-sm text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
-                              title="Close"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                          {imagePickerResults.length > 0 && (
-                            <div className="grid grid-cols-3 gap-2">
-                              {imagePickerResults.map((photo) => (
-                                <button
-                                  key={photo.id}
-                                  onClick={() => selectImage(photo)}
-                                  disabled={savingImage}
-                                  title="Click to use this image"
-                                  className="relative aspect-video overflow-hidden rounded-md border-2 border-transparent hover:border-[var(--color-primary)] focus:border-[var(--color-primary)] transition-all disabled:opacity-50"
-                                >
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img
-                                    src={photo.thumbnail}
-                                    alt={photo.alt}
-                                    className="w-full h-full object-cover"
-                                  />
-                                  {savingImage && (
-                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                                      <span className="text-white text-xs">Saving…</span>
-                                    </div>
-                                  )}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                          {!imagePickerLoading && imagePickerResults.length === 0 && (
-                            <p className="text-xs text-[var(--color-muted-foreground)] text-center py-1">
-                              Enter a short search term (e.g. &ldquo;dumpster truck&rdquo;) and press Search
-                            </p>
-                          )}
-
-                          {/* Paste URL / Upload section */}
-                          <div className="pt-2 border-t border-[var(--color-border)] space-y-2">
-                            {/* Tab switcher */}
-                            <div className="flex gap-3 text-[10px] font-semibold uppercase tracking-wider">
-                              <button
-                                onClick={() => setUrlPickerTab("url")}
-                                className={urlPickerTab === "url" ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"}
-                              >
-                                Paste URL
-                              </button>
-                              <button
-                                onClick={() => setUrlPickerTab("upload")}
-                                className={urlPickerTab === "upload" ? "text-[var(--color-primary)]" : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"}
-                              >
-                                Upload from computer
-                              </button>
-                            </div>
-
-                            {/* Upload / Paste tab */}
-                            {urlPickerTab === "upload" && (
-                              <div className="space-y-3">
-                                {/* Paste zone — global listener active, no click needed */}
-                                <div className="border-2 border-dashed border-[var(--color-border)] rounded-lg p-4 text-center">
-                                  {uploadingFile ? (
-                                    <p className="text-xs text-[var(--color-muted-foreground)]">Resizing &amp; saving…</p>
-                                  ) : (
-                                    <>
-                                      <p className="text-sm font-medium text-[var(--color-foreground)]">Press Ctrl+V to paste</p>
-                                      <p className="text-[10px] text-[var(--color-muted-foreground)] mt-1">
-                                        On Freepik: right-click image → <strong>Copy image</strong> → come back here → press <strong>Ctrl+V</strong>
-                                      </p>
-                                    </>
-                                  )}
-                                </div>
-
-                                <p className="text-[10px] text-[var(--color-muted-foreground)] text-center">or upload a file</p>
-
-                                <input
-                                  type="file"
-                                  accept="image/jpeg,image/png,image/webp,image/gif"
-                                  disabled={uploadingFile}
-                                  onChange={async (e) => {
-                                    const file = e.target.files?.[0];
-                                    if (!file || !selectedPost) return;
-                                    setUploadingFile(true);
-                                    setUploadError(null);
-                                    try {
-                                      const resized = await resizeImageForUpload(file);
-                                      const fd = new FormData();
-                                      fd.append("postId", selectedPost.id);
-                                      fd.append("image", resized);
-                                      const res = await fetch("/api/blog-agent/posts/upload-image", { method: "POST", body: fd });
-                                      const data = await res.json();
-                                      if (data.success && data.post) {
-                                        setSelectedPost({ ...selectedPost, ...data.post });
-                                        setImagePickerOpen(false);
-                                        onPostUpdated();
-                                      } else {
-                                        setUploadError(data.error || "Upload failed");
-                                      }
-                                    } catch (err) {
-                                      setUploadError(err instanceof Error ? err.message : "Upload failed");
-                                    } finally {
-                                      setUploadingFile(false);
-                                    }
-                                  }}
-                                  className="w-full text-sm text-[var(--color-foreground)] file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-[var(--color-primary)] file:text-[var(--color-primary-foreground)] hover:file:opacity-90 cursor-pointer disabled:opacity-40"
-                                />
-                                {uploadError && <p className="text-xs text-[var(--color-destructive)]">⚠ {uploadError}</p>}
-                              </div>
-                            )}
-
-                            {/* Paste URL tab */}
-                            {urlPickerTab === "url" && <div className="space-y-2">
-                            <div className="flex gap-2">
-                              <input
-                                type="url"
-                                value={pastedImageUrl}
-                                onChange={(e) => {
-                                  setPastedImageUrl(e.target.value);
-                                  setExtractError(null);
-                                  if (!pastedImageAlt && selectedPost?.title) setPastedImageAlt(selectedPost.title);
-                                }}
-                                onKeyDown={async (e) => {
-                                  if (e.key !== "Enter" || !pastedImageUrl.trim()) return;
-                                  const u = pastedImageUrl.trim();
-                                  const isDirect = /\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(u);
-                                  if (!isDirect) {
-                                    setExtractingImage(true);
-                                    setExtractError(null);
-                                    try {
-                                      const r = await fetch(`/api/blog-agent/posts/extract-image?url=${encodeURIComponent(u)}`);
-                                      const d = await r.json();
-                                      if (d.imageUrl) { setPastedImageUrl(d.imageUrl); if (!pastedImageAlt) setPastedImageAlt(d.altText || selectedPost?.title || ""); }
-                                      else setExtractError(d.error || "No image found on that page");
-                                    } finally { setExtractingImage(false); }
-                                  }
-                                }}
-                                placeholder="https://www.magnific.com/... or https://img.freepik.com/....jpg"
-                                className="flex-1 bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted-foreground)]"
-                              />
-                              {pastedImageUrl.trim() && !/\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(pastedImageUrl.trim()) && (
-                                <button
-                                  disabled={extractingImage}
-                                  onClick={async () => {
-                                    const u = pastedImageUrl.trim();
-                                    setExtractingImage(true);
-                                    setExtractError(null);
-                                    try {
-                                      const r = await fetch(`/api/blog-agent/posts/extract-image?url=${encodeURIComponent(u)}`);
-                                      const d = await r.json();
-                                      if (d.imageUrl) { setPastedImageUrl(d.imageUrl); if (!pastedImageAlt) setPastedImageAlt(d.altText || selectedPost?.title || ""); }
-                                      else setExtractError(d.error || "No image found on that page");
-                                    } finally { setExtractingImage(false); }
-                                  }}
-                                  className="px-3 py-2 text-xs font-medium bg-[var(--color-primary)] text-[var(--color-primary-foreground)] rounded-lg disabled:opacity-40 hover:opacity-90 transition-opacity whitespace-nowrap"
-                                >
-                                  {extractingImage ? "Extracting…" : "Get image"}
-                                </button>
-                              )}
-                            </div>
-                            {extractError && (
-                              <p className="text-xs text-[var(--color-destructive)]">⚠ {extractError}</p>
-                            )}
-                            {pastedImageUrl.trim() && /\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(pastedImageUrl.trim()) && (
-                              <>
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={pastedImageUrl.trim()}
-                                  alt="Preview"
-                                  className="w-full max-h-40 object-cover rounded-lg border border-[var(--color-border)]"
-                                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; setExtractError("Can't load this image URL — it may require login or be blocked."); }}
-                                  onLoad={(e) => { (e.target as HTMLImageElement).style.display = "block"; }}
-                                />
-                                <input
-                                  type="text"
-                                  value={pastedImageAlt}
-                                  onChange={(e) => setPastedImageAlt(e.target.value)}
-                                  placeholder="Alt text — describe the image for SEO"
-                                  className="w-full bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-foreground)] placeholder-[var(--color-muted-foreground)]"
-                                />
-                                <button
-                                  onClick={() => selectImage({ id: 0, url: pastedImageUrl.trim(), alt: pastedImageAlt.trim() || selectedPost?.title || "" })}
-                                  disabled={savingImage}
-                                  className="w-full px-3 py-2 text-xs font-medium bg-[var(--color-primary)] text-[var(--color-primary-foreground)] rounded-lg disabled:opacity-40 hover:opacity-90 transition-opacity"
-                                >
-                                  {savingImage ? "Saving…" : "Use this image"}
-                                </button>
-                              </>
-                            )}
-                            </div>}
-                          </div>
+                      {selectedPost.featuredImageUrl && (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                          src={selectedPost.featuredImageUrl}
+                          alt="Featured"
+                          className="w-full max-h-64 object-cover rounded-lg border border-[var(--color-border)]"
+                        />
+                      )}
+                      {!selectedPost.featuredImageUrl && !imagePickerOpen && (
+                        <div className="flex items-center justify-between px-4 py-3 bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/30 rounded-lg">
+                          <p className="text-xs font-medium text-[var(--color-warning)]">No image yet — paste one from Freepik.</p>
+                          <button
+                            onClick={openImagePicker}
+                            className="text-xs font-medium px-2.5 py-1 rounded-lg bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:opacity-90 transition-opacity shrink-0 ml-3"
+                          >
+                            Add image
+                          </button>
                         </div>
                       )}
-                    </div>
-                  ) : (
-                    /* Read mode — no image found */
-                    <div className="flex items-center justify-between px-4 py-3 bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/30 rounded-lg">
-                      <div className="min-w-0">
-                        <p className="text-xs font-medium text-[var(--color-warning)]">No image found</p>
-                        {selectedPost.featuredImagePrompt && (
-                          <p className="text-[11px] text-[var(--color-muted-foreground)] mt-0.5 truncate">
-                            Will search: &ldquo;{selectedPost.featuredImagePrompt.slice(0, 80)}&rdquo;
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0 ml-3">
-                        <button
-                          onClick={() => { onBackfillImages(selectedPost.id); }}
-                          disabled={loading}
-                          className="text-xs font-medium px-2.5 py-1 rounded-lg bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:opacity-90 disabled:opacity-40 transition-opacity"
-                        >
-                          Auto-fetch
-                        </button>
-                        <button
-                          onClick={() => setEditing(true)}
-                          className="text-xs font-medium text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
-                        >
-                          Paste URL
-                        </button>
-                      </div>
+                      {imagePickerPanel}
                     </div>
                   )}
                   {selectedPost.featuredImageAlt && (

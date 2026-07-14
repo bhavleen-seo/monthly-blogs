@@ -1,10 +1,9 @@
 import { v4 as uuidv4 } from "uuid";
 import type { Client, TopicSuggestion, BlogPost } from "./types";
-import { getGlobalSettings, getPosts } from "./store";
+import { getGlobalSettings } from "./store";
 import { complete } from "./llm";
 import { analyzeKeywords, inferRegion } from "./serper";
 import { fetchPageContents, formatPageForPrompt } from "./youcom";
-import { searchStockImage, buildAltText } from "./freepik";
 import { fetchSiteContext } from "./site-context";
 import { fetchRecentPosts } from "./wp-posts";
 
@@ -38,6 +37,20 @@ function generateSlug(title: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
+}
+
+// Build SEO-friendly alt text from the image prompt / primary keyword. Kept
+// local to the writer now that stock-image search has been removed — featured
+// images are added manually from Freepik in the dashboard, but we still prefill
+// a suggested alt so the pasted image gets good alt text on WordPress.
+function buildAltText(featuredImagePrompt: string, primaryKeyword?: string): string {
+  let text = (featuredImagePrompt || "").trim();
+  if (!text) text = primaryKeyword || "Featured image";
+  text = text.replace(/^(an?\s+)?(image|photo|picture|illustration)\s+of\s+/i, "");
+  if (text.length <= 125) return text;
+  const truncated = text.slice(0, 125);
+  const lastSpace = truncated.lastIndexOf(" ");
+  return (lastSpace > 80 ? truncated.slice(0, lastSpace) : truncated).trim();
 }
 
 // ─── Hardcoded core rules (always applied, never lost to KV issues) ──────────
@@ -393,45 +406,11 @@ Return ONLY the JSON object, no other text.`;
     console.warn(`[writer] AI tells survived in post "${finalTitle}":`, aiTellsDetected);
   }
 
-  // Collect Freepik IDs already used by this client so we never reuse the
-  // same image across monthly posts. Best-effort: if the fetch fails we just
-  // proceed without the exclusion list.
-  let usedFreepikIds: Set<string | number> | undefined;
-  try {
-    const previousPosts = await getPosts({ clientId: client.id });
-    const ids = previousPosts
-      .map((p) => p.freepikId)
-      .filter((id): id is string | number => id !== undefined && id !== null);
-    if (ids.length > 0) usedFreepikIds = new Set(ids);
-  } catch {
-    // Non-fatal — proceed without exclusions
-  }
-
-  // Auto-find a featured image from Freepik. Failures don't block the post —
-  // the user can paste a URL manually in the preview modal if Freepik returns
-  // nothing useful.
-  //
-  // visualHints: short concrete visual terms that make better Freepik queries
-  // than a blog title does — e.g. ["business uniforms", "workwear"] for a
-  // uniform supplier. We pull the client's own industry keywords so the query
-  // is always anchored to what the business actually sells.
-  const visualHints: string[] = [
-    topic.supportsCommercialKeyword,
-    ...(client.keywords || []).slice(0, 2),
-  ].filter((h): h is string => typeof h === "string" && h.length > 0);
-
-  const stockImage = await searchStockImage(
-    parsed.featuredImagePrompt || primaryKeyword || topic.title,
-    topic.title,
-    usedFreepikIds,
-    visualHints
-  );
-  if (stockImage) {
-    console.log(`[writer] Freepik image found for "${finalTitle}" (id: ${stockImage.freepikId}${usedFreepikIds?.size ? `, skipped ${usedFreepikIds.size} previously used` : ""})`);
-  }
-  const featuredImageAlt = stockImage
-    ? buildAltText(parsed.featuredImagePrompt, primaryKeyword)
-    : undefined;
+  // Featured images are added manually by the SEO from Freepik in the dashboard
+  // (paste → auto-resized to 750x500 → uploaded). The writer no longer searches
+  // for or attaches any stock image. We still compute a suggested alt text from
+  // the topic so the dashboard can prefill it for whatever image gets pasted in.
+  const featuredImageAlt = buildAltText(parsed.featuredImagePrompt, primaryKeyword);
 
   return {
     id: uuidv4(),
@@ -448,8 +427,8 @@ Return ONLY the JSON object, no other text.`;
     categories: resolveCategories(client),
     tags: [],
     featuredImagePrompt: parsed.featuredImagePrompt,
-    featuredImageUrl: stockImage?.url,
-    freepikId: stockImage?.freepikId,
+    featuredImageUrl: undefined,
+    freepikId: undefined,
     featuredImageAlt,
     wordCount,
     status: "ready",

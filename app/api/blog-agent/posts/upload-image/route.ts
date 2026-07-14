@@ -1,20 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPost } from "@/lib/blog-agent";
+import { getPost, getClient } from "@/lib/blog-agent";
 import { savePost } from "@/lib/blog-agent/store";
+import { syncFeaturedImageToWordPress } from "@/lib/blog-agent/publisher";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 /**
  * POST /api/blog-agent/posts/upload-image
- * Body: multipart/form-data  →  postId (string) + image (File, pre-resized by browser)
+ * Body: multipart/form-data  →  postId (string) + image (File, resized to 750x500 by browser)
  *
  * Stores the image in KV (14-day TTL) and saves the resulting URL as
- * the post's featuredImageUrl. No WordPress connection needed at this
- * stage — the publisher will upload the image to WP when the post is
- * published, the same way it handles Pexels image URLs.
+ * the post's featuredImageUrl.
  *
- * For already-published posts, use the "Sync to WP" button afterwards
- * to push the new image to the live WordPress post.
+ * If the post is already PUBLISHED, the new image is pushed straight to the
+ * live WordPress post in this same request — so pasting an image is all the
+ * SEO has to do, no separate "Sync image" click. For drafts, the image is
+ * staged and goes up when the post is published.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -47,7 +49,18 @@ export async function POST(req: NextRequest) {
     const updatedPost = { ...post, featuredImageUrl: imageUrl, freepikId: id };
     await savePost(updatedPost);
 
-    return NextResponse.json({ success: true, featuredImageUrl: imageUrl, post: updatedPost });
+    // Already published? Push the new image to the live WordPress post now, so
+    // the SEO doesn't have to click "Sync image" as a separate step. Drafts are
+    // just staged — the image uploads when the post is published.
+    let sync: { success: boolean; message: string } | undefined;
+    if (updatedPost.status === "published" && updatedPost.wordpressPostId) {
+      const client = await getClient(updatedPost.clientId);
+      sync = client
+        ? await syncFeaturedImageToWordPress(client, updatedPost)
+        : { success: false, message: "Image saved, but the client record wasn't found so it couldn't be pushed to WordPress." };
+    }
+
+    return NextResponse.json({ success: true, featuredImageUrl: imageUrl, post: updatedPost, sync });
 
   } catch (err) {
     return NextResponse.json(
