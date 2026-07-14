@@ -39,6 +39,7 @@ export interface Topic {
   supportsCommercialKeyword?: string;
   funnelStage?: "TOFU" | "MOFU" | "BOFU";
   internalLinkTarget?: string;
+  createdAt?: string;
 }
 
 export interface Post {
@@ -63,6 +64,7 @@ export interface Post {
   featuredImageUrl?: string;
   featuredImageAlt?: string;
   aiTellsDetected?: string[];
+  createdAt?: string;
 }
 
 export type Tab = "dashboard" | "clients" | "topics" | "posts" | "settings" | "schedule";

@@ -7,6 +7,14 @@ function generateSlugPreview(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
+// Short human date, e.g. "Jun 23, 2026". Empty string for missing/bad dates.
+function fmtDate(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 const UNPUBLISHED_SECTIONS: { status: string; label: string }[] = [
   { status: "ready",  label: "Ready to Publish" },
   { status: "draft",  label: "Drafts" },
@@ -872,6 +880,11 @@ function PostRow({ post, loading, onPreview, onPublish, onRewrite, onDelete, onS
         <p className="text-sm font-medium text-[var(--color-foreground)] truncate">{post.title}</p>
         <div className="flex items-center gap-3 mt-0.5 flex-wrap">
           <span className="text-xs text-[var(--color-muted-foreground)]">{post.wordCount} words</span>
+          {post.status === "published" && post.publishedAt ? (
+            <span className="text-xs text-[var(--color-muted-foreground)]">Published {fmtDate(post.publishedAt)}</span>
+          ) : post.createdAt ? (
+            <span className="text-xs text-[var(--color-muted-foreground)]">Written {fmtDate(post.createdAt)}</span>
+          ) : null}
           {isGhostPublished && (
             <span className="text-xs text-[var(--color-warning)]">no live URL — likely never reached WP</span>
           )}

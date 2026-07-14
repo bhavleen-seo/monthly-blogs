@@ -10,6 +10,14 @@ function formatMonth(m: string) {
   return new Date(Number(year), Number(month) - 1).toLocaleDateString("en-AU", { month: "long", year: "numeric" });
 }
 
+// Short human date, e.g. "Jun 23, 2026". Empty string for missing/bad dates.
+function fmtDate(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 export default function TopicsTab({
   clients,
   topics,
@@ -384,6 +392,9 @@ function TopicRow({
             )}
           </div>
           <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5 line-clamp-2">{topic.description}</p>
+          {topic.createdAt && (
+            <p className="text-[11px] text-[var(--color-muted-foreground)] mt-0.5">Researched {fmtDate(topic.createdAt)}</p>
+          )}
 
           <div className="flex items-center gap-1.5 mt-2 flex-wrap">
             {typeof topic.searchVolume === "number" ? (
