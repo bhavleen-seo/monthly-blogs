@@ -5,7 +5,7 @@
  *               Lets the dashboard publish blog posts to this WordPress site without
  *               needing an Application Password. Works even when Wordfence has
  *               Application Passwords disabled.
- * Version:      1.2.0
+ * Version:      1.2.1
  * Author:       CS Design Studios
  * Author URI:   https://csdesignstudios.com
  *
@@ -22,13 +22,19 @@ if (!defined('ABSPATH')) exit;
 define('CS_PUBLISHER_SECRET', '__CS_PUBLISHER_SECRET__');
 define('CS_PUBLISHER_USER_ID', 0);
 
-// Use a versioned class name so re-installing over an old copy never causes
-// duplicate-function fatal errors. The class registers everything on instantiation.
-if (!class_exists('CS_Publisher_v1')) :
+// Versioned class name — BUMP THIS on EVERY release (v1 -> v1_2 -> v1_3 ...).
+// It must differ from every previously shipped name. Reason: an older copy can
+// still be present and load FIRST (e.g. a stale must-use plugin in
+// wp-content/mu-plugins/, which WordPress loads before normal plugins). If both
+// copies used the same class name, class_exists() would make the first-loaded
+// (older) copy win and this newer one would be silently skipped. A unique name
+// guarantees this copy's class is always defined, and the routes below register
+// with override=true so the newest loaded copy always handles requests.
+if (!class_exists('CS_Publisher_v1_2')) :
 
-class CS_Publisher_v1 {
+class CS_Publisher_v1_2 {
 
-    const VERSION = '1.2.0';
+    const VERSION = '1.2.1';
 
     public function __construct() {
         add_action('admin_menu',    [$this, 'register_settings_page']);
@@ -94,16 +100,19 @@ class CS_Publisher_v1 {
     // ─── REST routes ─────────────────────────────────────────────────────────
 
     public function register_routes() {
+        // override=true (4th arg): if a stale older copy already registered
+        // these routes (it loads first as a must-use plugin), replace them so
+        // the newest installed copy always handles requests.
         register_rest_route('cs-publisher/v1', '/publish', [
             'methods'             => 'POST',
             'callback'            => [$this, 'handle_publish'],
             'permission_callback' => [$this, 'check_secret'],
-        ]);
+        ], true);
         register_rest_route('cs-publisher/v1', '/ping', [
             'methods'             => 'GET',
             'callback'            => [$this, 'handle_ping'],
             'permission_callback' => [$this, 'check_secret'],
-        ]);
+        ], true);
     }
 
     // ─── Authentication ───────────────────────────────────────────────────────
@@ -303,6 +312,6 @@ class CS_Publisher_v1 {
     }
 }
 
-new CS_Publisher_v1();
+new CS_Publisher_v1_2();
 
-endif; // class_exists('CS_Publisher_v1')
+endif; // class_exists('CS_Publisher_v1_2')

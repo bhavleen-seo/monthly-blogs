@@ -718,9 +718,13 @@ export async function syncFeaturedImageToWordPress(
 
     if (!res || !res.ok) {
       const errText = res ? await res.text().catch(() => "") : "No response";
-      // Detect old plugin versions that try to insert instead of updating image only
+      // This error means an OLD plugin copy is still running: it doesn't handle
+      // image-only updates and falls through to the insert path. Almost always a
+      // stale must-use plugin (wp-content/mu-plugins/cs-publisher.php) that loads
+      // first and shadows the newer normal plugin. Reinstalling does NOT fix it —
+      // the old file must be removed (or install v1.2.1+, which auto-overrides).
       if (errText.includes("cs_publisher_insert_failed")) {
-        return { success: false, message: "CS Publisher plugin needs updating — please download the latest version from the Clients tab and reinstall" };
+        return { success: false, message: "An OLD CS Publisher copy is still active and shadowing the new one — reinstalling won't fix it. Delete the stale file wp-content/mu-plugins/cs-publisher.php (it doesn't show on the Plugins screen), then Test WP. Or download the v1.2.1+ installer from the Clients tab, which auto-overrides old copies." };
       }
       if (!res || res.status === 404 || res.status === 403) {
         return { success: false, message: "CS Publisher plugin not reachable — Cloudflare or a WAF may be blocking all URL variants. Try adding a Cloudflare bypass rule for cs-publisher/v1/publish, or set up a WP App Password instead." };
