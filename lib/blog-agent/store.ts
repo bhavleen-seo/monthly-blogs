@@ -328,6 +328,14 @@ export async function saveClient(client: Client): Promise<void> {
 }
 
 export async function deleteClient(id: string): Promise<void> {
+  // Cascade: remove all topics, posts, and site profile for this client first.
+  const [allTopics, allPosts] = await Promise.all([getTopics(), getPosts()]);
+  await Promise.all([
+    saveTopics(allTopics.filter((t) => t.clientId !== id)),
+    savePosts(allPosts.filter((p) => p.clientId !== id)),
+    deleteClientProfile(id).catch(() => {}),
+  ]);
+
   const clients = (await rawGetClients()).filter((c) => c.id !== id);
   if (useKV()) {
     await kvSet(KV.CLIENTS, clients);
