@@ -99,8 +99,8 @@ export default function TopicsTab({
     });
   };
   const clearSelection = () => setSelectedIds(new Set());
-  const selectAllCurrentApproved = () => setSelectedIds(new Set(currentApproved.map((t) => t.id)));
-  const selectedCount = currentApproved.filter((t) => selectedIds.has(t.id)).length;
+  const selectAllCurrentApproved = () => setSelectedIds(new Set([...currentApproved, ...prevMonthApproved].map((t) => t.id)));
+  const selectedCount = [...currentApproved, ...prevMonthApproved].filter((t) => selectedIds.has(t.id)).length;
 
   const resetClient = () => {
     setClientId("");
@@ -295,6 +295,7 @@ export default function TopicsTab({
             const monthTopics = prevMonthApproved.filter((t) => t.month === m);
             const writtenCount = monthTopics.filter((t) => writtenTopicIds.has(t.id)).length;
             const isOpen = expandedPrevMonths.has(m);
+            const monthSelectedCount = monthTopics.filter((t) => selectedIds.has(t.id)).length;
             return (
               <div key={m} className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl overflow-hidden">
                 <button onClick={() => togglePrevMonth(m)}
@@ -312,12 +313,21 @@ export default function TopicsTab({
                     {monthTopics.length - writtenCount > 0 && (
                       <span className="text-[var(--color-muted-foreground)]">{monthTopics.length - writtenCount} not written</span>
                     )}
+                    {monthSelectedCount > 0 && (
+                      <button onClick={(e) => { e.stopPropagation(); onWriteSelected(monthTopics.filter((t) => selectedIds.has(t.id)).map((t) => t.id)); clearSelection(); }}
+                        disabled={loading}
+                        className="text-xs font-medium bg-[var(--color-primary)] text-[var(--color-primary-foreground)] px-3 py-1 rounded-lg hover:opacity-90 disabled:opacity-40">
+                        Write Selected ({monthSelectedCount})
+                      </button>
+                    )}
                   </div>
                 </button>
                 {isOpen && (
                   <div className="border-t border-[var(--color-border)] divide-y divide-[var(--color-border)]">
                     {monthTopics.map((topic) => (
                       <TopicRow key={topic.id} topic={topic}
+                        selected={selectedIds.has(topic.id)}
+                        onToggleSelect={writtenTopicIds.has(topic.id) ? undefined : () => toggleSelect(topic.id)}
                         isWritten={writtenTopicIds.has(topic.id)}
                         onApprove={onApprove} onReject={onReject}
                         rationaleExpanded={expandedRationales.has(topic.id)} onToggleRationale={() => toggleRationale(topic.id)} />
