@@ -72,7 +72,9 @@ export default function TopicsTab({
   }, [topics, clientId, sortMode]);
 
   // Split into current month vs previous months.
-  const currentMonthTopics = allClientTopics.filter((t) => !t.month || t.month === currentMonth);
+  // Include pending topics from any month — Vercel runs UTC so server-tagged month
+  // can lag the user's local date by up to ~14 hours, making fresh topics invisible.
+  const currentMonthTopics = allClientTopics.filter((t) => !t.month || t.month === currentMonth || t.status === "pending");
   const currentPending  = currentMonthTopics.filter((t) => t.status === "pending");
   const currentApproved = currentMonthTopics.filter((t) => t.status === "approved");
 
