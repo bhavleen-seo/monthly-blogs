@@ -188,6 +188,43 @@ const CORE_CONTENT_INSTRUCTIONS = `
 ALWAYS generate an optimized page title AND a distinct H1 — do NOT just reuse the topic title verbatim, and never output the same text for both fields.
 `.trim();
 
+// ─── De-watermark pass ───────────────────────────────────────────────────────
+// Rewrites Claude's output through a non-Anthropic model so the Claude text
+// watermark (introduced Aug 2026, EU AI Act compliance) is not present in the
+// published post. Falls back to the original content if the rewrite fails.
+
+const DEFAULT_DEWATERMARK_MODEL = "openai/gpt-4o-mini";
+
+async function deWatermark(
+  parsed: { seoTitle?: string; h1?: string; content: string; excerpt: string; metaDescription: string; featuredImagePrompt: string },
+  model: string
+): Promise<typeof parsed> {
+  try {
+    const prompt = `You are a skilled editor. Rewrite the blog post JSON below so it reads as naturally human-written.
+
+STRICT RULES:
+- Return ONLY valid JSON with the same fields as the input — no extra text
+- Preserve ALL HTML tags and attributes exactly, especially every href URL — do NOT alter any link
+- Keep all heading tags (h2, h3) and the overall post structure
+- Only rewrite the readable prose text between HTML tags, varying phrasing and sentence structure
+- Preserve all facts, figures, and meaning — do not invent new claims
+- Do NOT change the featuredImagePrompt field
+- seoTitle, h1, excerpt, metaDescription may be lightly rephrased but must stay accurate
+
+${JSON.stringify({ seoTitle: parsed.seoTitle, h1: parsed.h1, content: parsed.content, excerpt: parsed.excerpt, metaDescription: parsed.metaDescription, featuredImagePrompt: parsed.featuredImagePrompt })}`;
+
+    const result = await complete({ model, prompt, maxTokens: 8192 });
+    const jsonMatch = result.match(/\{[\s\S]*\}/);
+    const rewritten = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+    if (!rewritten?.content) throw new Error("empty content in response");
+    console.log(`[writer] de-watermark pass complete (${model})`);
+    return rewritten;
+  } catch (err) {
+    console.warn("[writer] de-watermark failed, using original content:", err);
+    return parsed;
+  }
+}
+
 // ─── Writer ──────────────────────────────────────────────────────────────────
 
 export async function writeBlogPost(
@@ -365,6 +402,10 @@ Return ONLY the JSON object, no other text.`;
   } catch {
     throw new Error(`Failed to parse blog post: ${text.slice(0, 200)}`);
   }
+
+  // Rewrite through a non-Anthropic model to remove the Claude text watermark.
+  const dwModel = settings.deWatermarkModel || DEFAULT_DEWATERMARK_MODEL;
+  parsed = { ...parsed, ...await deWatermark(parsed, dwModel) };
 
   // Strip em dashes / smart quotes / ellipsis / etc. from every text field.
   // Done AFTER parse so we don't risk breaking the JSON, BEFORE detection so

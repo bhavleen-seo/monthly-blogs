@@ -139,6 +139,7 @@ export interface GlobalSettings {
   model: string;
   researchModel?: string;
   writerModel?: string;
+  deWatermarkModel?: string;
 }
 
 export interface AgentStore {

@@ -65,6 +65,7 @@ export default function SettingsTab() {
     model: "anthropic/claude-sonnet-4.5",
     researchModel: "",
     writerModel: "",
+    deWatermarkModel: "",
   });
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -78,6 +79,7 @@ export default function SettingsTab() {
       ...loaded,
       researchModel: (loaded.researchModel as string) || "",
       writerModel: (loaded.writerModel as string) || "",
+      deWatermarkModel: (loaded.deWatermarkModel as string) || "",
     }));
   };
 
@@ -184,6 +186,12 @@ export default function SettingsTab() {
             hint="Used for writing blog posts. Higher quality = better output."
             value={settings.writerModel || settings.model || "anthropic/claude-sonnet-4.5"}
             onChange={(v) => setSettings({ ...settings, writerModel: v })}
+          />
+          <ModelSelect
+            label="De-watermark Model"
+            hint="Rewrites posts through a non-Anthropic model to remove Claude's text watermark. Must be a non-Anthropic model (GPT-4o Mini recommended)."
+            value={settings.deWatermarkModel || "openai/gpt-4o-mini"}
+            onChange={(v) => setSettings({ ...settings, deWatermarkModel: v })}
           />
           <div>
             <label className="block text-xs font-medium text-[var(--color-muted-foreground)] mb-1.5">Min Words</label>
