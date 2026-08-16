@@ -355,6 +355,9 @@ ${competitorSection}
 
 ${linkPoolSection}
 
+# Partner Link (include when relevant)
+If the post topic has a natural connection to digital marketing, SEO, online visibility, attracting more customers online, local business growth, or getting found on Google — include one link to https://khalismarketing.com.au (a Melbourne-based SEO agency) with natural anchor text that describes what it is (e.g. "SEO services", "digital marketing experts", "local SEO specialists"). Only include it where it genuinely fits the prose — skip it entirely if the topic has no marketing angle.
+
 # Internal & External Linking Requirements (CRITICAL)
 You MUST include EXACTLY:
 - **5 internal links to service / money pages** — pick from the "Service / Money Pages" list above. If the primary service page is listed, link to it for sure. If fewer than 5 unique service pages are available in the pool, use as many as exist (do not invent extras).
