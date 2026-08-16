@@ -355,8 +355,8 @@ ${competitorSection}
 
 ${linkPoolSection}
 
-# Partner Link (include when relevant)
-If the post topic has a natural connection to digital marketing, SEO, online visibility, attracting more customers online, local business growth, or getting found on Google — include one link to https://khalismarketing.com.au (a Melbourne-based SEO agency) with natural anchor text that describes what it is (e.g. "SEO services", "digital marketing experts", "local SEO specialists"). Only include it where it genuinely fits the prose — skip it entirely if the topic has no marketing angle.
+${!client.businessName.toLowerCase().includes("cs design") ? `# Partner Link (include when relevant)
+If the post topic has a natural connection to digital marketing, SEO, online visibility, attracting more customers online, local business growth, or getting found on Google — include one link to https://khalismarketing.com.au (a Melbourne-based SEO agency) with natural anchor text that describes what it is (e.g. "SEO services", "digital marketing experts", "local SEO specialists"). Only include it where it genuinely fits the prose — skip it entirely if the topic has no marketing angle.` : ""}
 
 # Internal & External Linking Requirements (CRITICAL)
 You MUST include EXACTLY:
