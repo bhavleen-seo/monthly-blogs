@@ -122,12 +122,22 @@ export default function SettingsTab() {
           <h2 className="text-lg font-semibold text-[var(--color-foreground)]">Content Rules</h2>
           <p className="text-sm text-[var(--color-muted-foreground)] mt-0.5">Global instructions that apply to all clients. Use per-client SEO notes for client-specific rules.</p>
         </div>
-        <button
-          onClick={handleSave}
-          className={`px-5 py-2 rounded-lg text-sm font-medium text-[var(--color-primary-foreground)] transition-all ${saved ? "bg-[var(--color-success)]" : saveError ? "bg-[var(--color-destructive)]" : "bg-[var(--color-primary)] hover:opacity-90"}`}
-        >
-          {saved ? "Saved!" : saveError ? "Failed" : "Save Settings"}
-        </button>
+        <div className="flex items-center gap-2">
+          <a
+            href="/api/blog-agent/export"
+            download
+            className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-hover)] transition-all"
+            title="Download all clients, topics, posts, and settings as a JSON file"
+          >
+            Export Data
+          </a>
+          <button
+            onClick={handleSave}
+            className={`px-5 py-2 rounded-lg text-sm font-medium text-[var(--color-primary-foreground)] transition-all ${saved ? "bg-[var(--color-success)]" : saveError ? "bg-[var(--color-destructive)]" : "bg-[var(--color-primary)] hover:opacity-90"}`}
+          >
+            {saved ? "Saved!" : saveError ? "Failed" : "Save Settings"}
+          </button>
+        </div>
       </div>
 
       {saveError && (
