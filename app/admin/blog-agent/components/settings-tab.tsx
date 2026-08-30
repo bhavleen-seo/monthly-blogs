@@ -69,6 +69,8 @@ export default function SettingsTab() {
   });
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState("");
   const [storageInfo, setStorageInfo] = useState<Record<string, unknown> | null>(null);
 
   // Merge loaded settings with defaults so newly-added fields
@@ -123,6 +125,37 @@ export default function SettingsTab() {
           <p className="text-sm text-[var(--color-muted-foreground)] mt-0.5">Global instructions that apply to all clients. Use per-client SEO notes for client-specific rules.</p>
         </div>
         <div className="flex items-center gap-2">
+          <label
+            className="px-4 py-2 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-hover)] transition-all cursor-pointer"
+            title="Import a JSON file exported from this dashboard"
+          >
+            {importing ? "Importing…" : importResult || "Import Data"}
+            <input type="file" accept=".json" className="hidden" onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              setImporting(true);
+              setImportResult("");
+              try {
+                const text = await file.text();
+                const data = JSON.parse(text);
+                const res = await fetch("/api/blog-agent/import", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(data),
+                });
+                const result = await res.json();
+                if (!res.ok) throw new Error(result.error || "Import failed");
+                setImportResult(`Imported: ${result.imported}`);
+                setTimeout(() => setImportResult(""), 5000);
+              } catch (err) {
+                setImportResult(err instanceof Error ? err.message : "Failed");
+                setTimeout(() => setImportResult(""), 5000);
+              } finally {
+                setImporting(false);
+                e.target.value = "";
+              }
+            }} />
+          </label>
           <a
             href="/api/blog-agent/export"
             download
